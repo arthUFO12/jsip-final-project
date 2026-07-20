@@ -1,0 +1,6 @@
+(executable
+ (name main)
+ (public_name arbiter)
+ (libraries core types)
+ (preprocess
+  (pps ppx_jane)))
