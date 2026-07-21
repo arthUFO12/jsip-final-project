@@ -4,5 +4,12 @@ open! Core
 type t =
 | Sports
 | Politics
-| Pop_culture
-| Economy
+| Elections
+| Finance
+| Culture
+| Crypto
+| Mentions
+| Tech_and_science
+| Commodities
+| Climate
+| Economics

@@ -1,15 +1,13 @@
 
 
-(* will end up being abstract *)
-type t = {
-  name : string 
-; odds : Odds.t 
-; yes_bbo : Bbo.t
-; no_bbo : Bbo.t
-; yes_multplier : Multipler.t 
-; no_multiplier : Multiplier.t
+type market_type = 
+| Single of Single_market.t
+| Group of Group_market.t
+
+
+
+type t =
+{ trade_topic : Trade_topic.t
+; market : market_type
+
 }
-
-
-val yes_bbo : t -> Side.t -> Bbo.t
-val no_bbo : t -> Side.t -> Bbo.t
