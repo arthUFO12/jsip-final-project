@@ -1,6 +1,6 @@
 (executable
  (name main)
  (public_name arbiter)
- (libraries core types caqti caqti-async caqti-driver-sqlite3)
+ (libraries core types)
  (preprocess
   (pps ppx_jane)))
