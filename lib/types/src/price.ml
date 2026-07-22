@@ -14,6 +14,13 @@ let of_microcents n = n
 let of_int_cents n = Int.( * ) n microcents_per_cent
 let to_microcents t = t
 
+let of_float_dollars n =
+  Float.iround_nearest_exn
+    (Float.( * ) n (Float.of_int microcents_per_dollar))
+;;
+
+(* converting polymarket bids for parser *)
+
 let to_int_cents_exn t =
   if Int.( <> ) (Int.rem t microcents_per_cent) 0
   then

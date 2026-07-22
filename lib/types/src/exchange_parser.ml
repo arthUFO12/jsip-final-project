@@ -1,45 +1,75 @@
 open! Core
+open Yojson.Safe.Util
+
+let json_price_opt_kalshi json key =
+  json |> member key |> to_int_option |> Option.map ~f:Price.of_int_cents
+;;
+
+let json_price_opt_polymarket json key =
+  json
+  |> member key
+  |> to_float_option
+  |> Option.map ~f:Price.of_float_dollars
+;;
+
+let time_of_json_opt json key =
+  json
+  |> member key
+  |> to_string_option
+  |> Option.bind ~f:(fun s ->
+    Option.try_with (fun () -> Time_ns.of_string s))
+;;
 
 let parse_kalshi_market (json : Yojson.Safe.t) : L1_market_metadata.t option =
-  let open Yojson.Safe.Util in
-  let price_opt key =
-    json |> member key |> to_int_option |> Option.map ~f:Price.of_int_cents
-  in
   try
     Some
       { L1_market_metadata.venue = Venue.Kalshi
       ; market_id = json |> member "ticker" |> to_string
       ; title = json |> member "title" |> to_string
       ; slug = json |> member "ticker" |> to_string
-        (* Kalshi has no slug; reuse ticker. Swap for "event_ticker" if you
-           want event-level grouping instead. *)
-      ; yes_bid = price_opt "yes_bid"
-      ; yes_ask = price_opt "yes_ask"
-      ; last_price = price_opt "last_price"
+      ; event_slug = json |> member "event_ticker" |> to_string_option
+      ; category = json |> member "category" |> to_string_option
+      ; yes_bid = json_price_opt_kalshi json "yes_bid"
+      ; yes_ask = json_price_opt_kalshi json "yes_ask"
+      ; last_price = json_price_opt_kalshi json "last_price"
       ; active =
           String.equal (json |> member "status" |> to_string) "active"
-      ; close_time =
-          json
-          |> member "close_time"
-          |> to_string_option
-          |> Option.bind ~f:(fun s ->
-            Option.try_with (fun () -> Time_ns.of_string s))
+          (* kalshi must derive boolean from string not being labeled active *)
+      ; close_time = time_of_json_opt json "close_time"
       }
   with
   | Type_error (_, _) -> None
 ;;
 
-let parse_polymarket_market json : L1_market_metadata.t option =
-  (* TODO: [outcomePrices] is a JSON array *encoded as a string*, e.g.
-     "\"[\\\"0.97\\\", \\\"0.03\\\"]\"" — parse the string field, then
-     parse *that* as JSON again. Index 0 = Yes, index 1 = No. TODO: convert
-     decimal-dollar string -> Price.t (microcent field). *)
-  ignore json;
-  None
+let parse_polymarket_market (json : Yojson.Safe.t)
+  : L1_market_metadata.t option
+  =
+  try
+    Some
+      { L1_market_metadata.venue = Venue.Polymarket
+      ; market_id = json |> member "conditionId" |> to_string
+      ; title = json |> member "question" |> to_string
+      ; slug = json |> member "slug" |> to_string
+      ; event_slug =
+          Option.try_with (fun () ->
+            json |> member "events" |> index 0 |> member "slug" |> to_string)
+      ; category = json |> member "category" |> to_string_option
+      ; yes_bid = json_price_opt_polymarket json "bestBid"
+      ; yes_ask = json_price_opt_polymarket json "bestAsk"
+      ; last_price = json_price_opt_polymarket json "lastTradePrice"
+      ; active =
+          json |> member "active" |> to_bool
+          && not (json |> member "closed" |> to_bool)
+      ; close_time = time_of_json_opt json "endDate"
+      }
+  with
+  | Type_error (_, _) -> None
 ;;
 
 (* converts the body from string to json for use in parse functions *)
-let markets_of_body (~body : string) ~(venue : Venue.t) : Yojson.Safe.t list Or_error.t =
+let markets_of_body ~(body : string) ~(venue : Venue.t)
+  : Yojson.Safe.t list Or_error.t
+  =
   match Yojson.Safe.from_string body with
   | exception _ -> Or_error.error_string "body is not valid JSON"
   | json ->
@@ -64,10 +94,13 @@ let parse_data ~body ~(venue : Venue.t) =
     | Kalshi -> parse_kalshi_market
     | Polymarket -> parse_polymarket_market
   in
-  (* Per-entry failures are skipped, not fatal. *)
-  List.filter_map markets ~f:(fun m ->
-    (* TODO (Kalshi): drop multi-leg/MVE entries here if any slip past
-       [mve_filter=exclude] — check the relevant field before parsing. *)
-    (* TODO: count/log skipped entries so schema drift is visible. *)
-    parse_one m)
+  let parsed = List.map markets ~f:parse_one in
+  let skipped = List.count parsed ~f:Option.is_none in
+  if skipped > 0
+  then
+    eprintf
+      "parse_data: skipped %d/%d entries\n"
+      skipped
+      (List.length markets);
+  List.filter_map parsed ~f:Fn.id
 ;;
