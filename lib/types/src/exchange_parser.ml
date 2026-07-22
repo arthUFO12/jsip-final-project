@@ -1,10 +1,10 @@
 open! Core
 
+let json_price_opt json key =
+    json |> member key |> to_int_option |> Option.map ~f:Price.of_int_cents
+
 let parse_kalshi_market (json : Yojson.Safe.t) : L1_market_metadata.t option =
   let open Yojson.Safe.Util in
-  let price_opt key =
-    json |> member key |> to_int_option |> Option.map ~f:Price.of_int_cents
-  in
   try
     Some
       { L1_market_metadata.venue = Venue.Kalshi
@@ -29,7 +29,7 @@ let parse_kalshi_market (json : Yojson.Safe.t) : L1_market_metadata.t option =
   | Type_error (_, _) -> None
 ;;
 
-let parse_polymarket_market json : L1_market_metadata.t option =
+let parse_polymarket_market (json : Yojson.Safe.t) : L1_market_metadata.t option =
   (* TODO: [outcomePrices] is a JSON array *encoded as a string*, e.g.
      "\"[\\\"0.97\\\", \\\"0.03\\\"]\"" — parse the string field, then
      parse *that* as JSON again. Index 0 = Yes, index 1 = No. TODO: convert
