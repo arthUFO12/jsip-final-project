@@ -36,6 +36,32 @@ let custom_type : custom Caqti_type.t =
   T.custom ~encode ~decode representation
 ```
 
+For larger records:
+```ocaml
+(* 1. Define your domain record *)
+type user = {
+  id : int64;
+  name : string;
+  email : string;
+}
+
+(* 2. Link your record to Caqti symmetrically *)
+let user_type : user T.t =
+  (* Use product to cleanly decode database rows back into the record *)
+  let representation =
+    T.product (fun id name email -> { id; name; email })
+    @@ T.cell T.int64
+    @@ T.cell T.string
+    @@ T.cell T.string
+    @@ T.end_product
+  in
+  (* Define how to encode the record into a form Caqti can insert *)
+  let encode { id; name; email } = Ok (id, (name, (email, ()))) in
+  let decode record = Ok record in
+  
+  T.custom ~encode ~decode representation
+```
+
 Then use the `custom_type` the same way you would any other type.
 
 ### Creating and inserting
@@ -73,7 +99,7 @@ let execute_get_item (module Connection : Caqti_async.CONNECTION) id =
 ```
 
 To initialize the database, this code would be ran:
-
+Note the uri string should be sqlite3:///path/to/your/data.db
 ```ocaml
 open Core
 open Async

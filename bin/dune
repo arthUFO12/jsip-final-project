@@ -1,6 +1,6 @@
 (executable
  (name main)
  (public_name arbiter)
- (libraries core types)
+ (libraries core types caqti caqti-async)
  (preprocess
   (pps ppx_jane)))

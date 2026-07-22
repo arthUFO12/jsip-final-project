@@ -1,0 +1,6 @@
+(library
+ (name database)
+ (public_name arbiter.database)
+ (libraries core caqti caqti-async async)
+ (preprocess
+  (pps ppx_jane)))
