@@ -39,7 +39,7 @@ let parse_polymarket_market json : L1_market_metadata.t option =
 ;;
 
 (* converts the body from string to json for use in parse functions *)
-let markets_of_body (~body : string) ~(venue : Venue.t) : Yojson.Safe.t list Or_error.t =
+let markets_of_body ~(body : string) ~(venue : Venue.t) : Yojson.Safe.t list Or_error.t =
   match Yojson.Safe.from_string body with
   | exception _ -> Or_error.error_string "body is not valid JSON"
   | json ->

@@ -1,0 +1,6 @@
+(library
+ (name parser)
+ (public_name arbiter.parser)
+ (libraries core types)
+ (preprocess
+  (pps ppx_jane)))

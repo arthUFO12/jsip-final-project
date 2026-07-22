@@ -7,4 +7,5 @@ type t =
 }
 
 let perform_action (t : t) : unit =
-  ()
+  ignore t
+;;

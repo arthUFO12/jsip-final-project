@@ -3,4 +3,4 @@ open! Core
 type t =
   | Kalshi
   | Polymarket
-[@@deriving sexp, compare, equal]
+[@@deriving sexp, compare, equal, string]

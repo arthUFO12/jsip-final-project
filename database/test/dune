@@ -1,12 +1,10 @@
 (library
- (name types_test)
- (libraries types core async expect_test_helpers_core)
+ (name database_test)
+ (libraries core types database caqti caqti-async async)
  ;; The OxCaml preview ppx_expect mis-resolves source paths from the
  ;; -source-tree-root the default backend passes; override it so expect
  ;; test corrections resolve relative to this directory.
  (inline_tests
-  (flags -source-tree-root .)
-  (deps
-   (glob_files fixtures/*.json)))
+  (flags -source-tree-root .))
  (preprocess
   (pps ppx_jane)))
