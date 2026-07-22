@@ -40,9 +40,6 @@
   ppx_jane
   ppx_html
   js_of_ocaml-ppx
-  caqti
-  caqti-async
-  caqti-driver-sqlite3
   (bin_prot :with-test)
   (notty-community :with-test)
   (expect_test_helpers_core :with-test)
