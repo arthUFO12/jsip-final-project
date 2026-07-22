@@ -25,3 +25,8 @@ let find_market_stub =
   (Database_types.market_id_type ->? Database_types.market_stub_type)
          {| SELECT * FROM market_stubs WHERE market_id = ? |}
 ;;
+
+let list_market_stubs_after = 
+  let open Caqti_request.Infix in
+  ((T.t2 T.int64 T.int) ->* Database_types.market_stub_type)
+  {| SELECT * FROM market_stubs WHERE close_time >= ? LIMIT ? |}

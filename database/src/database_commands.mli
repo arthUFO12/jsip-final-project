@@ -13,3 +13,9 @@ val find_market_stub
 
 val insert_market_stub
   : (Types.Market_stub.t, unit, [ `Zero ]) Caqti_request.t
+
+val list_market_stubs_after
+  : ( int64 * int
+      , Types.Market_stub.t
+      , [ `Many | `One | `Zero ] )
+      Caqti_request.t

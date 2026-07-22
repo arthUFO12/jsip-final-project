@@ -3,7 +3,7 @@ open Async
 open Types
 open Database
 
-let real_id = Market_id.of_string "12345"
+let real_id = Market_id.of_string (Time_ns.now () |> Time_ns.to_string)
 let fake_id = Market_id.of_string "23456"
 
 let make_stub ~venue ~market_id ~title ~close_time : Market_stub.t =
@@ -35,7 +35,7 @@ let%expect_test "market stub is successfully inserted into the table" =
       ~venue:"Polymarket"
       ~market_id:real_id
       ~title:"Don trump tweets"
-      ~close_time:"2026-07-20T15:45:00Z"
+      ~close_time:"2026-07-25T15:45:00Z"
   in
   let%bind success_or_error = Database_exec.insert_market_stub stub in
   (match success_or_error with
@@ -53,7 +53,7 @@ let%expect_test "market stub is successfully found" =
     | None -> print_endline "market id not found" 
     | Some stub -> print_endline [%string "Stub found: %{stub#Market_stub}"])
    | Error e -> print_endline (Error.to_string_hum e));
-  return [%expect {| Stub found: venue: Polymarket, market_id: 12345, title: Don trump tweets, close_time: 2026-07-20 15:45:00.000000000Z |}]
+  return [%expect {| Stub found: venue: Polymarket, market_id: 12345, title: Don trump tweets, close_time: 2026-07-30 15:45:00.000000000Z |}]
 ;;
 
 let%expect_test "Nonexistent market ID is not found" =
@@ -63,6 +63,14 @@ let%expect_test "Nonexistent market ID is not found" =
     (match stub_option with 
     | None -> print_endline "market id not found" 
     | Some stub -> print_endline [%string "Stub found: %{stub#Market_stub}"])
+   | Error e -> print_endline (Error.to_string_hum e));
+  return [%expect {| market id not found |}]
+;;
+
+let%expect_test "Market stubs after 2026-07-19 are found" =
+  let%bind stub_list_or_error = Database_exec.list_current_market_stubs 5 in
+  (match stub_list_or_error with
+   | Ok stub_list -> print_endline (List.length stub_list |> Int.to_string); List.iter stub_list ~f:(fun stub -> print_endline (Market_stub.to_string stub))
    | Error e -> print_endline (Error.to_string_hum e));
   return [%expect {| market id not found |}]
 ;;

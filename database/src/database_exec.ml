@@ -58,3 +58,21 @@ let find_market_stub market_id : Market_stub.t option Deferred.Or_error.t =
   | Ok stub -> return (Ok stub)
   | Error e -> Deferred.Or_error.error_string (Caqti_error.show e)
 ;;
+
+let list_current_market_stubs limit : Market_stub.t list Deferred.Or_error.t =
+  let curr_time =
+    Time_ns.now ()
+    |> Time_ns.to_span_since_epoch
+    |> Time_ns.Span.to_int_sec
+    |> Int.to_int64
+  in
+  let%bind stubs_or_error =
+    with_pool (fun (module C : Caqti_async.CONNECTION) ->
+      C.collect_list
+        Database_commands.list_market_stubs_after
+        (curr_time, limit))
+  in
+  match stubs_or_error with
+  | Ok stubs -> return (Ok stubs)
+  | Error e -> Deferred.Or_error.error_string (Caqti_error.show e)
+;;
