@@ -27,6 +27,8 @@ val of_microcents : int -> t
     microcents). *)
 val of_int_cents : int -> t
 
+val of_float_dollars : float -> t
+
 (** {1 Accessors} *)
 
 val to_microcents : t -> int
