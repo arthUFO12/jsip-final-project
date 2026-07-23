@@ -23,10 +23,11 @@ let insert_market_stub =
 let find_market_stub =
   let open Caqti_request.Infix in
   (Database_types.market_id_type ->? Database_types.market_stub_type)
-         {| SELECT * FROM market_stubs WHERE market_id = ? |}
+    {| SELECT * FROM market_stubs WHERE market_id = ? |}
 ;;
 
-let list_market_stubs_after = 
+let list_market_stubs_after =
   let open Caqti_request.Infix in
-  ((T.t2 T.int64 T.int) ->* Database_types.market_stub_type)
-  {| SELECT * FROM market_stubs WHERE close_time >= ? LIMIT ? |}
+  (T.t2 T.int64 T.int ->* Database_types.market_stub_type)
+    {| SELECT * FROM market_stubs WHERE close_time >= ? LIMIT ? |}
+;;

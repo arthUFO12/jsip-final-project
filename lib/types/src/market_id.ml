@@ -1,4 +1,4 @@
-open! Core 
+open! Core
 
 module T = struct
   type t = string [@@deriving sexp, bin_io, compare, equal, hash, string]

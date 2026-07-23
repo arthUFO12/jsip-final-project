@@ -1,7 +1,5 @@
-open! Core 
+open! Core
 
-
-type t 
-
+type t
 
 val conditionally_perform_action : t -> unit

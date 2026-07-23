@@ -1,4 +1,5 @@
 open! Core
+open Types
 
 type t =
   { ast_root : Ast_node.t

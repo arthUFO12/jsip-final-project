@@ -4,7 +4,6 @@ type t =
   { venue : Venue.t
   ; market_id : string
   ; title : string
-
   ; slug : string
   ; yes_bid : Price.t option
   ; yes_ask : Price.t option

@@ -1,12 +1,7 @@
-open! Core 
-
+open! Core
 
 type t =
-| Yes 
-| No
+  | Yes
+  | No
 
-
-
-let flip = function 
-| Yes -> No
-| No -> Yes
+let flip = function Yes -> No | No -> Yes

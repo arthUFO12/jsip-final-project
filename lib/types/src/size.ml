@@ -1,7 +1,5 @@
-open! Core 
+open! Core
+include Int
 
-
-
-include Int 
-let of_int = Fn.id 
+let of_int = Fn.id
 let to_int = Fn.id

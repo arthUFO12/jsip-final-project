@@ -1,9 +1,6 @@
-open! Core 
+open! Core
 
-
-
-type t 
-
+type t
 
 val of_float : float -> t
 val to_float : t -> float

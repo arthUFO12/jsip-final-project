@@ -10,14 +10,14 @@ let parse_kalshi_market (json : Yojson.Safe.t) : L1_market_metadata.t option =
       { L1_market_metadata.venue = Venue.Kalshi
       ; market_id = json |> member "ticker" |> to_string
       ; title = json |> member "title" |> to_string
-      ; slug = json |> member "ticker" |> to_string
-        (* Kalshi has no slug; reuse ticker. Swap for "event_ticker" if you
-           want event-level grouping instead. *)
+      ; slug =
+          json |> member "ticker" |> to_string
+          (* Kalshi has no slug; reuse ticker. Swap for "event_ticker" if you
+             want event-level grouping instead. *)
       ; yes_bid = price_opt "yes_bid"
       ; yes_ask = price_opt "yes_ask"
       ; last_price = price_opt "last_price"
-      ; active =
-          String.equal (json |> member "status" |> to_string) "active"
+      ; active = String.equal (json |> member "status" |> to_string) "active"
       ; close_time =
           json
           |> member "close_time"
@@ -39,7 +39,9 @@ let parse_polymarket_market json : L1_market_metadata.t option =
 ;;
 
 (* converts the body from string to json for use in parse functions *)
-let markets_of_body ~(body : string) ~(venue : Venue.t) : Yojson.Safe.t list Or_error.t =
+let markets_of_body ~(body : string) ~(venue : Venue.t)
+  : Yojson.Safe.t list Or_error.t
+  =
   match Yojson.Safe.from_string body with
   | exception _ -> Or_error.error_string "body is not valid JSON"
   | json ->

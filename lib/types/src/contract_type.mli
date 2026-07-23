@@ -1,9 +1,7 @@
-open! Core 
+open! Core
 
-
-type t = 
-| Yes 
-| No 
-
+type t =
+  | Yes
+  | No
 
 val flip : t -> t

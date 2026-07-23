@@ -1,11 +1,7 @@
 open! Core
 
-type t = 
-| Buy 
-| Sell
+type t =
+  | Buy
+  | Sell
 
-
-
-let flip = function 
-| Buy -> Sell
-| Sell -> Buy
+let flip = function Buy -> Sell | Sell -> Buy
