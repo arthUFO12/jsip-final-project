@@ -7,3 +7,5 @@ module Market_id = Market_id
 module Venue = Venue
 module Action = Action
 module Action_response = Action_response
+module Slug = Slug
+module Size = Size

@@ -5,3 +5,4 @@ type t =
   | No
 
 val flip : t -> t
+val sign : t -> Sign.t

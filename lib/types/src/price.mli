@@ -41,6 +41,7 @@ val to_dollar_float : t -> float
 (** {1 Arithmetic} *)
 
 val zero : t
+val neg : t -> t
 val ( + ) : t -> t -> t
 val ( - ) : t -> t -> t
 

@@ -28,18 +28,20 @@ let market_id_type =
 ;;
 
 let market_stub_type =
-  let representation = T.(t4 T.string T.string T.string T.int64) in
-  let encode ({ venue; market_id; title; close_time } : Market_stub.t) =
+  let representation = T.(t5 T.string T.string T.string T.string T.int64) in
+  let encode ({ venue; market_id; slug; title; close_time } : Market_stub.t) =
     Ok
       ( Venue.to_string venue
       , Market_id.to_string market_id
+      , Slug.to_string slug
       , title
       , Option.value_exn close_time |> time_ns_to_int64 )
   in
-  let decode (venue_str, market_id_str, title, close_time_int) =
+  let decode (venue_str, market_id_str, slug_str, title, close_time_int) =
     Ok
       ({ venue = Venue.of_string venue_str
        ; market_id = Market_id.of_string market_id_str
+       ; slug = Slug.of_string slug_str
        ; title
        ; close_time = Some (int64_to_time_ns close_time_int)
        }

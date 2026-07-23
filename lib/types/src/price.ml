@@ -28,6 +28,7 @@ let to_dollar_float t =
 ;;
 
 let zero = 0
+let neg t = Int.neg t
 let ( + ) = Int.( + )
 let ( - ) = Int.( - )
 let ( * ) price qty = Int.( * ) price qty

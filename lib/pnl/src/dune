@@ -1,0 +1,6 @@
+(library
+ (name pnl)
+ (public_name arbiter.pnl)
+ (libraries core types)
+ (preprocess
+  (pps ppx_jane)))
