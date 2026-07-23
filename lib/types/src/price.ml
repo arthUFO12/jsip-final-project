@@ -12,6 +12,29 @@ let microcents_per_cent = 1_000_000
 let microcents_per_dollar = 100_000_000
 let of_microcents n = n
 let of_int_cents n = Int.( * ) n microcents_per_cent
+
+let of_dollars_string str =
+  Option.try_with (fun () ->
+    let dollars_part, frac_part =
+      match String.split str ~on:'.' with
+      | [ l; r ] -> l, r
+      | [ l ] -> l, ""
+      | _ -> failwith "malformed price string"
+    in
+    if String.length frac_part > 8 then failwith "fraction too precise";
+    let dollars = Int.of_string dollars_part in
+    if Int.( < ) dollars 0 then failwith "negative price";
+    let frac =
+      if String.is_empty frac_part
+      then 0
+      else
+        Int.( * )
+          (Int.of_string frac_part)
+          (Int.pow 10 (Int.( - ) 8 (String.length frac_part)))
+    in
+    Int.( + ) (Int.( * ) dollars microcents_per_dollar) frac)
+;;
+
 let to_microcents t = t
 
 let of_float_dollars n =

@@ -31,7 +31,6 @@ depends: [
   "ppx_jane"
   "ppx_html"
   "js_of_ocaml-ppx"
-  "async_ssl"
   "bin_prot" {with-test}
   "notty-community" {with-test}
   "expect_test_helpers_core" {with-test}

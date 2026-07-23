@@ -1,8 +1,0 @@
-(library
- (name types_test)
- (libraries types core async expect_test_helpers_core)
- (inline_tests
-  (deps
-   (glob_files fixtures/*.json)))
- (preprocess
-  (pps ppx_jane)))

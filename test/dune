@@ -1,0 +1,7 @@
+(library
+ (name types_test)
+ (libraries types core expect_test_helpers_core)
+ (inline_tests
+  (flags -source-tree-root .))
+ (preprocess
+  (pps ppx_jane)))

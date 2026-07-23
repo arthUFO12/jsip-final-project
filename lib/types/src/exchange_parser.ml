@@ -2,7 +2,10 @@ open! Core
 open Yojson.Safe.Util
 
 let json_price_opt_kalshi json key =
-  json |> member key |> to_int_option |> Option.map ~f:Price.of_int_cents
+  json
+  |> member key
+  |> to_string_option
+  |> Option.bind ~f:Price.of_dollars_string
 ;;
 
 let json_price_opt_polymarket json key =
@@ -28,13 +31,11 @@ let parse_kalshi_market (json : Yojson.Safe.t) : L1_market_metadata.t option =
       ; title = json |> member "title" |> to_string
       ; slug = json |> member "ticker" |> to_string
       ; event_slug = json |> member "event_ticker" |> to_string_option
-      ; category = json |> member "category" |> to_string_option
-      ; yes_bid = json_price_opt_kalshi json "yes_bid"
-      ; yes_ask = json_price_opt_kalshi json "yes_ask"
-      ; last_price = json_price_opt_kalshi json "last_price"
-      ; active =
-          String.equal (json |> member "status" |> to_string) "active"
-          (* kalshi must derive boolean from string not being labeled active *)
+      ; category = None
+      ; yes_bid = json_price_opt_kalshi json "yes_bid_dollars"
+      ; yes_ask = json_price_opt_kalshi json "yes_ask_dollars"
+      ; last_price = json_price_opt_kalshi json "last_price_dollars"
+      ; active = String.equal (json |> member "status" |> to_string) "active"
       ; close_time = time_of_json_opt json "close_time"
       }
   with
