@@ -5,12 +5,10 @@ open! Caqti_type
 open Types
 
 let global_pool = ref None
+let db_folder = "sqlite3:///home/ubuntu/jsip-final-project/"
 
-let db_uri =
-  Uri.of_string "sqlite3:///home/ubuntu/jsip-final-project/data.db"
-;;
-
-let init_database () =
+let init_database db_name =
+  let db_uri = Uri.of_string (db_folder ^ db_name) in
   match Caqti_async.connect_pool db_uri with
   | Error err -> Or_error.error_string (Caqti_error.show err)
   | Ok pool ->
@@ -24,7 +22,7 @@ let with_pool f =
     (* Fail safely into the Deferred.Result monad *)
     Deferred.Result.fail
       (Caqti_error.connect_failed
-         ~uri:db_uri
+         ~uri:Uri.empty
          (Caqti_error.Msg "failed to connect to database"))
   | Some pool -> Caqti_async.Pool.use f pool
 ;;
@@ -60,12 +58,7 @@ let find_market_stub market_id : Market_stub.t option Deferred.Or_error.t =
 ;;
 
 let list_current_market_stubs limit : Market_stub.t list Deferred.Or_error.t =
-  let curr_time =
-    Time_ns.now ()
-    |> Time_ns.to_span_since_epoch
-    |> Time_ns.Span.to_int_sec
-    |> Int.to_int64
-  in
+  let curr_time = Time_ns.now () |> Database_types.time_ns_to_int64 in
   let%bind stubs_or_error =
     with_pool (fun (module C : Caqti_async.CONNECTION) ->
       C.collect_list
@@ -76,3 +69,18 @@ let list_current_market_stubs limit : Market_stub.t list Deferred.Or_error.t =
   | Ok stubs -> return (Ok stubs)
   | Error e -> Deferred.Or_error.error_string (Caqti_error.show e)
 ;;
+
+module For_testing = struct
+  let list_current_market_stubs limit ~time =
+    let curr_time = time |> Database_types.time_ns_to_int64 in
+    let%bind stubs_or_error =
+      with_pool (fun (module C : Caqti_async.CONNECTION) ->
+        C.collect_list
+          Database_commands.list_market_stubs_after
+          (curr_time, limit))
+    in
+    match stubs_or_error with
+    | Ok stubs -> return (Ok stubs)
+    | Error e -> Deferred.Or_error.error_string (Caqti_error.show e)
+  ;;
+end

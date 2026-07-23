@@ -3,8 +3,15 @@ open Async
 open Types
 open Database
 
-let real_id = Market_id.of_string (Time_ns.now () |> Time_ns.to_string)
+let real_id = Market_id.of_string "12345"
 let fake_id = Market_id.of_string "23456"
+let db_name = "test.db"
+let db_dir = "/home/ubuntu/jsip-final-project/"
+
+let file_exists file_name =
+  let%bind db_existence = Sys.file_exists file_name in
+  match db_existence with `Yes -> return true | _ -> return false
+;;
 
 let make_stub ~venue ~market_id ~title ~close_time : Market_stub.t =
   { venue = Venue.of_string venue
@@ -15,7 +22,11 @@ let make_stub ~venue ~market_id ~title ~close_time : Market_stub.t =
 ;;
 
 let%expect_test "successfully connect to database" =
-  (match Database_exec.init_database () with
+  let%bind db_exists = file_exists (db_dir ^ db_name) in
+  let%bind () =
+    if db_exists then Sys.remove (db_dir ^ db_name) else return ()
+  in
+  (match Database_exec.init_database db_name with
    | Ok () -> print_endline "Database connection is online!"
    | Error e -> print_endline (Error.to_string_hum e));
   return [%expect {| Database connection is online! |}]
@@ -23,10 +34,22 @@ let%expect_test "successfully connect to database" =
 
 let%expect_test "market stub table is successfully created" =
   let%bind success_or_error = Database_exec.create_market_stub_table () in
-  (match success_or_error with
-   | Ok () -> print_endline "File should be created"
-   | Error e -> print_endline (Error.to_string_hum e));
-  return [%expect {| File should be created |}]
+  let%bind () =
+    match success_or_error with
+    | Ok () ->
+      let%bind db_exists = file_exists (db_dir ^ db_name) in
+      if db_exists
+      then (
+        print_endline "Database is created";
+        return ())
+      else (
+        print_endline "Database was not created or existence unknown";
+        return ())
+    | Error e ->
+      print_endline (Error.to_string_hum e);
+      return ()
+  in
+  return [%expect {| Database is created |}]
 ;;
 
 let%expect_test "market stub is successfully inserted into the table" =
@@ -44,6 +67,23 @@ let%expect_test "market stub is successfully inserted into the table" =
   return [%expect {| row successfully created |}]
 ;;
 
+let%expect_test "duplicate stub id is not inserted into the table" =
+  let stub =
+    make_stub
+      ~venue:"Kalshi"
+      ~market_id:real_id
+      ~title:"France wins world cup"
+      ~close_time:"2026-08-15T00:00:00Z"
+  in
+  let%bind success_or_error = Database_exec.insert_market_stub stub in
+  (match success_or_error with
+   | Ok () -> print_endline "row successfully created"
+   | Error e -> print_endline (Error.to_string_hum e));
+  return
+    [%expect
+      {| Request to <sqlite3:///home/ubuntu/jsip-final-project/test.db> failed: UNIQUE constraint failed: market_stubs.market_id (ERC#1555). Query: " INSERT INTO market_stubs (venue, market_id, title, close_time) VALUES (?1, ?2, ?3, ?4) ". |}]
+;;
+
 let%expect_test "market stub is successfully found" =
   let%bind stub_option_or_error = Database_exec.find_market_stub real_id in
   (match stub_option_or_error with
@@ -55,7 +95,7 @@ let%expect_test "market stub is successfully found" =
    | Error e -> print_endline (Error.to_string_hum e));
   return
     [%expect
-      {| Stub found: venue: Polymarket, market_id: 12345, title: Don trump tweets, close_time: 2026-07-30 15:45:00.000000000Z |}]
+      {| Stub found: venue: Polymarket, market_id: 12345, title: Don trump tweets, close_time: 2026-07-25 15:45:00.000000000Z |}]
 ;;
 
 let%expect_test "Nonexistent market ID is not found" =
@@ -71,12 +111,19 @@ let%expect_test "Nonexistent market ID is not found" =
 ;;
 
 let%expect_test "Market stubs after 2026-07-19 are found" =
-  let%bind stub_list_or_error = Database_exec.list_current_market_stubs 5 in
+  let%bind stub_list_or_error =
+    Database_exec.For_testing.list_current_market_stubs
+      5
+      ~time:(Time_ns.of_string "2026-07-19T00:00:00Z")
+  in
   (match stub_list_or_error with
    | Ok stub_list ->
-     print_endline (List.length stub_list |> Int.to_string);
      List.iter stub_list ~f:(fun stub ->
        print_endline (Market_stub.to_string stub))
    | Error e -> print_endline (Error.to_string_hum e));
-  return [%expect {| market id not found |}]
+  return
+    [%expect
+      {|
+           venue: Polymarket, market_id: 12345, title: Don trump tweets, close_time: 2026-07-25 15:45:00.000000000Z
+           |}]
 ;;
