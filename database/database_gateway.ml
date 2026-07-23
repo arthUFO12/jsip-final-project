@@ -11,6 +11,6 @@ let init_database () =
   match Caqti_async.connect_pool db_uri with
   | Error err -> Error err
   | Ok pool ->
-    global_pool := pool;
+    global_pool := Some pool;
     Ok ()
   ;;

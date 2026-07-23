@@ -1,6 +1,14 @@
 (executable
  (name main)
  (public_name arbiter)
- (libraries core types caqti caqti-async)
+ (libraries
+  core
+  core_unix.command_unix
+  async
+  types
+  caqti
+  caqti-async
+  uri
+  cohttp-async)
  (preprocess
   (pps ppx_jane)))

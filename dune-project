@@ -32,6 +32,7 @@
   bonsai_web
   virtual_dom
   cohttp-async
+  uri
   yojson
   postgresql
   core
