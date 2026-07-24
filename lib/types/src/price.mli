@@ -19,13 +19,16 @@ include Comparable.S with type t := t
 val microcents_per_cent : int
 val microcents_per_dollar : int
 
-(** {1 Construction} *)
+(** {4 Construction} *)
 
 val of_microcents : int -> t
 
 (** [of_int_cents 6767] represents $67.67 (stored as 6_767_000_000
     microcents). *)
 val of_int_cents : int -> t
+
+val of_float_dollars : float -> t
+val of_dollars_string : string -> t option
 
 (** {1 Accessors} *)
 
@@ -41,7 +44,6 @@ val to_dollar_float : t -> float
 (** {1 Arithmetic} *)
 
 val zero : t
-val neg : t -> t
 val ( + ) : t -> t -> t
 val ( - ) : t -> t -> t
 

@@ -1,0 +1,6 @@
+(library
+ (name market_data)
+ (public_name arbiter.market_data)
+ (libraries core types async cohttp-async yojson)
+ (preprocess
+  (pps ppx_jane)))

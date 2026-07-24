@@ -1,0 +1,9 @@
+(library
+ (name market_data_test)
+ (libraries types market_data core expect_test_helpers_core)
+ (inline_tests
+  (deps
+   (glob_files example_json/*.json))
+  (flags -source-tree-root .))
+ (preprocess
+  (pps ppx_jane)))

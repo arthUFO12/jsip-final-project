@@ -1,4 +1,5 @@
 open! Core
+open Types
 
 (** Decodes a raw venue payload into normalized L1 records.
 
