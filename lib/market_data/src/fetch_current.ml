@@ -21,18 +21,19 @@ let fetch_markets_helper ~base_uri ~params ~venue =
    users begin calling *)
 (* fetches active market data from kalshi *)
 let fetch_kalshi_markets
-  ?(limit = 100)
+  ?(limit = 30)
+  ?(markets_per_event = 3)
   ?(mve_filter = "exclude")
   ?(status = "open")
   ()
   =
   let base_uri =
-    Uri.of_string "https://external-api.kalshi.com/trade-api/v2/markets"
+    Uri.of_string "https://external-api.kalshi.com/trade-api/v2/events"
   in
   let params =
-    [ "limit", Int.to_string limit
-    ; "mve_filter", mve_filter
+    [ "with_nested_markets", "true"
     ; "status", status
+    ; "limit", Int.to_string limit
     ]
   in
   fetch_markets_helper ~base_uri ~params ~venue:Venue.Kalshi

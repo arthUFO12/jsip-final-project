@@ -12,4 +12,4 @@ type t =
   | Mentions
   | Finance
   | Tech
-[@@deriving string, hash, compare, equal]
+[@@deriving string, hash, compare, equal, sexp]
