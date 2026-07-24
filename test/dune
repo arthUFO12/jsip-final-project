@@ -2,6 +2,8 @@
  (name types_test)
  (libraries types core expect_test_helpers_core)
  (inline_tests
+  (deps
+   (glob_files fixtures/*.json))
   (flags -source-tree-root .))
  (preprocess
   (pps ppx_jane)))

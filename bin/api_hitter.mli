@@ -13,7 +13,7 @@ val fetch_kalshi_markets
   -> ?mve_filter:string
   -> ?status:string
   -> unit
-  -> Raw_payload.t Deferred.t
+  -> Raw_payload.t Deferred.Or_error.t
 
 (** Fetch the current active-market listing from Polymarket. GET
     /markets?closed=..&limit=.. *)
@@ -21,4 +21,4 @@ val fetch_polymarket_markets
   :  ?closed:bool (* default false *)
   -> ?limit:int (* default 100 *)
   -> unit
-  -> Raw_payload.t Deferred.t
+  -> Raw_payload.t Deferred.Or_error.t

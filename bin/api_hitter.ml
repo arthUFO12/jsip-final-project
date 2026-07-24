@@ -4,9 +4,17 @@ open Types
 
 let fetch_markets_helper ~base_uri ~params ~venue =
   let modified_uri = Uri.add_query_params' base_uri params in
-  let%bind _, body = Cohttp_async.Client.get modified_uri in
-  let%map data = Cohttp_async.Body.to_string body in
-  Raw_payload.create ~venue ~body:data
+  let%bind state, body = Cohttp_async.Client.get modified_uri in
+  match Cohttp.Response.status state with
+  | #Cohttp.Code.success_status ->
+    let%map data = Cohttp_async.Body.to_string body in
+    Ok (Raw_payload.create ~venue ~body:data)
+  | status ->
+    Deferred.Or_error.error_s
+      [%message
+        "http request failed"
+          (Cohttp.Code.string_of_status status : string)
+          (venue : Venue.t)]
 ;;
 
 (* later add a status type for errors and typos to be compile errors when

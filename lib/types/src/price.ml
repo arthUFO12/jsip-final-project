@@ -22,8 +22,8 @@ let of_dollars_string str =
       | _ -> failwith "malformed price string"
     in
     if String.length frac_part > 8 then failwith "fraction too precise";
+    if Char.equal dollars_part.[0] '-' then failwith "negative price";
     let dollars = Int.of_string dollars_part in
-    if Int.( < ) dollars 0 then failwith "negative price";
     let frac =
       if String.is_empty frac_part
       then 0

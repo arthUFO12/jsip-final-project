@@ -7,9 +7,9 @@ let () =
     ~summary:"Retrieve markets from Kalshi"
     (let%map_open.Command limit = anon (maybe ("limit" %: int)) in
      fun () ->
-       let%map (raw_kalshi_output : Types.Raw_payload.t) =
-         Api_hitter.fetch_kalshi_markets ?limit ()
-       in
-       print_s (Raw_payload.sexp_of_t raw_kalshi_output))
+       let%map result = Api_hitter.fetch_kalshi_markets ?limit () in
+       match result with
+       | Ok payload -> print_s (Raw_payload.sexp_of_t payload)
+       | Error e -> Core.eprint_s [%sexp (e : Error.t)])
   |> Command_unix.run
 ;;
