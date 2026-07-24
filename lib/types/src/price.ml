@@ -76,3 +76,7 @@ let to_string_dollar t =
   in
   sprintf "%s$%d.%s" (if is_negative then "-" else "") dollars frac_str
 ;;
+
+
+
+let neg = Int.neg

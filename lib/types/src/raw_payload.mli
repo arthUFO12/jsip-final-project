@@ -6,3 +6,5 @@ type t =
   ; received : Time_ns.t
   }
 [@@deriving sexp_of, fields]
+
+val create : venue:Venue.t -> body:string -> t

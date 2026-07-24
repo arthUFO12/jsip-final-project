@@ -1,8 +1,9 @@
 open! Core
-open! Types
+open Market_data
+open Types
 
 let%expect_test "parse kalshi fixture" =
-  let body = In_channel.read_all "fixtures/kalshi_markets.json" in
+  let body = In_channel.read_all "example_json/kalshi_markets.json" in
   match Exchange_parser.parse_data ~body ~venue:Venue.Kalshi with
   | Error e -> print_s [%sexp (e : Error.t)]
   | Ok markets ->
@@ -34,7 +35,7 @@ let%expect_test "parse kalshi fixture" =
 ;;
 
 let%expect_test "parse polymarket fixture" =
-  let body = In_channel.read_all "fixtures/polymarket_markets.json" in
+  let body = In_channel.read_all "example_json/polymarket_markets.json" in
   match Exchange_parser.parse_data ~body ~venue:Venue.Polymarket with
   | Error e -> print_s [%sexp (e : Error.t)]
   | Ok markets ->
