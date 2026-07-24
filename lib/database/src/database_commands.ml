@@ -15,11 +15,23 @@ let create_market_stub_table =
   |}
 ;;
 
+let create_config_table =
+  let open Caqti_request.Infix in
+  (Caqti_type.unit ->. Caqti_type.unit)
+    {|
+  CREATE TABLE IF NOT EXISTS configs (
+    bot_id INT PRIMARY KEY,
+    config_sexp TEXT
+  )|}
+;;
+
 let insert_market_stub =
   let open Caqti_request.Infix in
   (Database_types.market_stub_type ->. T.unit)
     {| INSERT INTO market_stubs (venue, market_id, slug, title, close_time) VALUES (?, ?, ?, ?, ?) |}
 ;;
+
+
 
 let find_market_stub =
   let open Caqti_request.Infix in

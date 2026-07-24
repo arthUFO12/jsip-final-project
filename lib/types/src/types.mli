@@ -9,3 +9,4 @@ module Action = Action
 module Action_response = Action_response
 module Slug = Slug
 module Size = Size
+module Bot_id = Bot_id
