@@ -27,7 +27,6 @@ let market_id_type =
   T.custom ~encode ~decode representation
 ;;
 
-
 let market_stub_type =
   let representation = T.(t5 T.string T.string T.string T.string T.int64) in
   let encode ({ venue; market_id; slug; title; close_time } : Market_stub.t) =

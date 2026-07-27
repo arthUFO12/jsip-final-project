@@ -9,12 +9,22 @@ type t =
   ; slug : Slug.t (* URL-friendly name EX: btc-above-118k-july-22 *)
   ; event_slug : Slug.t option
       (* The parent grouping all sibling strikes share the same event *)
-  ; category : Category.t option
-      (* Topmost classification EX: Crypto, Politics, Economics *)
+  ; series_ticker : Slug.t option
+      (* Kalshi only: the recurring series an event belongs to
+         EX: KXELONMARS. [None] for Polymarket. *)
+  ; category : Category.t
+      (* Topmost classification EX: Crypto, Politics, Economics;
+         [Miscellaneous] when the venue's label maps to nothing we track *)
   ; yes_bid : Price.t option (* Highest price someone is buying *)
   ; yes_ask : Price.t option (* Lowest price someone is selling *)
   ; last_price : Price.t option (* Most recent sale price *)
+  ; volume : Volume.t option (* Lifetime traded volume *)
+  ; volume_24h : Volume.t option (* Traded volume, trailing 24 hours *)
   ; active : bool
   ; close_time : Time_ns.t option
   }
 [@@deriving sexp_of, fields]
+
+
+let to_market_stub t =
+  ({ venue = t.venue; market_id = t.market_id; slug = t.slug; title = t.title; close_time = t.close_time}: Market_stub.t)

@@ -1,4 +1,3 @@
-open! Core 
-
+open! Core
 
 type t

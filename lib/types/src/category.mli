@@ -12,4 +12,5 @@ type t =
   | Mentions
   | Finance
   | Tech
+  | Miscellaneous
 [@@deriving string, hash, compare, equal, sexp]

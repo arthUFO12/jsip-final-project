@@ -11,5 +11,6 @@ module Slug = Slug
 module Size = Size
 module Bot_id = Bot_id
 module Raw_payload = Raw_payload
+module Volume = Volume
 module L1_market_metadata = L1_market_metadata
 module Category = Category

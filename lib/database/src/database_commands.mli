@@ -6,6 +6,7 @@ open! Core
 val create_market_stub_table : (unit, unit, [ `Zero ]) Caqti_request.t
 
 val create_config_table : (unit, unit, [ `Zero ]) Caqti_request.t
+
 val find_market_stub
   : ( Types.Market_id.t
       , Types.Market_stub.t

@@ -7,7 +7,6 @@ module type Bot = sig
 
     val sexp_of_t : t -> Sexp.t
     val t_of_sexp : Sexp.t -> t
-
     val id : t -> int
   end
 
@@ -24,7 +23,6 @@ module type Bot = sig
 
   val name : string
   val fetch_data : State.t -> Data.t
-  
   val create_state : Config.t -> State.t
   val on_start : Config.t -> State.t -> unit
   val on_tick : Config.t -> State.t -> Data.t -> Action.t list

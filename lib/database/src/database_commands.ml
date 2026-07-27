@@ -31,8 +31,6 @@ let insert_market_stub =
     {| INSERT INTO market_stubs (venue, market_id, slug, title, close_time) VALUES (?, ?, ?, ?, ?) |}
 ;;
 
-
-
 let find_market_stub =
   let open Caqti_request.Infix in
   (Database_types.market_id_type ->? Database_types.market_stub_type)
