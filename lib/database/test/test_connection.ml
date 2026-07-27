@@ -17,6 +17,8 @@ let make_stub ~venue ~market_id ~slug ~title ~close_time : Market_stub.t =
   { venue = Venue.of_string venue
   ; market_id
   ; slug = Slug.of_string slug
+  ; series_ticker = None
+  ; clob_token_id = None
   ; title
   ; close_time = Some (Time_ns.of_string close_time)
   }
@@ -84,7 +86,7 @@ let%expect_test "duplicate stub id is not inserted into the table" =
    | Error e -> print_endline (Error.to_string_hum e));
   return
     [%expect
-      {| Request to <sqlite3:///home/ubuntu/jsip-final-project/test.db> failed: UNIQUE constraint failed: market_stubs.market_id (ERC#1555). Query: " INSERT INTO market_stubs (venue, market_id, slug, title, close_time) VALUES (?1, ?2, ?3, ?4, ?5) ". |}]
+      {| Request to <sqlite3:///home/ubuntu/jsip-final-project/test.db> failed: UNIQUE constraint failed: market_stubs.market_id (ERC#1555). Query: " INSERT INTO market_stubs (venue, market_id, slug, series_ticker, clob_token_id, title, close_time) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7) ". |}]
 ;;
 
 let%expect_test "market stub is successfully found" =

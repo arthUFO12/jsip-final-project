@@ -10,8 +10,9 @@ type t =
   ; event_slug : Slug.t option
       (* The parent grouping all sibling strikes share the same event *)
   ; series_ticker : Slug.t option
-      (* Kalshi only: the recurring series an event belongs to
-         EX: KXELONMARS. [None] for Polymarket. *)
+      (* Kalshi only: the recurring series an event belongs to EX:
+         KXELONMARS. [None] for Polymarket. *)
+  ; clob_token_id : string option (* polymarket specific *)
   ; category : Category.t
       (* Topmost classification EX: Crypto, Politics, Economics;
          [Miscellaneous] when the venue's label maps to nothing we track *)
@@ -25,6 +26,13 @@ type t =
   }
 [@@deriving sexp_of, fields]
 
-
-let to_market_stub t =
-  ({ venue = t.venue; market_id = t.market_id; slug = t.slug; title = t.title; close_time = t.close_time}: Market_stub.t)
+let to_market_stub t : Market_stub.t =
+  { venue = t.venue
+  ; market_id = t.market_id
+  ; slug = t.slug
+  ; series_ticker = t.series_ticker
+  ; clob_token_id = t.clob_token_id
+  ; title = t.title
+  ; close_time = t.close_time
+  }
+;;

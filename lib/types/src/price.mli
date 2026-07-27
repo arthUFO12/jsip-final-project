@@ -44,6 +44,11 @@ val to_dollar_float : t -> float
 (** {1 Arithmetic} *)
 
 val zero : t
+
+(** One dollar — the settlement value of a binary contract, so
+    [one - yes_price] is the implied no-side price. *)
+val one : t
+
 val neg : t -> t
 val ( + ) : t -> t -> t
 val ( - ) : t -> t -> t

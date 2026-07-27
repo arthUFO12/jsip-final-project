@@ -115,6 +115,7 @@ let parse_kalshi_market
           |> to_string_option
           |> Option.map ~f:Slug.of_string
       ; series_ticker
+      ; clob_token_id = None
       ; category = kalshi_category_of_string category
       ; yes_bid = json_price_opt_kalshi json "yes_bid_dollars"
       ; yes_ask = json_price_opt_kalshi json "yes_ask_dollars"
@@ -147,6 +148,16 @@ let parse_polymarket_market (json : Yojson.Safe.t)
             |> to_string
             |> Slug.of_string)
       ; series_ticker = None
+      ; clob_token_id =
+          (* clobTokenIds is a doubly encoded JSON string:
+             "[\"98022...\", \"53831...\"]"; index 0 = the Yes token. *)
+          Option.try_with (fun () ->
+            json
+            |> member "clobTokenIds"
+            |> to_string
+            |> Yojson.Safe.from_string
+            |> index 0
+            |> to_string)
       ; category = polymarket_category json
       ; yes_bid = json_price_opt_polymarket json "bestBid"
       ; yes_ask = json_price_opt_polymarket json "bestAsk"

@@ -4,7 +4,7 @@ open Types
 
 let%expect_test "parse kalshi fixture" =
   let body = In_channel.read_all "example_json/kalshi_events.json" in
-  match Exchange_parser.parse_data ~venue:Venue.Kalshi body with
+  match Live_data_parser.parse_data ~venue:Venue.Kalshi body with
   | Error e -> print_s [%sexp (e : Error.t)]
   | Ok markets ->
     printf "parsed: %d\n" (List.length markets);
@@ -15,7 +15,7 @@ let%expect_test "parse kalshi fixture" =
       parsed: 1
       ((venue Kalshi) (market_id KXELONMARS-99)
        (title "Will Elon Musk visit Mars before Aug 1, 2099?") (slug KXELONMARS-99)
-       (event_slug (KXELONMARS-99)) (series_ticker (KXELONMARS))
+       (event_slug (KXELONMARS-99)) (series_ticker (KXELONMARS)) (clob_token_id ())
        (category Miscellaneous) (yes_bid (12000000)) (yes_ask (13000000))
        (last_price (13000000)) (volume ((Contracts 114510)))
        (volume_24h ((Contracts 43))) (active true)
@@ -25,7 +25,7 @@ let%expect_test "parse kalshi fixture" =
 
 let%expect_test "parse polymarket fixture" =
   let body = In_channel.read_all "example_json/polymarket_markets.json" in
-  match Exchange_parser.parse_data ~venue:Venue.Polymarket body with
+  match Live_data_parser.parse_data ~venue:Venue.Polymarket body with
   | Error e -> print_s [%sexp (e : Error.t)]
   | Ok markets ->
     printf "parsed: %d\n" (List.length markets);
@@ -40,6 +40,8 @@ let%expect_test "parse polymarket fixture" =
        (title "New Rihanna Album before GTA VI?")
        (slug new-rhianna-album-before-gta-vi-926)
        (event_slug (what-will-happen-before-gta-vi)) (series_ticker ())
+       (clob_token_id
+        (98022490269692409998126496127597032490334070080325855126491859374983463996227))
        (category Politics) (yes_bid (50000000)) (yes_ask (51000000))
        (last_price (51000000)) (volume ((Notional 87713660105302)))
        (volume_24h ((Notional 304691306800))) (active true)
@@ -49,7 +51,7 @@ let%expect_test "parse polymarket fixture" =
 
 let%expect_test "parse_data limit caps returned metadatas" =
   let body = In_channel.read_all "example_json/polymarket_markets.json" in
-  match Exchange_parser.parse_data ~limit:0 ~venue:Venue.Polymarket body with
+  match Live_data_parser.parse_data ~limit:0 ~venue:Venue.Polymarket body with
   | Error e -> print_s [%sexp (e : Error.t)]
   | Ok markets ->
     printf "parsed: %d\n" (List.length markets);

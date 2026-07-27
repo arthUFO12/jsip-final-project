@@ -58,6 +58,7 @@ let to_dollar_float t =
 ;;
 
 let zero = 0
+let one = microcents_per_dollar
 let ( + ) = Int.( + )
 let ( - ) = Int.( - )
 let ( * ) price qty = Int.( * ) price qty

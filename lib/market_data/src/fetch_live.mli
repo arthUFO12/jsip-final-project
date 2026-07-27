@@ -4,14 +4,14 @@ open Types
 
 (** Network transport for venue REST endpoints. Returns raw, unparsed
     payloads tagged with venue and ingress timestamp — parsing is the
-    caller's concern via {!Exchange_parser}. *)
+    caller's concern via {!Live_data_parser}. *)
 
 (** Fetch the event listing (with nested markets) from Kalshi. GET
     /trade-api/v2/events?with_nested_markets=true&status=..&limit=..
 
     [limit] caps the number of {e events} returned (each event nests one or
     more markets); to cap the number of parsed markets, pass [?limit] to
-    {!Exchange_parser.parse_data}. [status] selects the market lifecycle
+    {!Live_data_parser.parse_data}. [status] selects the market lifecycle
     stage: ["open"] (default), ["closed"], or ["settled"]. *)
 val fetch_kalshi_markets
   :  ?limit:int (* default 30 *)
@@ -24,7 +24,7 @@ val fetch_kalshi_markets
 
     [closed] selects resolved markets instead of live ones. [limit] caps the
     number of markets; [offset] pages through the listing. Tags are always
-    included — {!Exchange_parser} needs them to derive the category. *)
+    included — {!Live_data_parser} needs them to derive the category. *)
 val fetch_polymarket_markets
   :  ?closed:bool (* default false *)
   -> ?limit:int (* default 500 *)

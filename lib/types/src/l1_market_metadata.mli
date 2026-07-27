@@ -12,6 +12,7 @@ type t =
   ; series_ticker : Slug.t option
       (* Kalshi only: the recurring series an event belongs to
          EX: KXELONMARS. [None] for Polymarket. *)
+  ; clob_token_id : string option (* polymarket specific. Clob token id for the yes event*)
   ; category : Category.t
       (* Topmost classification EX: Crypto, Politics, Economics;
          [Miscellaneous] when the venue's label maps to nothing we track *)
