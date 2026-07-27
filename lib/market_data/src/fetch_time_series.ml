@@ -3,12 +3,7 @@ open! Async
 open Types
 open Yojson.Safe.Util
 
-module Interval = struct
-  type t =
-    | Minute
-    | Hour
-    | Day
-end
+
 
 (* Venue APIs take timestamps as unix seconds, e.g. start_ts=1753488009. *)
 let unix_seconds_param time =
@@ -17,7 +12,7 @@ let unix_seconds_param time =
   |> Int.to_string
 ;;
 
-let interval_to_param : Interval.t -> string = function
+let interval_to_param : Time_series.Interval.t -> string = function
   | Minute -> "1"
   | Hour -> "60"
   | Day -> "1440"
@@ -115,7 +110,7 @@ let fetch_polymarket_data
   (market_stub : Market_stub.t)
   ~(start : Time_ns.t)
   ~(finish : Time_ns.t)
-  ~(interval : Interval.t)
+  ~(interval : Time_series.Interval.t)
   =
   let params =
     [ "market", Option.value_exn market_stub.clob_token_id
@@ -132,7 +127,7 @@ let fetch_kalshi_data
   (market_stub : Market_stub.t)
   ~(start : Time_ns.t)
   ~(finish : Time_ns.t)
-  ~(interval : Interval.t)
+  ~(interval : Time_series.Interval.t)
   =
   let historical_cutoff = Option.value_exn !historical_cutoff in
   let close_time = Option.value_exn market_stub.close_time in

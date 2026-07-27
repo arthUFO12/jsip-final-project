@@ -9,7 +9,7 @@ let time_of_unix_seconds json =
   json |> U.to_int |> Time_ns.Span.of_int_sec |> Time_ns.of_span_since_epoch
 ;;
 
-let polymarket_to_time_series_point (obj : Json.t) : Time_series_point.t =
+let polymarket_to_time_series_point (obj : Json.t) : Time_series.Point.t =
   let time = obj |> U.member "t" |> time_of_unix_seconds in
   let yes_price =
     (* [to_number] rather than [to_float]: round prices like 0.5 can arrive
@@ -19,7 +19,7 @@ let polymarket_to_time_series_point (obj : Json.t) : Time_series_point.t =
   { time; yes_price; no_price = Price.( - ) Price.one yes_price }
 ;;
 
-let kalshi_to_time_series_point (obj : Json.t) : Time_series_point.t =
+let kalshi_to_time_series_point (obj : Json.t) :Time_series.Point.t =
   let time = obj |> U.member "end_period_ts" |> time_of_unix_seconds in
   (* Kalshi's *_dollars fields are decimal strings, e.g. "0.1400". *)
   let close_dollars side =

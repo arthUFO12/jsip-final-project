@@ -14,5 +14,3 @@ type t =
   | Subtract of t * t
   | Constant of float
   | Argument of string
-
-

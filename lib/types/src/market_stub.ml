@@ -4,7 +4,7 @@ type t =
   { venue : Venue.t
   ; market_id : Market_id.t
   ; slug : Slug.t
-  ; series_ticker : Slug.t option 
+  ; series_ticker : Slug.t option
   ; clob_token_id : string option
   ; title : string
   ; close_time : Time_ns.t option

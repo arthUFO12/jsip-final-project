@@ -51,7 +51,9 @@ let%expect_test "parse polymarket fixture" =
 
 let%expect_test "parse_data limit caps returned metadatas" =
   let body = In_channel.read_all "example_json/polymarket_markets.json" in
-  match Live_data_parser.parse_data ~limit:0 ~venue:Venue.Polymarket body with
+  match
+    Live_data_parser.parse_data ~limit:0 ~venue:Venue.Polymarket body
+  with
   | Error e -> print_s [%sexp (e : Error.t)]
   | Ok markets ->
     printf "parsed: %d\n" (List.length markets);

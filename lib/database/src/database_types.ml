@@ -40,7 +40,14 @@ let market_stub_type =
         T.int64)
   in
   let encode
-    ({ venue; market_id; slug; series_ticker; clob_token_id; title; close_time } :
+    ({ venue
+     ; market_id
+     ; slug
+     ; series_ticker
+     ; clob_token_id
+     ; title
+     ; close_time
+     } :
       Market_stub.t)
     =
     Ok

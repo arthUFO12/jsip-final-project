@@ -73,15 +73,15 @@ let%expect_test "polymarket fetch -> parse round trip" =
    to a [Market_stub.t], then fetch and parse its recent price history. Same
    rule as above: print invariants, never point contents. *)
 
-let print_time_series_summary (points : Time_series_point.t list) =
+let print_time_series_summary (points : Time_series.Point.t list) =
   let has_points = not (List.is_empty points) in
   let all_prices_in_band =
-    List.for_all points ~f:(fun (point : Time_series_point.t) ->
+    List.for_all points ~f:(fun (point : Time_series.Point.t) ->
       Price.(point.yes_price >= zero) && Price.(point.yes_price <= one))
   in
   let times_nondecreasing =
     List.is_sorted
-      (List.map points ~f:(fun (point : Time_series_point.t) -> point.time))
+      (List.map points ~f:(fun (point : Time_series.Point.t) -> point.time))
       ~compare:Time_ns.compare
   in
   print_endline [%string "Has points: %{has_points#Bool}"];
@@ -115,7 +115,7 @@ let time_series_round_trip
                stub
                ~start
                ~finish
-               ~interval:Fetch_time_series.Interval.Hour
+               ~interval:Time_series.Interval.Hour
            with
            | Error e ->
              print_s [%message "time series fetch failed" (e : Error.t)]
