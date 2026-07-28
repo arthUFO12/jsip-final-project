@@ -10,16 +10,14 @@ val cash : t -> Price.t
 val update_position
   :  t
   -> slug:Slug.t
+  -> side:Side.t
   -> contract_type:Contract_type.t
   -> size:Size.t
   -> unit
 
 val apply_trade_report
-  :  t
-  -> slug:Slug.t
-  -> yes_bid_price:Price.t
-  -> no_bid_price:Price.t
-  -> yes_ask_price:Price.t
-  -> no_ask_price:Price.t
-  -> expiry:Time_ns.t
+  : slug:Slug.t
+  -> ?yes_bbo:Bbo.t
+  -> ?no_bbo:Bbo.t
+  -> t
   -> unit

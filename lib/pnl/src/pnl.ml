@@ -49,19 +49,45 @@ let realized_on_reduce ~closed ~trade_price ~cost_basis_removed =
   Price.( - ) (Size.multiply_by_price closed trade_price) cost_basis_removed
 ;;
 
-let realize_on_expiry size = Size.multiply_by_price size Price.one
 
-let realized_expired_bets t curr_time= 
-  Hashtbl.fold t.data ~f:(fun ~key:slug ~data:slug_data acc -> 
-    let position = Hashtbl.find_or_add t.positions slug ~default:flat_position in
-    match slug_data.expiration with 
-    | None -> acc 
-    | Some expiry -> 
-      if Time_ns.(curr_time > expiry.date) then 
-        let realized_winnings = realize_on_expiry position.inventory in 
-        Hashtbl.set t.positions ~key:slug ~data:{ position with inventory = Size.zero;  }
-        
-    )
+let realize_winnings (position : position) (expiry : Expiration.t) curr_time =
+  if Time_ns.(curr_time > expiry.date)
+  then (
+    let position_side =
+      if Size.(position.inventory >= Size.zero)
+      then Contract_type.Yes
+      else Contract_type.No
+    in
+    match expiry.winner, position_side with
+    | Yes, Yes | No, No ->
+      let winnings = Size.multiply_by_price position.inventory Price.one in
+      let winnings_pnl = Price.(winnings - position.cost_basis) in
+      ( winnings
+      , { inventory = Size.zero
+        ; cost_basis = Price.zero
+        ; realized_pnl = Price.(position.realized_pnl + winnings_pnl)
+        } )
+    | _ ->
+      ( Price.zero
+      , { position with inventory = Size.zero; cost_basis = Price.zero } ))
+  else Price.zero, position
+;;
+
+let _realized_expired_bets t curr_time =
+  Hashtbl.fold t.data ~f:(fun ~key:slug ~data:slug_data acc ->
+    let position =
+      Hashtbl.find_or_add t.positions slug ~default:(fun () -> flat_position)
+    in
+    match slug_data.expiration with
+    | None -> acc
+    | Some expiry ->
+      let winnings, new_position =
+        realize_winnings position expiry curr_time
+      in
+      t.cash <- Price.(t.cash + winnings);
+      Hashtbl.set t.positions ~key:slug ~data:new_position)
+;;
+
 let calculate_unrealized_bet_revenue position data =
   match Size.sign position.inventory with
   | Pos -> Size.multiply_by_price position.inventory data.yes_bid_price
@@ -90,7 +116,7 @@ let realized_pnl t =
 let cash t = t.cash
 
 let apply_trade position ~quantity_change ~yes_price ~no_price =
-  let { inventory; cost_basis; realized_pnl; payout } = position in
+  let { inventory; cost_basis; realized_pnl } = position in
   match
     Size.equal inventory Size.zero
     || Sign.equal (Size.sign inventory) (Size.sign quantity_change)
@@ -128,7 +154,6 @@ let apply_trade position ~quantity_change ~yes_price ~no_price =
        ( { inventory = Size.(inventory + quantity_change)
          ; cost_basis = Price.(cost_basis - cost_basis_removed)
          ; realized_pnl
-         ; payout = Price.zero
          }
        , cost_basis_removed )
      | false ->
@@ -137,7 +162,6 @@ let apply_trade position ~quantity_change ~yes_price ~no_price =
        ( { inventory = remainder
          ; cost_basis = cost_basis_added
          ; realized_pnl
-         ; payout = Price.zero
          }
        , Price.(cost_basis_removed - cost_basis_added) ))
 ;;

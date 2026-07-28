@@ -6,3 +6,5 @@ type t =
 
 val flip : t -> t
 val sign : t -> Sign.t
+
+val ( = ) : t -> t -> bool
