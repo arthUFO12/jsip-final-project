@@ -49,7 +49,6 @@ let realized_on_reduce ~closed ~trade_price ~cost_basis_removed =
   Price.( - ) (Size.multiply_by_price closed trade_price) cost_basis_removed
 ;;
 
-
 let realize_winnings (position : position) (expiry : Expiration.t) curr_time =
   if Time_ns.(curr_time > expiry.date)
   then (
@@ -69,7 +68,10 @@ let realize_winnings (position : position) (expiry : Expiration.t) curr_time =
         } )
     | _ ->
       ( Price.zero
-      , { position with inventory = Size.zero; cost_basis = Price.zero } ))
+      , { inventory = Size.zero
+        ; cost_basis = Price.zero
+        ; realized_pnl = Price.(position.realized_pnl - position.cost_basis)
+        } ))
   else Price.zero, position
 ;;
 
