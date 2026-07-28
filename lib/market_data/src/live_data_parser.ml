@@ -175,12 +175,6 @@ let parse_polymarket_market (json : Yojson.Safe.t)
 
 (** {1 Top-level structure} *)
 
-let list_or_fail (json_obj : Yojson.Safe.t) : 'a list =
-  match json_obj with
-  | `List l -> l
-  | _ -> failwith "Type error: Expected list type in json"
-;;
-
 (* Kalshi wraps markets two deep: {"events": [{"category": ..,
    "series_ticker": .., "markets": [..]}, ..]}. Category and series ticker
    live on the event, so pair them with each nested market on the way
@@ -189,7 +183,7 @@ let kalshi_event_context_and_markets (fields : (string * Yojson.Safe.t) list)
   : (string * Slug.t option * Yojson.Safe.t) list
   =
   let events_list =
-    List.Assoc.find_exn fields "events" ~equal:String.equal |> list_or_fail
+    List.Assoc.find_exn fields "events" ~equal:String.equal |> to_list
   in
   List.concat_map events_list ~f:(fun event ->
     let category = member "category" event |> to_string in
@@ -199,7 +193,7 @@ let kalshi_event_context_and_markets (fields : (string * Yojson.Safe.t) list)
       |> Option.map ~f:Slug.of_string
     in
     member "markets" event
-    |> list_or_fail
+    |> to_list
     |> List.map ~f:(fun market -> category, series_ticker, market))
 ;;
 

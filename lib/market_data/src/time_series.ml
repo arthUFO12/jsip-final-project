@@ -49,7 +49,8 @@ let rec interpolate_helper
         | latest :: _ ->
           interpolate_helper
             ~original
-            ~interpolated:(({latest with time = curr_time } : Point.t) :: interpolated)
+            ~interpolated:
+              (({ latest with time = curr_time } : Point.t) :: interpolated)
             ~curr_time:next_time
             ~finish
             ~time_step)
@@ -57,7 +58,7 @@ let rec interpolate_helper
         let rest, latest = advance ~original:rest ~latest:point curr_time in
         interpolate_helper
           ~original:rest
-          ~interpolated:({latest with time = curr_time} :: interpolated)
+          ~interpolated:({ latest with time = curr_time } :: interpolated)
           ~curr_time:next_time
           ~finish
           ~time_step))
@@ -67,7 +68,9 @@ let interpolate (t : t) ~start ~finish ~interval : t Or_error.t =
   if Time_ns.( > ) start finish
   then
     Or_error.error_string
-      [%string "start time is at the same time as or later than end time. Start: %{start#Time_ns} End: %{finish#Time_ns}"]
+      [%string
+        "start time is at the same time as or later than end time. Start: \
+         %{start#Time_ns} End: %{finish#Time_ns}"]
   else (
     let initial_list = [] in
     let time_step =

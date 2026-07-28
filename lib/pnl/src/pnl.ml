@@ -51,17 +51,23 @@ let realized_on_reduce ~closed ~trade_price ~cost_basis_removed =
 
 let realize_on_expiry size = Size.multiply_by_price size Price.one
 
-let realized_expired_bets t curr_time= 
-  Hashtbl.fold t.data ~f:(fun ~key:slug ~data:slug_data acc -> 
-    let position = Hashtbl.find_or_add t.positions slug ~default:flat_position in
-    match slug_data.expiration with 
-    | None -> acc 
-    | Some expiry -> 
-      if Time_ns.(curr_time > expiry.date) then 
-        let realized_winnings = realize_on_expiry position.inventory in 
-        Hashtbl.set t.positions ~key:slug ~data:{ position with inventory = Size.zero;  }
-        
-    )
+let realized_expired_bets t curr_time =
+  Hashtbl.fold t.data ~f:(fun ~key:slug ~data:slug_data acc ->
+    let position =
+      Hashtbl.find_or_add t.positions slug ~default:flat_position
+    in
+    match slug_data.expiration with
+    | None -> acc
+    | Some expiry ->
+      if Time_ns.(curr_time > expiry.date)
+      then (
+        let realized_winnings = realize_on_expiry position.inventory in
+        Hashtbl.set
+          t.positions
+          ~key:slug
+          ~data:{ position with inventory = Size.zero }))
+;;
+
 let calculate_unrealized_bet_revenue position data =
   match Size.sign position.inventory with
   | Pos -> Size.multiply_by_price position.inventory data.yes_bid_price
