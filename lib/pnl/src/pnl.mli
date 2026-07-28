@@ -16,7 +16,7 @@ val update_position
   -> unit
 
 val apply_trade_report
-  : slug:Slug.t
+  :  slug:Slug.t
   -> ?yes_bbo:Bbo.t
   -> ?no_bbo:Bbo.t
   -> t

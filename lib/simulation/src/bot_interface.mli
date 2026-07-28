@@ -1,5 +1,6 @@
 open! Core
 open Types
+open Market_data
 
 module type Bot = sig
   module Config : sig
@@ -8,6 +9,9 @@ module type Bot = sig
     val sexp_of_t : t -> Sexp.t
     val t_of_sexp : Sexp.t -> t
     val id : t -> int
+    val start : t -> Time_ns.t
+    val finish : t -> Time_ns.t
+    val interval : t -> Time_series.Interval.t
   end
 
   module State : sig

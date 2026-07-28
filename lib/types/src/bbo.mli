@@ -1,9 +1,6 @@
-open! Core 
-
-
+open! Core
 
 type t =
-{ bid: Price.t
-; ask: Price.t
-
-}
+  { bid : Price.t
+  ; ask : Price.t
+  }

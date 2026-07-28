@@ -56,8 +56,9 @@ val ( - ) : t -> t -> t
 (** Scales a price by an integer quantity. Note: the result is a monetary
     amount rather than a quoted price; this may migrate to a [Cash] type. *)
 val ( * ) : t -> int -> t
-val ( / ) : t -> t -> t
+
 (** {1 Display} *)
+val ( / ) : t -> t -> t
 
 (** e.g. "$67.67", "$0.505", "-$1.50". Trailing zeros trimmed to a minimum of
     two decimal places. *)

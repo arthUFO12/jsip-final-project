@@ -46,7 +46,7 @@ let convert_transaction_to_delta
 ;;
 
 let realized_on_reduce ~closed ~trade_price ~cost_basis_removed =
-  Price.( - ) (Size.multiply_by_price closed trade_price) cost_basis_removed
+  Price.(Size.multiply_by_price closed trade_price - cost_basis_removed)
 ;;
 
 let realize_winnings (position : position) (expiry : Expiration.t) curr_time =

@@ -57,7 +57,7 @@ let%expect_test "sucessfully interpolate kalshi time series" =
          ~interval:Time_series.Interval.Hour
     |> Or_error.ok_exn
   in
-   print_endline [%string "Num points: %{(List.length points)#Int}"];
+  print_endline [%string "Num points: %{(List.length points)#Int}"];
   List.iter (List.take points 5) ~f:(fun point ->
     print_s [%sexp (point : Time_series.Point.t)]);
   [%expect
@@ -76,9 +76,10 @@ let%expect_test "sucessfully interpolate kalshi time series" =
     |}]
 ;;
 
-
 let%expect_test "sucessfully interpolate polymarket time series" =
-  let start = Time_ns.Span.of_int_sec 1753488009 |> Time_ns.of_span_since_epoch in
+  let start =
+    Time_ns.Span.of_int_sec 1753488009 |> Time_ns.of_span_since_epoch
+  in
   let finish =
     Time_ns.Span.of_int_sec 1755177666 |> Time_ns.of_span_since_epoch
   in
