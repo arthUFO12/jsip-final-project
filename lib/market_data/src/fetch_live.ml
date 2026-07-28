@@ -17,7 +17,7 @@ let fetch_markets_helper ~base_uri ~params ~venue =
           (venue : Venue.t)]
 ;;
 
-let fetch_kalshi_markets ?(limit = 30) ?(status = "open") () =
+let fetch_kalshi_markets ?(limit = 100) ?(status = "open") () =
   let base_uri =
     Uri.of_string "https://external-api.kalshi.com/trade-api/v2/events"
   in

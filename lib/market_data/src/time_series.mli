@@ -23,5 +23,9 @@ end
 
 type t = Point.t list
 
-
-val interpolate : t -> start:Time_ns.t -> finish:Time_ns.t -> interval:Interval.t -> t Or_error.t
+val interpolate
+  :  t
+  -> start:Time_ns.t
+  -> finish:Time_ns.t
+  -> interval:Interval.t
+  -> t Or_error.t

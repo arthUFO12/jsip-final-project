@@ -3,8 +3,6 @@ open! Async
 open Types
 open Yojson.Safe.Util
 
-
-
 (* Venue APIs take timestamps as unix seconds, e.g. start_ts=1753488009. *)
 let unix_seconds_param time =
   Time_ns.to_span_since_epoch time

@@ -19,7 +19,7 @@ let polymarket_to_time_series_point (obj : Json.t) : Time_series.Point.t =
   { time; yes_price; no_price = Price.( - ) Price.one yes_price }
 ;;
 
-let kalshi_to_time_series_point (obj : Json.t) :Time_series.Point.t =
+let kalshi_to_time_series_point (obj : Json.t) : Time_series.Point.t =
   let time = obj |> U.member "end_period_ts" |> time_of_unix_seconds in
   (* Kalshi's *_dollars fields are decimal strings, e.g. "0.1400". *)
   let close_dollars side =

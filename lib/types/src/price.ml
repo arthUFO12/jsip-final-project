@@ -63,6 +63,7 @@ let ( + ) = Int.( + )
 let ( - ) = Int.( - )
 let ( * ) price qty = Int.( * ) price qty
 
+let ( / ) = Int.( / )
 let to_string_dollar t =
   let is_negative = Int.( < ) t 0 in
   let t_abs = Int.abs t in

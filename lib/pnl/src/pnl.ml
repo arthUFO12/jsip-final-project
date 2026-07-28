@@ -1,6 +1,13 @@
 open! Core
 open Types
 
+module Expiration = struct
+  type t =
+    { date : Time_ns.t
+    ; winner : Contract_type.t
+    }
+end
+
 type position =
   { inventory : Size.t
   ; realized_pnl : Price.t
@@ -8,12 +15,11 @@ type position =
   }
 
 type slug_data =
-  { yes_bid_price : Price.t
-  ; no_bid_price : Price.t
-  ; yes_ask_price : Price.t
-  ; no_ask_price : Price.t
-  ; yes_pct : Percentage.t
-  ; expiry : Time_ns.t
+  { mutable yes_bid_price : Price.t
+  ; mutable no_bid_price : Price.t
+  ; mutable yes_ask_price : Price.t
+  ; mutable no_ask_price : Price.t
+  ; expiration : Expiration.t option
   }
 
 let flat_position =
@@ -43,27 +49,48 @@ let realized_on_reduce ~closed ~trade_price ~cost_basis_removed =
   Price.( - ) (Size.multiply_by_price closed trade_price) cost_basis_removed
 ;;
 
+let realize_on_expiry size = Size.multiply_by_price size Price.one
+
+let realized_expired_bets t curr_time= 
+  Hashtbl.fold t.data ~f:(fun ~key:slug ~data:slug_data acc -> 
+    let position = Hashtbl.find_or_add t.positions slug ~default:flat_position in
+    match slug_data.expiration with 
+    | None -> acc 
+    | Some expiry -> 
+      if Time_ns.(curr_time > expiry.date) then 
+        let realized_winnings = realize_on_expiry position.inventory in 
+        Hashtbl.set t.positions ~key:slug ~data:{ position with inventory = Size.zero;  }
+        
+    )
 let calculate_unrealized_bet_revenue position data =
   match Size.sign position.inventory with
   | Pos -> Size.multiply_by_price position.inventory data.yes_bid_price
   | _ -> Size.multiply_by_price position.inventory data.no_bid_price
 ;;
 
-let calculate_unrealized_pnl t =
+let unrealized_pnl t =
   Hashtbl.fold t.data ~init:Price.zero ~f:(fun ~key:slug ~data acc ->
     let position =
       Hashtbl.find_or_add t.positions slug ~default:(fun () -> flat_position)
     in
     let bet_pnl =
-      Price.( - )
-        (calculate_unrealized_bet_revenue position data)
-        position.cost_basis
+      Price.(
+        calculate_unrealized_bet_revenue position data - position.cost_basis)
     in
-    Price.( + ) acc bet_pnl)
+    Price.(acc + bet_pnl))
 ;;
 
+let realized_pnl t =
+  Hashtbl.fold
+    t.positions
+    ~init:Price.zero
+    ~f:(fun ~key:_ ~data:position acc -> Price.(acc + position.realized_pnl))
+;;
+
+let cash t = t.cash
+
 let apply_trade position ~quantity_change ~yes_price ~no_price =
-  let { inventory; cost_basis; realized_pnl } = position in
+  let { inventory; cost_basis; realized_pnl; payout } = position in
   match
     Size.equal inventory Size.zero
     || Sign.equal (Size.sign inventory) (Size.sign quantity_change)
@@ -76,8 +103,8 @@ let apply_trade position ~quantity_change ~yes_price ~no_price =
       Size.multiply_by_price (Size.abs quantity_change) price
     in
     ( { position with
-        inventory = Size.( + ) inventory quantity_change
-      ; cost_basis = Price.( + ) cost_basis cost_basis_added
+        inventory = Size.(inventory + quantity_change)
+      ; cost_basis = Price.(cost_basis + cost_basis_added)
       }
     , Price.neg cost_basis_added )
   | false ->
@@ -95,22 +122,24 @@ let apply_trade position ~quantity_change ~yes_price ~no_price =
     let realized_delta =
       realized_on_reduce ~closed ~trade_price:close_price ~cost_basis_removed
     in
-    let realized_pnl = Price.( + ) realized_pnl realized_delta in
+    let realized_pnl = Price.(realized_pnl + realized_delta) in
     (match Size.( <= ) (Size.abs quantity_change) (Size.abs inventory) with
      | true ->
-       ( { inventory = Size.( + ) inventory quantity_change
-         ; cost_basis = Price.( - ) cost_basis cost_basis_removed
+       ( { inventory = Size.(inventory + quantity_change)
+         ; cost_basis = Price.(cost_basis - cost_basis_removed)
          ; realized_pnl
+         ; payout = Price.zero
          }
        , cost_basis_removed )
      | false ->
-       let remainder = Size.( + ) inventory quantity_change in
+       let remainder = Size.(inventory + quantity_change) in
        let cost_basis_added = Size.multiply_by_price remainder open_price in
        ( { inventory = remainder
          ; cost_basis = cost_basis_added
          ; realized_pnl
+         ; payout = Price.zero
          }
-       , Price.( - ) cost_basis_removed cost_basis_added ))
+       , Price.(cost_basis_removed - cost_basis_added) ))
 ;;
 
 let update_position
@@ -139,22 +168,20 @@ let update_position
 ;;
 
 let apply_trade_report
-  t
   ~slug
-  ~yes_bid_price
-  ~no_bid_price
-  ~yes_ask_price
-  ~no_ask_price
-  ~yes_pct
-  ~expiry
+  ?(yes_bbo : Bbo.t option)
+  ?(no_bbo : Bbo.t option)
+  t
   =
-  Hashtbl.change t.data slug ~f:(fun _ ->
-    Some
-      { yes_bid_price
-      ; no_bid_price
-      ; yes_ask_price
-      ; no_ask_price
-      ; yes_pct
-      ; expiry
-      })
+  let old = Hashtbl.find_exn t.data slug in
+  (match yes_bbo with
+   | None -> ()
+   | Some bbo ->
+     old.yes_bid_price <- bbo.bid;
+     old.yes_ask_price <- bbo.ask);
+  match no_bbo with
+  | None -> ()
+  | Some bbo ->
+    old.no_bid_price <- bbo.bid;
+    old.no_ask_price <- bbo.ask
 ;;
