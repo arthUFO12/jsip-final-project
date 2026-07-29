@@ -7,6 +7,7 @@ module Market_id = Market_id
 module Venue = Venue
 module Action = Action
 module Action_response = Action_response
+module Action_summary = Action_summary
 module Slug = Slug
 module Size = Size
 module Bot_id = Bot_id

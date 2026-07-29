@@ -19,7 +19,7 @@ type slug_data =
   ; mutable no_bid_price : Price.t
   ; mutable yes_ask_price : Price.t
   ; mutable no_ask_price : Price.t
-  ; expiration : Expiration.t option
+  ; mutable expiration : Expiration.t option
   }
 
 let flat_position =
@@ -34,6 +34,24 @@ type t =
   ; positions : position Slug.Table.t
   ; mutable cash : Price.t
   }
+
+let create slugs =
+  let data = Slug.Table.create () in
+  List.iter slugs ~f:(fun slug ->
+    Hashtbl.set
+      data
+      ~key:slug
+      ~data:
+        { yes_bid_price = Price.zero
+        ; no_bid_price = Price.zero
+        ; yes_ask_price = Price.zero
+        ; no_ask_price = Price.zero
+        ; expiration = None
+        });
+  { data; positions = Slug.Table.create (); cash = Price.zero }
+;;
+
+let mem t slug = Hashtbl.mem t.data slug
 
 let convert_transaction_to_delta
   size
@@ -59,7 +77,9 @@ let realize_winnings (position : position) (expiry : Expiration.t) curr_time =
     in
     match expiry.winner, position_side with
     | Yes, Yes | No, No ->
-      let winnings = Size.multiply_by_price position.inventory Price.one in
+      let winnings =
+        Size.multiply_by_price (Size.abs position.inventory) Price.one
+      in
       let winnings_pnl = Price.(winnings - position.cost_basis) in
       ( winnings
       , { inventory = Size.zero
@@ -75,25 +95,32 @@ let realize_winnings (position : position) (expiry : Expiration.t) curr_time =
   else Price.zero, position
 ;;
 
-let _realized_expired_bets t curr_time =
-  Hashtbl.fold t.data ~f:(fun ~key:slug ~data:slug_data acc ->
-    let position =
-      Hashtbl.find_or_add t.positions slug ~default:(fun () -> flat_position)
-    in
+let set_expiration t ~slug ~date ~winner =
+  let data = Hashtbl.find_exn t.data slug in
+  data.expiration <- Some { date; winner }
+;;
+
+let settle_expired_bets t ~now =
+  Hashtbl.iteri t.data ~f:(fun ~key:slug ~data:slug_data ->
     match slug_data.expiration with
-    | None -> acc
+    | None -> ()
     | Some expiry ->
-      let winnings, new_position =
-        realize_winnings position expiry curr_time
+      let position =
+        Hashtbl.find_or_add t.positions slug ~default:(fun () ->
+          flat_position)
       in
+      let winnings, new_position = realize_winnings position expiry now in
       t.cash <- Price.(t.cash + winnings);
       Hashtbl.set t.positions ~key:slug ~data:new_position)
 ;;
 
+(* [inventory] encodes direction in its sign; revenue is always the magnitude
+   marked at the side we could sell into. *)
 let calculate_unrealized_bet_revenue position data =
   match Size.sign position.inventory with
   | Pos -> Size.multiply_by_price position.inventory data.yes_bid_price
-  | _ -> Size.multiply_by_price position.inventory data.no_bid_price
+  | _ ->
+    Size.multiply_by_price (Size.abs position.inventory) data.no_bid_price
 ;;
 
 let unrealized_pnl t =
@@ -151,21 +178,24 @@ let apply_trade position ~quantity_change ~yes_price ~no_price =
       realized_on_reduce ~closed ~trade_price:close_price ~cost_basis_removed
     in
     let realized_pnl = Price.(realized_pnl + realized_delta) in
+    let proceeds = Size.multiply_by_price closed close_price in
     (match Size.( <= ) (Size.abs quantity_change) (Size.abs inventory) with
      | true ->
        ( { inventory = Size.(inventory + quantity_change)
          ; cost_basis = Price.(cost_basis - cost_basis_removed)
          ; realized_pnl
          }
-       , cost_basis_removed )
+       , proceeds )
      | false ->
        let remainder = Size.(inventory + quantity_change) in
-       let cost_basis_added = Size.multiply_by_price remainder open_price in
+       let cost_basis_added =
+         Size.multiply_by_price (Size.abs remainder) open_price
+       in
        ( { inventory = remainder
          ; cost_basis = cost_basis_added
          ; realized_pnl
          }
-       , Price.(cost_basis_removed - cost_basis_added) ))
+       , Price.(proceeds - cost_basis_added) ))
 ;;
 
 let update_position
