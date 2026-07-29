@@ -17,7 +17,7 @@ let set_prices t ~yes_bid ~yes_ask =
 ;;
 
 let make_pnl ~yes_bid ~yes_ask =
-  let t = Pnl.create [ slug ] in
+  let t = Pnl.create [ slug ] Price.zero in
   set_prices t ~yes_bid ~yes_ask;
   t
 ;;

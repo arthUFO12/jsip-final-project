@@ -13,6 +13,7 @@ module type Bot = sig
     val finish : t -> Time_ns.t
     val interval : t -> Time_series.Interval.t
     val sim_start_offset : t -> Time_ns.Span.t
+    val initial_cash : t -> Price.t
   end
 
   module State : sig

@@ -95,7 +95,7 @@ let run market_stubs (P ((module Bot), config)) =
   let%bind.Deferred.Or_error series_by_slug =
     load_aligned_series market_stubs ~start ~finish ~interval
   in
-  let pnl = Pnl.create (List.map series_by_slug ~f:fst) in
+  let pnl = Pnl.create (List.map series_by_slug ~f:fst) (Bot.Config.initial_cash config) in
   let data =
     ref (Bot.init_data (Slug.Table.of_alist_exn series_by_slug) config)
   in

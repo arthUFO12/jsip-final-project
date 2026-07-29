@@ -8,7 +8,7 @@ type t
     {!Price.zero}, no expiration). {!update_position} and
     {!apply_trade_report} raise on slugs not passed here, so call
     {!apply_trade_report} to set real prices before trading. *)
-val create : Slug.t list -> t
+val create : Slug.t list -> Price.t -> t
 
 (** [mem t slug] is true when [slug] was passed to {!create}, i.e. the
     raising functions below are safe to call on it. *)

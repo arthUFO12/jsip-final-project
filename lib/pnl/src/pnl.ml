@@ -35,7 +35,7 @@ type t =
   ; mutable cash : Price.t
   }
 
-let create slugs =
+let create slugs cash =
   let data = Slug.Table.create () in
   List.iter slugs ~f:(fun slug ->
     Hashtbl.set
@@ -48,7 +48,7 @@ let create slugs =
         ; no_ask_price = Price.zero
         ; expiration = None
         });
-  { data; positions = Slug.Table.create (); cash = Price.zero }
+  { data; positions = Slug.Table.create (); cash }
 ;;
 
 let mem t slug = Hashtbl.mem t.data slug

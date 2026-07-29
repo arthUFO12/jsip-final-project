@@ -22,6 +22,7 @@ module type Bot = sig
         simulation begins calling {!on_tick}. Data before that point is
         warmup, visible to the bot only through {!init_data}. *)
     val sim_start_offset : t -> Time_ns.Span.t
+    val initial_cash : t -> Price.t
   end
 
   module State : sig
