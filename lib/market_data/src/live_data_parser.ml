@@ -94,6 +94,16 @@ let time_of_json_opt json key =
     Option.try_with (fun () -> Time_ns.of_string s))
 ;;
 
+(* Required timestamp: raise [Type_error] like the other required-field
+   accessors, so a missing or malformed time skips the entry rather than
+   killing the whole parse. *)
+let time_of_json json key =
+  match time_of_json_opt json key with
+  | Some time -> time
+  | None ->
+    raise (Type_error ("expected a timestamp string", member key json))
+;;
+
 (** {1 Per-market parsers} *)
 
 let parse_kalshi_market
@@ -123,7 +133,8 @@ let parse_kalshi_market
       ; volume = json_volume_opt_kalshi json "volume_fp"
       ; volume_24h = json_volume_opt_kalshi json "volume_24h_fp"
       ; active = String.equal (json |> member "status" |> to_string) "active"
-      ; close_time = time_of_json_opt json "close_time"
+      ; created_time = time_of_json json "created_time"
+      ; close_time = time_of_json json "close_time"
       }
   with
   | Type_error (_, _) -> None
@@ -167,7 +178,8 @@ let parse_polymarket_market (json : Yojson.Safe.t)
       ; active =
           json |> member "active" |> to_bool
           && not (json |> member "closed" |> to_bool)
-      ; close_time = time_of_json_opt json "endDate"
+      ; created_time = time_of_json json "createdAt"
+      ; close_time = time_of_json json "endDate"
       }
   with
   | Type_error (_, _) -> None

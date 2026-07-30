@@ -13,14 +13,17 @@ let file_exists file_name =
   match db_existence with `Yes -> return true | _ -> return false
 ;;
 
-let make_stub ~venue ~market_id ~slug ~title ~close_time : Market_stub.t =
+let make_stub ~venue ~market_id ~slug ~title ~created_time ~close_time
+  : Market_stub.t
+  =
   { venue = Venue.of_string venue
   ; market_id
   ; slug = Slug.of_string slug
   ; series_ticker = None
   ; clob_token_id = None
   ; title
-  ; close_time = Some (Time_ns.of_string close_time)
+  ; created_time = Time_ns.of_string created_time
+  ; close_time = Time_ns.of_string close_time
   }
 ;;
 
@@ -62,6 +65,7 @@ let%expect_test "market stub is successfully inserted into the table" =
       ~market_id:real_id
       ~slug:"12345"
       ~title:"Don trump tweets"
+      ~created_time:"2026-07-01T00:00:00Z"
       ~close_time:"2026-07-25T15:45:00Z"
   in
   let%bind success_or_error = Database_exec.insert_market_stub stub in
@@ -78,6 +82,7 @@ let%expect_test "duplicate stub id is not inserted into the table" =
       ~market_id:real_id
       ~slug:"12345"
       ~title:"France wins world cup"
+      ~created_time:"2026-07-01T00:00:00Z"
       ~close_time:"2026-08-15T00:00:00Z"
   in
   let%bind success_or_error = Database_exec.insert_market_stub stub in
@@ -86,7 +91,7 @@ let%expect_test "duplicate stub id is not inserted into the table" =
    | Error e -> print_endline (Error.to_string_hum e));
   return
     [%expect
-      {| Request to <sqlite3:///home/ubuntu/jsip-final-project/test.db> failed: UNIQUE constraint failed: market_stubs.market_id (ERC#1555). Query: " INSERT INTO market_stubs (venue, market_id, slug, series_ticker, clob_token_id, title, close_time) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7) ". |}]
+      {| Request to <sqlite3:///home/ubuntu/jsip-final-project/test.db> failed: UNIQUE constraint failed: market_stubs.market_id (ERC#1555). Query: " INSERT INTO market_stubs (venue, market_id, slug, series_ticker, clob_token_id, title, created_time, close_time) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8) ". |}]
 ;;
 
 let%expect_test "market stub is successfully found" =
@@ -100,7 +105,7 @@ let%expect_test "market stub is successfully found" =
    | Error e -> print_endline (Error.to_string_hum e));
   return
     [%expect
-      {| Stub found: venue: Polymarket, market_id: 12345, slug: 12345, title: Don trump tweets, close_time: 2026-07-25 15:45:00.000000000Z |}]
+      {| Stub found: venue: Polymarket, market_id: 12345, slug: 12345, title: Don trump tweets, created_time: 2026-07-01 00:00:00.000000000Z, close_time: 2026-07-25 15:45:00.000000000Z |}]
 ;;
 
 let%expect_test "Nonexistent market ID is not found" =
@@ -128,5 +133,5 @@ let%expect_test "Market stubs after 2026-07-19 are found" =
    | Error e -> print_endline (Error.to_string_hum e));
   return
     [%expect
-      {| venue: Polymarket, market_id: 12345, slug: 12345, title: Don trump tweets, close_time: 2026-07-25 15:45:00.000000000Z |}]
+      {| venue: Polymarket, market_id: 12345, slug: 12345, title: Don trump tweets, created_time: 2026-07-01 00:00:00.000000000Z, close_time: 2026-07-25 15:45:00.000000000Z |}]
 ;;

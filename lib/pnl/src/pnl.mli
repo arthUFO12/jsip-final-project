@@ -18,6 +18,11 @@ val unrealized_pnl : t -> Price.t
 val realized_pnl : t -> Price.t
 val cash : t -> Price.t
 
+(** Signed contracts held per market (positive long Yes, negative long No),
+    with an entry for every slug passed to {!create} — zero when flat. A
+    fresh table each call; mutating it does not affect [t]. *)
+val inventories : t -> Size.t Slug.Table.t
+
 val update_position
   :  t
   -> slug:Slug.t

@@ -128,7 +128,7 @@ let fetch_kalshi_data
   ~(interval : Time_series.Interval.t)
   =
   let historical_cutoff = Option.value_exn !historical_cutoff in
-  let close_time = Option.value_exn market_stub.close_time in
+  let close_time = market_stub.close_time in
   if Time_ns.O.(close_time < historical_cutoff)
   then fetch_historical_kalshi_data market_stub ~start ~finish ~interval
   else fetch_live_kalshi_data market_stub ~start ~finish ~interval
