@@ -134,8 +134,7 @@ let%expect_test "kalshi time series fetch -> parse round trip" =
     time_series_round_trip
       ~venue:Venue.Kalshi
       ~usable:(fun (market : L1_market_metadata.t) ->
-        Option.is_some market.series_ticker
-        && Option.is_some market.close_time)
+        Option.is_some market.series_ticker)
       ~fetch_markets:(fun () -> Fetch_live.fetch_kalshi_markets ~limit:1 ())
       ~fetch_series:Fetch_time_series.fetch_kalshi_data
       ~parse_series:Time_series_parser.parse_kalshi_time_series

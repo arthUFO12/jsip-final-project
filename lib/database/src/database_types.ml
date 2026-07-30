@@ -30,13 +30,14 @@ let market_id_type =
 let market_stub_type =
   let representation =
     T.(
-      t7
+      t8
         T.string
         T.string
         T.string
         (T.option T.string)
         (T.option T.string)
         T.string
+        T.int64
         T.int64)
   in
   let encode
@@ -46,6 +47,7 @@ let market_stub_type =
      ; series_ticker
      ; clob_token_id
      ; title
+     ; created_time
      ; close_time
      } :
       Market_stub.t)
@@ -57,7 +59,8 @@ let market_stub_type =
       , Option.map series_ticker ~f:Slug.to_string
       , clob_token_id
       , title
-      , Option.value_exn close_time |> time_ns_to_int64 )
+      , time_ns_to_int64 created_time
+      , time_ns_to_int64 close_time )
   in
   let decode
     ( venue_str
@@ -66,6 +69,7 @@ let market_stub_type =
     , series_ticker_str
     , clob_token_id
     , title
+    , created_time_int
     , close_time_int )
     =
     Ok
@@ -75,7 +79,8 @@ let market_stub_type =
        ; series_ticker = Option.map series_ticker_str ~f:Slug.of_string
        ; clob_token_id
        ; title
-       ; close_time = Some (int64_to_time_ns close_time_int)
+       ; created_time = int64_to_time_ns created_time_int
+       ; close_time = int64_to_time_ns close_time_int
        }
        : Market_stub.t)
   in

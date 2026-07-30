@@ -7,16 +7,13 @@ type t =
   ; series_ticker : Slug.t option
   ; clob_token_id : string option
   ; title : string
-  ; close_time : Time_ns.t option
+  ; created_time : Time_ns.t
+  ; close_time : Time_ns.t
   }
 
 let to_string t =
-  let closing_time =
-    match t.close_time with
-    | None -> ""
-    | Some time -> Time_ns.to_string time
-  in
   [%string
     "venue: %{t.venue#Venue}, market_id: %{t.market_id#Market_id}, slug: \
-     %{t.slug#Slug}, title: %{t.title}, close_time: %{closing_time}"]
+     %{t.slug#Slug}, title: %{t.title}, created_time: \
+     %{t.created_time#Time_ns}, close_time: %{t.close_time#Time_ns}"]
 ;;

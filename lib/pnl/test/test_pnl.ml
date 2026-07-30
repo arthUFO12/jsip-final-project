@@ -110,15 +110,15 @@ let%expect_test "losing yes position is written off at expiry" =
 
 let%expect_test "flipping from yes to no through zero" =
   let t = make_pnl ~yes_bid:60 ~yes_ask:62 in
-  Pnl.update_position 
+  Pnl.update_position
     t
-    ~slug 
+    ~slug
     ~side:Buy
     ~contract_type:Yes
     ~size:(Size.of_int 2);
   Pnl.update_position
-  t
-    ~slug 
+    t
+    ~slug
     ~side:Sell
     ~contract_type:Yes
     ~size:(Size.of_int 5);

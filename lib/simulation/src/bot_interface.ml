@@ -6,8 +6,6 @@ module type Bot = sig
   module Config : sig
     type t
 
-    val sexp_of_t : t -> Sexp.t
-    val t_of_sexp : Sexp.t -> t
     val id : t -> int
     val start : t -> Time_ns.t
     val finish : t -> Time_ns.t

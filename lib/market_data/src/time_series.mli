@@ -10,6 +10,7 @@ module Interval : sig
     | Minute
     | Hour
     | Day
+  [@@deriving sexp]
 end
 
 module Point : sig

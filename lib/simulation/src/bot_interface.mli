@@ -11,17 +11,18 @@ module type Bot = sig
   module Config : sig
     type t
 
-    val sexp_of_t : t -> Sexp.t
-    val t_of_sexp : Sexp.t -> t
     val id : t -> int
     val start : t -> Time_ns.t
     val finish : t -> Time_ns.t
     val interval : t -> Time_series.Interval.t
 
-    (** How long after [start] (the beginning of the fetched data) the
-        simulation begins calling {!on_tick}. Data before that point is
+    (** How long after the beginning of the data the simulation begins
+        calling {!on_tick}. The data begins at the latest first entry across
+        the fetched series, which may be later than [start] when a venue's
+        history does not reach back that far. Data before that point is
         warmup, visible to the bot only through {!init_data}. *)
     val sim_start_offset : t -> Time_ns.Span.t
+
     val initial_cash : t -> Price.t
   end
 

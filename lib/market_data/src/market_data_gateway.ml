@@ -50,9 +50,9 @@ let fetch_many_ticker_series
   : (Market_stub.t * Time_series.t) list Deferred.Or_error.t
   =
   let%bind.Deferred.Or_error time_series =
-    List.map
-      market_stubs
-      ~f:(fetch_one_ticker_series ~start ~finish ~interval)
+    List.map market_stubs ~f:(fun stub ->
+      let%bind () = Clock.after (Time_float.Span.of_sec 0.1) in
+      fetch_one_ticker_series stub ~start ~finish ~interval)
     |> Deferred.Or_error.all
   in
   Deferred.Or_error.return (List.zip_exn market_stubs time_series)

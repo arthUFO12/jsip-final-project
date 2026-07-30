@@ -14,9 +14,8 @@ val update_kalshi_historical_cutoff : unit -> unit Deferred.Or_error.t
 
 (** Fetch candlesticks for a Kalshi market between [start] and [finish],
     routing to the live or historical endpoint by comparing the stub's close
-    time against the cutoff. Raises if the stub lacks [series_ticker] or
-    [close_time], or if {!update_kalshi_historical_cutoff} has never
-    succeeded. *)
+    time against the cutoff. Raises if the stub lacks [series_ticker], or if
+    {!update_kalshi_historical_cutoff} has never succeeded. *)
 val fetch_kalshi_data
   :  Market_stub.t
   -> start:Time_ns.t

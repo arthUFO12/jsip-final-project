@@ -6,6 +6,7 @@ module Interval = struct
     | Minute
     | Hour
     | Day
+  [@@deriving sexp]
 end
 
 module Point = struct

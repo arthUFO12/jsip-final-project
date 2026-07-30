@@ -53,6 +53,13 @@ let create slugs cash =
 
 let mem t slug = Hashtbl.mem t.data slug
 
+let inventories t =
+  Hashtbl.mapi t.data ~f:(fun ~key:slug ~data:_ ->
+    match Hashtbl.find t.positions slug with
+    | None -> Size.zero
+    | Some position -> position.inventory)
+;;
+
 let convert_transaction_to_delta
   size
   (side : Side.t)
