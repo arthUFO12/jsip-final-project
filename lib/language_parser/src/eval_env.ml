@@ -10,4 +10,5 @@ type t =
       -> contract:Contract_type.t
       -> ago:Time_ns.Span.t
       -> float option
+  ; inventory : slug:Slug.t -> float
   }

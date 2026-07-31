@@ -23,4 +23,7 @@ type t =
   (** Price of [contract] on [slug], [ago] before the current tick
       ([Time_ns.Span.zero] = the current tick), in dollars. [None] when the
       bot's history does not reach that far back. *)
+  ; inventory : slug:Slug.t -> float
+  (** Signed contracts currently held in [slug]: positive long Yes, negative
+      long No, [0.] when flat (the {!Pnl.inventories} convention). *)
   }

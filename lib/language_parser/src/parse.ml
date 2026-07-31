@@ -22,6 +22,9 @@ type state =
   ; mutable pos : int
   ; ctx : Expr.Context.t
   ; mutable vars : Var_env.t
+  ; slugs : String.Set.t
+  (** Tickers of the simulation's markets: a bare word is a price reference
+      exactly when it is a member. *)
   }
 
 let peek state =
@@ -96,6 +99,18 @@ let parse_side state =
     fail [%string "expected BUY or SELL, found '%{Token.to_string token}'"]
 ;;
 
+(* [PRICE]/[INVENTORY] name their market explicitly, so an unknown ticker
+   there is an error; bare-ticker price references are recognized by
+   membership alone in {!parse_num_factor}. *)
+let parse_known_slug state ~keyword =
+  let expecting = [%string "a market ticker after %{keyword}"] in
+  match next state ~expecting with
+  | Word word when Set.mem state.slugs word -> Slug.of_string word
+  | Word word -> fail [%string "unknown market '%{word}'"]
+  | token ->
+    fail [%string "expected %{expecting}, found '%{Token.to_string token}'"]
+;;
+
 let parse_duration state ~expecting =
   match next state ~expecting with
   | Duration span -> span
@@ -145,10 +160,18 @@ and parse_num_term state =
   go lhs
 
 and parse_num_factor state =
-  match next state ~expecting:"a number, $variable, or '('" with
+  match next state ~expecting:"a number, $variable, ticker, or '('" with
   | Number value -> Expr.Num.const state.ctx value
   | Minus -> Expr.Num.neg state.ctx (parse_num_factor state)
   | Var name -> or_fail (Var_env.find_num state.vars name)
+  | Word "PRICE" ->
+    Expr.Num.price state.ctx ~slug:(parse_known_slug state ~keyword:"PRICE")
+  | Word "INVENTORY" ->
+    Expr.Num.inventory
+      state.ctx
+      ~slug:(parse_known_slug state ~keyword:"INVENTORY")
+  | Word word when Set.mem state.slugs word ->
+    Expr.Num.price state.ctx ~slug:(Slug.of_string word)
   | Lparen ->
     let inner = parse_num_expr state in
     expect state Rparen ~expecting:"')'";
@@ -229,6 +252,15 @@ and parse_bool_atom state =
     (match next state ~expecting:"a boolean expression" with
      | Word "true" -> Expr.Bool.const state.ctx true
      | Word "false" -> Expr.Bool.const state.ctx false
+     | Word (("PRICE" | "INVENTORY") as keyword) ->
+       (* The comparison attempt above already failed, so either the
+          reference itself is broken (unknown market — surface that error) or
+          no comparison operator followed it. *)
+       let (_ : Slug.t) = parse_known_slug state ~keyword in
+       fail
+         [%string
+           "%{keyword} is a numeric value; compare it to something to form \
+            a condition"]
      | Var name -> or_fail (Var_env.find_bool state.vars name)
      | Lparen ->
        let inner = parse_bool_expr state in
@@ -315,6 +347,10 @@ let expect_end state =
 ;;
 
 let parse_variable_definition state ~name =
+  (match Set.mem state.slugs name with
+   | true ->
+     fail [%string "variable name '%{name}' collides with a market ticker"]
+   | false -> ());
   let binding : Var_env.Binding.t =
     let numeric =
       try_parse state ~f:(fun state ->
@@ -409,7 +445,8 @@ let parse_statement state : Rule.t option =
 
 let program text ~slugs =
   let ctx = Expr.Context.create () in
-  let vars = ref (Var_env.create ctx ~slugs) in
+  let slugs = String.Set.of_list (List.map slugs ~f:Slug.to_string) in
+  let vars = ref (Var_env.create ctx) in
   String.split_lines text
   |> List.filter_mapi ~f:(fun index line ->
     let line = String.strip line in
@@ -427,7 +464,12 @@ let program text ~slugs =
                 ~_:(error : Error.t)]
         | Ok tokens ->
           let state =
-            { tokens = Array.of_list tokens; pos = 0; ctx; vars = !vars }
+            { tokens = Array.of_list tokens
+            ; pos = 0
+            ; ctx
+            ; vars = !vars
+            ; slugs
+            }
           in
           (match parse_statement state with
            | exception Parse_error message ->

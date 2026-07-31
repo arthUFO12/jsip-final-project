@@ -45,4 +45,11 @@ Optionally, it is allowed to put an action statement directly after one of these
 EVERY (CONSTANT NUMBER)(m|h|d) ACTION_STATEMENT
 ```
 
-There should be a couple numeric variables already available to the user. cash, realized, unrealized, and (slug)_price for all slugs
+There should be a couple numeric variables already available to the user: cash, realized, and unrealized (referenced `$cash` etc.).
+
+Markets are referenced by ticker directly in numeric expressions:
+
+- A bare ticker (e.g. `save-act`), or equivalently `PRICE save-act`, is the market's current YES price. The NO price is written arithmetically: `1 - save-act`.
+- `INVENTORY save-act` is the signed number of contracts currently held in that market: positive long YES, negative long NO, 0 when flat.
+
+Ticker names are reserved — a variable definition may not reuse one.

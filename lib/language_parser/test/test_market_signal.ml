@@ -11,6 +11,7 @@ let env_with_price price : Eval_env.t =
   ; realized = 0.
   ; unrealized = 0.
   ; price_ago = (fun ~slug:_ ~contract:_ ~ago:_ -> price)
+  ; inventory = (fun ~slug:_ -> 0.)
   }
 ;;
 
@@ -53,6 +54,7 @@ let env_with_history history : Eval_env.t =
           / Time_ns.Span.to_int_ns (Time_ns.Span.of_hr 1.)
         in
         List.Assoc.find history hours_ago ~equal:Int.equal)
+  ; inventory = (fun ~slug:_ -> 0.)
   }
 ;;
 

@@ -58,6 +58,7 @@ and num_node =
   | Realized
   | Unrealized
   | Price_of of Slug.t
+  | Inventory_of of Slug.t
   | Num_binop of Num_op.t * num * num
   | Neg of num
 
@@ -84,6 +85,7 @@ module Num_key = struct
       | Realized
       | Unrealized
       | Price_of of Slug.t
+      | Inventory_of of Slug.t
       | Binop of Num_op.t * int * int
       | Neg of int
     [@@deriving sexp_of, compare, hash]
@@ -162,6 +164,11 @@ module Num = struct
     Context.intern_num ctx (Price_of slug) ~node:(fun () -> Price_of slug)
   ;;
 
+  let inventory ctx ~slug =
+    Context.intern_num ctx (Inventory_of slug) ~node:(fun () ->
+      Inventory_of slug)
+  ;;
+
   let binop ctx op left right =
     Context.intern_num
       ctx
@@ -186,7 +193,7 @@ module Num = struct
         Hash_set.add visited t.num_id;
         (match t.num_node with
          | Const _ | Cash | Realized | Unrealized -> ()
-         | Price_of slug -> f slug
+         | Price_of slug | Inventory_of slug -> f slug
          | Num_binop (_, left, right) ->
            walk left;
            walk right
@@ -310,6 +317,7 @@ module Eval = struct
         | Realized -> t.env.realized
         | Unrealized -> t.env.unrealized
         | Price_of slug -> current_yes_price t slug
+        | Inventory_of slug -> t.env.inventory ~slug
         | Num_binop (op, left, right) ->
           Num_op.apply op (num t left) (num t right)
         | Neg operand -> -.num t operand

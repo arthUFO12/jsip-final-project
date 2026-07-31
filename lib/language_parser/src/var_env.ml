@@ -1,5 +1,4 @@
 open! Core
-open Types
 
 module Binding = struct
   type t =
@@ -11,16 +10,12 @@ end
 
 type t = Binding.t String.Map.t
 
-let price_builtin_name slug = [%string "%{slug#Slug}_price"]
-
-let create ctx ~slugs =
+let create ctx =
   let builtins =
     [ "cash", Binding.Num (Expr.Num.cash ctx)
     ; "realized", Num (Expr.Num.realized ctx)
     ; "unrealized", Num (Expr.Num.unrealized ctx)
     ]
-    @ List.map slugs ~f:(fun slug ->
-      price_builtin_name slug, Binding.Num (Expr.Num.price ctx ~slug))
   in
   String.Map.of_alist_exn builtins
 ;;

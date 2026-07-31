@@ -66,7 +66,7 @@ let%expect_test "WHEN I BUY fires on the tick after the accepted fill" =
 
 let%expect_test "builtin $cash gates a conditional rule" =
   let ctx = Parser.Expr.Context.create () in
-  let var_env = Parser.Var_env.create ctx ~slugs:[ slug ] in
+  let var_env = Parser.Var_env.create ctx in
   let cash = Parser.Var_env.find_num var_env "cash" |> Or_error.ok_exn in
   let condition =
     Parser.Expr.Bool.cmp ctx Gt cash (Parser.Expr.Num.const ctx 98.)
@@ -97,12 +97,9 @@ let%expect_test "builtin $cash gates a conditional rule" =
     |}]
 ;;
 
-let%expect_test "builtin $<slug>_price reacts to the moving market" =
+let%expect_test "a price reference reacts to the moving market" =
   let ctx = Parser.Expr.Context.create () in
-  let var_env = Parser.Var_env.create ctx ~slugs:[ slug ] in
-  let price =
-    Parser.Var_env.find_num var_env "save-act_price" |> Or_error.ok_exn
-  in
+  let price = Parser.Expr.Num.price ctx ~slug in
   let condition =
     Parser.Expr.Bool.cmp ctx Gt price (Parser.Expr.Num.const ctx 0.45)
   in

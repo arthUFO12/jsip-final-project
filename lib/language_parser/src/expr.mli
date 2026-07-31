@@ -40,8 +40,13 @@ module Num : sig
   val realized : Context.t -> t
   val unrealized : Context.t -> t
 
-  (** The [<slug>_price] built-in: the slug's current Yes price. *)
+  (** A bare ticker (or [PRICE ticker]) reference: the slug's current Yes
+      price. *)
   val price : Context.t -> slug:Slug.t -> t
+
+  (** The [INVENTORY ticker] reference: signed contracts currently held in
+      the slug's market (positive long Yes, negative long No). *)
+  val inventory : Context.t -> slug:Slug.t -> t
 
   val add : Context.t -> t -> t -> t
   val sub : Context.t -> t -> t -> t
@@ -49,7 +54,8 @@ module Num : sig
   val div : Context.t -> t -> t -> t
   val neg : Context.t -> t -> t
 
-  (** Slugs read by [price] nodes anywhere in the DAG, deduplicated. *)
+  (** Slugs read by [price] and [inventory] nodes anywhere in the DAG,
+      deduplicated. *)
   val referenced_slugs : t -> Slug.t list
 end
 

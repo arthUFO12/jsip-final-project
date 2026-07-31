@@ -61,6 +61,9 @@ module Bot : Bot_interface.Bot with type Config.t = Config.t = struct
       ; pending_triggers : Parser.Rule.Trigger.Hash_set.t
       (** Accepted fills from the previous tick's [on_response]; consumed by
           WHEN-I gating on the next [on_tick]. *)
+      ; mutable inventories : Size.t Slug.Table.t
+      (** Positions as of the last [on_response]; empty (= flat) before the
+          first fill report. *)
       ; generator : Action.Generator.t
       }
 
@@ -98,6 +101,7 @@ module Bot : Bot_interface.Bot with type Config.t = Config.t = struct
     ; realized = 0.
     ; unrealized = 0.
     ; pending_triggers = Parser.Rule.Trigger.Hash_set.create ()
+    ; inventories = Slug.Table.create ()
     ; generator = Action.Generator.create ()
     }
   ;;
@@ -129,10 +133,16 @@ module Bot : Bot_interface.Bot with type Config.t = Config.t = struct
            in
            Some (Price.to_dollar_float price))
     in
+    let inventory ~slug =
+      match Hashtbl.find state.inventories slug with
+      | None -> 0.
+      | Some size -> Float.of_int (Size.to_int size)
+    in
     { cash = state.cash
     ; realized = state.realized
     ; unrealized = state.unrealized
     ; price_ago
+    ; inventory
     }
   ;;
 
@@ -204,8 +214,7 @@ module Bot : Bot_interface.Bot with type Config.t = Config.t = struct
     (_ : Config.t)
     (state : State.t)
     (responses : Action_response.t list)
-    ({ cash; realized_pnl; unrealized_pnl; inventory = _ } :
-      Action_summary.t)
+    ({ cash; realized_pnl; unrealized_pnl; inventory } : Action_summary.t)
     =
     List.iter responses ~f:(fun response ->
       match response with
@@ -222,6 +231,9 @@ module Bot : Bot_interface.Bot with type Config.t = Config.t = struct
              %{reason}"]);
     state.cash <- Price.to_dollar_float cash;
     state.realized <- Price.to_dollar_float realized_pnl;
-    state.unrealized <- Price.to_dollar_float unrealized_pnl
+    state.unrealized <- Price.to_dollar_float unrealized_pnl;
+    (* [Pnl.inventories] builds a fresh table per call, so keeping the
+       received one does not alias the harness's book. *)
+    state.inventories <- inventory
   ;;
 end

@@ -30,8 +30,16 @@
     first parsed as a whole-line numeric expression and falls back to
     boolean, and [$name] resolves through {!Var_env} kind checks.
 
-    [slugs] seeds the built-in variables ([cash], [<slug>_price], ...);
-    slug-membership and span validation stay {!Program.create}'s job. *)
+    Market references are numeric expressions: a bare ticker ([save-act]) or
+    [PRICE save-act] is the market's current Yes price, and
+    [INVENTORY save-act] is the signed contracts held (positive long Yes,
+    negative long No). The No price is written arithmetically:
+    [1 - save-act]. Ticker names are reserved — defining a variable with a
+    ticker's name is an error.
+
+    [slugs] decides which words are tickers and seeds nothing else; the
+    built-in variables are [$cash], [$realized], and [$unrealized]. Span
+    validation stays {!Program.create}'s job. *)
 
 open! Core
 open Types

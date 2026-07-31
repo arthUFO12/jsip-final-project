@@ -2,36 +2,30 @@
    and the error cases the spec requires. *)
 
 open! Core
-open Types
 open Parser
-
-let slug = Slug.of_string "save-act"
 
 let%expect_test "builtins are seeded, unknown names error" =
   let ctx = Expr.Context.create () in
-  let env = Var_env.create ctx ~slugs:[ slug ] in
-  List.iter
-    [ "cash"; "realized"; "unrealized"; "save-act_price"; "moon" ]
-    ~f:(fun name ->
-      let found =
-        match Var_env.find_num env name with
-        | Ok _ -> "found"
-        | Error error -> Error.to_string_hum error
-      in
-      print_endline [%string "%{name}: %{found}"]);
+  let env = Var_env.create ctx in
+  List.iter [ "cash"; "realized"; "unrealized"; "moon" ] ~f:(fun name ->
+    let found =
+      match Var_env.find_num env name with
+      | Ok _ -> "found"
+      | Error error -> Error.to_string_hum error
+    in
+    print_endline [%string "%{name}: %{found}"]);
   [%expect
     {|
     cash: found
     realized: found
     unrealized: found
-    save-act_price: found
     moon: ("unknown variable" (name moon))
     |}]
 ;;
 
 let%expect_test "definitions resolve in order and share nodes" =
   let ctx = Expr.Context.create () in
-  let env = Var_env.create ctx ~slugs:[ slug ] in
+  let env = Var_env.create ctx in
   let open Or_error.Let_syntax in
   let result =
     let%bind cash = Var_env.find_num env "cash" in
@@ -51,7 +45,7 @@ let%expect_test "definitions resolve in order and share nodes" =
 
 let%expect_test "duplicate names and kind mismatches error" =
   let ctx = Expr.Context.create () in
-  let env = Var_env.create ctx ~slugs:[] in
+  let env = Var_env.create ctx in
   let flag = Expr.Bool.const ctx true in
   let env = Var_env.add env ~name:"flag" (Bool flag) |> Or_error.ok_exn in
   print_s

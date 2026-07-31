@@ -8,11 +8,12 @@ open Parser
 
 let slug = Slug.of_string "save-act"
 
-let env ?(cash = 100.) ?(price = 0.40) () : Eval_env.t =
+let env ?(cash = 100.) ?(price = 0.40) ?(inventory = 0.) () : Eval_env.t =
   { cash
   ; realized = 0.
   ; unrealized = 0.
   ; price_ago = (fun ~slug:_ ~contract:_ ~ago:_ -> Some price)
+  ; inventory = (fun ~slug:_ -> inventory)
   }
 ;;
 
@@ -75,10 +76,30 @@ let%expect_test "variables define in order, and sizes are expressions" =
       EVERY 1h BUY $double_lot - 1 save-act YES|};
   [%expect {| every 1h buy 9. yes save-act |}];
   show
-    {|cheap = $save-act_price < 0.50
+    {|cheap = save-act < 0.50
       funded = $cash >= 50
       IF $cheap && $funded THEN BUY 1 save-act YES|};
   [%expect {| buy 1. yes save-act |}]
+;;
+
+let%expect_test "market references: bare ticker, PRICE, and INVENTORY" =
+  (* The env's price is 0.40 throughout. *)
+  show "IF save-act < 0.50 THEN BUY 1 save-act YES";
+  [%expect {| buy 1. yes save-act |}];
+  show "IF PRICE save-act == 0.40 THEN BUY 1 save-act YES";
+  [%expect {| buy 1. yes save-act |}];
+  (* The NO price is written arithmetically. *)
+  show "IF 1 - save-act > 0.55 THEN BUY 1 save-act NO";
+  [%expect {| buy 1. no save-act |}];
+  (* Sizes can read the position: top the holding up to 10 contracts. *)
+  show
+    ~env:(env ~inventory:4. ())
+    "EVERY 1h BUY 10 - INVENTORY save-act save-act YES";
+  [%expect {| every 1h buy 6. yes save-act |}];
+  show
+    ~env:(env ~inventory:4. ())
+    "IF INVENTORY save-act < 3 THEN BUY 1 save-act YES";
+  [%expect {| no action |}]
 ;;
 
 let%expect_test "signal statements parse both magnitudes and windows" =
@@ -141,6 +162,24 @@ let%expect_test "parse errors carry the line and reason" =
     ("parse error" (line 1) (line "EVERY 2h IF $cash THEN BUY 1 save-act YES")
      ("variable used where a boolean value is required" (name cash)
       (defined_as numeric)))
+    |}];
+  show "IF PRICE moon > 0 THEN BUY 1 save-act YES";
+  [%expect
+    {|
+    ("parse error" (line 1) (line "IF PRICE moon > 0 THEN BUY 1 save-act YES")
+     "unknown market 'moon'")
+    |}];
+  show "IF PRICE save-act THEN BUY 1 save-act YES";
+  [%expect
+    {|
+    ("parse error" (line 1) (line "IF PRICE save-act THEN BUY 1 save-act YES")
+     "PRICE is a numeric value; compare it to something to form a condition")
+    |}];
+  show "save-act = 5";
+  [%expect
+    {|
+    ("parse error" (line 1) (line "save-act = 5")
+     "variable name 'save-act' collides with a market ticker")
     |}];
   show "IF save-act YES SIDEWAYS BY 3% SINCE 1h AGO THEN BUY 1 save-act YES";
   [%expect

@@ -8,11 +8,11 @@
     used by many rules is computed at most once per tick. After construction
     no names remain: evaluation never looks anything up here.
 
-    {!create} seeds the spec's built-ins: [cash], [realized], [unrealized],
-    and [<slug>_price] for every slug in the simulation. *)
+    {!create} seeds the spec's built-ins: [cash], [realized], and
+    [unrealized]. Market references (bare ticker, [PRICE], [INVENTORY]) are
+    grammar forms handled by {!Parse}, not variables. *)
 
 open! Core
-open Types
 
 module Binding : sig
   type t =
@@ -22,7 +22,7 @@ end
 
 type t
 
-val create : Expr.Context.t -> slugs:Slug.t list -> t
+val create : Expr.Context.t -> t
 
 (** Errors on a duplicate name (including shadowing a built-in). *)
 val add : t -> name:string -> Binding.t -> t Or_error.t

@@ -18,6 +18,7 @@ let env_with_price price : Eval_env.t =
   ; realized = 0.
   ; unrealized = 0.
   ; price_ago = (fun ~slug:_ ~contract:_ ~ago:_ -> Some price)
+  ; inventory = (fun ~slug:_ -> 0.)
   }
 ;;
 

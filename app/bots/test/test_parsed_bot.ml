@@ -54,20 +54,29 @@ let%expect_test "warmup history feeds lookbacks; WHEN I chains next tick" =
     |}]
 ;;
 
-let%expect_test "your strategy" =
-  (* TODO(human) — replace [program] with your own strategy written in the
-     bot language (see bot_creation/bot_creation_spec.md). The market: six
-     hourly ticks of the [save-act] YES price given below — a rally to 0.60
-     followed by a crash to 0.20. Any statements the spec allows are
-     available: variables, EVERY / WHEN I, signals with SINCE/END windows,
-     the $cash / $save-act_price builtins. Run [dune runtest app/bots] and
-     read the diff to see what your bot did, then promote it here. *)
+let%expect_test "INVENTORY caps the position at 3 contracts" =
+  run
+    "IF INVENTORY save-act < 3 THEN BUY 1 save-act YES"
+    ~yes_prices:[ 0.40; 0.40; 0.40; 0.40; 0.40 ];
+  (* The position grows by one per tick and the rule goes quiet once the
+     inventory cached from [on_response] reaches 3. *)
+  [%expect
+    {|
+    2026-01-01 00:00:00.000000000Z accepted #1 buy 1 yes on save-act
+    2026-01-01 01:00:00.000000000Z accepted #2 buy 1 yes on save-act
+    2026-01-01 02:00:00.000000000Z accepted #3 buy 1 yes on save-act
+    final: cash $98.80 | realized $0.00
+    |}]
+;;
+
+let%expect_test "buy every 1 hour and sell if the price drops below $0.30" =
   let program =
     {|EVERY 1h BUY 100 save-act YES
-IF $save-act_price < 0.30 THEN SELL 600 save-act YES|}
+IF save-act < 0.30 THEN SELL 600 save-act YES|}
   in
   run program ~yes_prices:[ 0.30; 0.35; 0.45; 0.60; 0.55; 0.20 ];
-  [%expect {|
+  [%expect
+    {|
     2026-01-01 00:00:00.000000000Z accepted #1 buy 100 yes on save-act
     2026-01-01 01:00:00.000000000Z accepted #2 buy 100 yes on save-act
     2026-01-01 02:00:00.000000000Z accepted #3 buy 100 yes on save-act
