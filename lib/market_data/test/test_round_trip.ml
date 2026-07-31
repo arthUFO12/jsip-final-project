@@ -67,7 +67,7 @@ let%expect_test "polymarket fetch -> parse round trip" =
     {|
     Number of markets 5
     All markets open: true
-    parse_data: skipped 2/10 entries
+    parse_data: skipped 1/10 entries
     |}]
 ;;
 
@@ -163,6 +163,6 @@ let%expect_test "polymarket time series fetch -> parse round trip" =
     Has points: true
     All prices within $0..$1: true
     Times nondecreasing: true
-    parse_data: skipped 2/10 entries
+    parse_data: skipped 1/10 entries
     |}]
 ;;

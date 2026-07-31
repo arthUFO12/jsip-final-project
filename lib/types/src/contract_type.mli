@@ -3,6 +3,7 @@ open! Core
 type t =
   | Yes
   | No
+[@@deriving sexp_of, compare, equal, hash]
 
 val flip : t -> t
 val sign : t -> Sign.t

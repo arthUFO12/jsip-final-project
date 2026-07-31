@@ -117,9 +117,7 @@ let summarize pnl : Action_summary.t =
 ;;
 
 let apply_action pnl (action : Action.t) ~time : Action_response.t =
-  let { slug; size; side; contract_type; name = _; id = _ } : Action.t =
-    action
-  in
+  let { slug; size; side; contract_type; id = _ } : Action.t = action in
   match Pnl.mem pnl slug, Size.sign size with
   | false, _ ->
     Action_rejected
