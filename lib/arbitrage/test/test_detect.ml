@@ -102,12 +102,12 @@ let%expect_test "find returns the profitable split and is symmetric in its \
   print_opportunity (Detect.find ~mode:Exact poly kalshi);
   [%expect
     {|
-    (((yes ((venue Kalshi) (market_id K1)))
-      (no ((venue Polymarket) (market_id P1))) (cost 95000000) (edge 5000000)
-      (size 80)))
-    (((yes ((venue Kalshi) (market_id K1)))
-      (no ((venue Polymarket) (market_id P1))) (cost 95000000) (edge 5000000)
-      (size 80)))
+    (((yes ((venue Kalshi) (market_id K1) (price 45000000)))
+      (no ((venue Polymarket) (market_id P1) (price 48000000))) (cost 95000000)
+      (edge 5000000) (size 80)))
+    (((yes ((venue Kalshi) (market_id K1) (price 45000000)))
+      (no ((venue Polymarket) (market_id P1) (price 48000000))) (cost 95000000)
+      (edge 5000000) (size 80)))
     |}]
 ;;
 
@@ -154,9 +154,9 @@ let%expect_test "find keeps the larger edge when both splits clear" =
   print_opportunity (Detect.find ~mode:Exact kalshi poly);
   [%expect
     {|
-    (((yes ((venue Kalshi) (market_id K1)))
-      (no ((venue Polymarket) (market_id P1))) (cost 82000000) (edge 18000000)
-      (size 10)))
+    (((yes ((venue Kalshi) (market_id K1) (price 40000000)))
+      (no ((venue Polymarket) (market_id P1) (price 40000000))) (cost 82000000)
+      (edge 18000000) (size 10)))
     |}]
 ;;
 
@@ -179,9 +179,9 @@ let%expect_test "venue-agnostic: a pair within one venue prices with that \
   print_opportunity (Detect.find ~mode:Exact left right);
   [%expect
     {|
-    (((yes ((venue Polymarket) (market_id P1)))
-      (no ((venue Polymarket) (market_id P2))) (cost 93000000) (edge 7000000)
-      (size 20)))
+    (((yes ((venue Polymarket) (market_id P1) (price 45000000)))
+      (no ((venue Polymarket) (market_id P2) (price 48000000))) (cost 93000000)
+      (edge 7000000) (size 20)))
     |}]
 ;;
 
@@ -204,8 +204,8 @@ let%expect_test "Reckless reports fee-eaten, sizeless edges that Exact \
   [%expect
     {|
     ()
-    (((yes ((venue Kalshi) (market_id K1)))
-      (no ((venue Polymarket) (market_id P1))) (cost 99000000) (edge 1000000)
-      (size 0)))
+    (((yes ((venue Kalshi) (market_id K1) (price 49000000)))
+      (no ((venue Polymarket) (market_id P1) (price 50000000))) (cost 99000000)
+      (edge 1000000) (size 0)))
     |}]
 ;;

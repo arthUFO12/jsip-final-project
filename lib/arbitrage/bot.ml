@@ -132,26 +132,119 @@ let report opportunity =
     [%message "arbitrage opportunity" ~_:(opportunity : Detect.opportunity)]
 ;;
 
+(* Both legs of an opportunity as concrete orders: buy YES here, buy NO
+   there, each at the ask the detector saw (so a book that has since moved
+   against us cannot fill worse than priced) and at the opportunity's size. *)
+let orders_of_opportunity ~stubs (opportunity : Detect.opportunity) =
+  let order (entry : Detect.Entry.t) ~contract =
+    match Map.find stubs entry.market_id with
+    | Some market ->
+      Ok
+        { Execution.Order.market
+        ; contract
+        ; side = Buy
+        ; limit_price = entry.price
+        ; size = opportunity.size
+        }
+    | None ->
+      Or_error.error_s
+        [%message
+          "opportunity references a market with no stub"
+            (entry : Detect.Entry.t)]
+  in
+  Or_error.both
+    (order opportunity.yes ~contract:Contract_type.Yes)
+    (order opportunity.no ~contract:Contract_type.No)
+  |> Or_error.map ~f:(fun (yes, no) -> [ yes; no ])
+;;
+
+(* $1000 of pretend cash; enough that paper fills fail on book reality, not
+   on the bankroll. *)
+let paper_starting_cash = Price.of_int_cents 100_000
+
+(* The one place the paper/live fork happens. Paper fills against a re-read
+   of the live book — real depth, real fees, and legging risk if the book
+   moved since detection. Live loads Kalshi credentials from the environment,
+   so a misconfigured live run dies at startup, not on the first hit. *)
+let executor_of_trading (trading : Config.Trading.t) =
+  match trading with
+  | Paper ->
+    Deferred.Or_error.return
+      (Execution.Executor.paper
+         (Execution.Simulator.create
+            ~fill_model:Against_live_book
+            ~starting_cash:paper_starting_cash))
+  | Live ->
+    let%map credentials =
+      Execution.Kalshi_live.Credentials.load_from_env ()
+    in
+    Or_error.map credentials ~f:Execution.Executor.live
+;;
+
+let execute executor ~stubs opportunity =
+  report opportunity;
+  match orders_of_opportunity ~stubs opportunity with
+  | Error error ->
+    Core.eprint_s
+      [%message "cannot build orders; skipping hit" (error : Error.t)];
+    return ()
+  | Ok orders ->
+    (* Sequential on purpose: if the first leg fails there is nothing to
+       hedge, so don't send the second. A failed second leg leaves us
+       one-sided — that is legging risk, and it must be loud. *)
+    Deferred.List.iter ~how:`Sequential orders ~f:(fun order ->
+      match%map Execution.Executor.place_order executor order with
+      | Ok fill -> print_s [%message "filled" ~_:(fill : Execution.Fill.t)]
+      | Error error ->
+        Core.eprint_s
+          [%message
+            "order failed; position may be one-sided"
+              (order : Execution.Order.t)
+              (error : Error.t)])
+;;
+
+(* The stubs behind the candidates, keyed by market id, so an opportunity
+   (which only carries ids) can be joined back to the routing data an order
+   needs. *)
+let stub_map candidates =
+  List.concat_map candidates ~f:(fun { Matcher.Candidate.left; right } ->
+    [ left; right ])
+  |> List.map ~f:(fun (stub : Market_stub.t) -> stub.market_id, stub)
+  |> Market_id.Map.of_alist_reduce ~f:(fun first (_ : Market_stub.t) ->
+    first)
+;;
+
+let tick ~(config : Config.t) ~executor =
+  let open Deferred.Or_error.Let_syntax in
+  let%bind candidates = candidates_of_approved () in
+  let%bind legs = Deferred.ok (fetch_legs candidates) in
+  let opportunities = scan ~execution:config.execution ~legs candidates in
+  Deferred.ok
+    (Deferred.List.iter
+       ~how:`Sequential
+       opportunities
+       ~f:(execute executor ~stubs:(stub_map candidates)))
+;;
+
 let run ~config =
   match Config.validate config with
   | Error _ as error -> return error
   | Ok config ->
-    (match config.trading with
-     | Live ->
-       Deferred.Or_error.error_string
-         "live trading is not implemented: nothing in the codebase places \
-          orders yet; run Paper"
-     | Paper ->
-       let rec loop () =
-         let%bind () =
-           match%map scan_once ~config with
-           | Ok opportunities -> List.iter opportunities ~f:report
+    let open Deferred.Or_error.Let_syntax in
+    let%bind executor = executor_of_trading config.trading in
+    let rec loop () =
+      let%bind () =
+        Deferred.ok
+          (match%map.Deferred tick ~config ~executor with
+           | Ok () -> ()
            | Error error ->
              Core.eprint_s
-               [%message "scan failed; will retry" (error : Error.t)]
-         in
-         let%bind () = Clock_ns.after config.execution.poll_interval in
-         loop ()
-       in
-       loop ())
+               [%message "scan failed; will retry" (error : Error.t)])
+      in
+      let%bind () =
+        Deferred.ok (Clock_ns.after config.execution.poll_interval)
+      in
+      loop ()
+    in
+    loop ()
 ;;

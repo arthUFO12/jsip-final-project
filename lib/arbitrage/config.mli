@@ -35,8 +35,11 @@ module Matching : sig
 end
 
 module Trading : sig
-  (** What happens when the bot finds an opportunity. [Paper] logs the orders
-      the opportunity implies; [Live] sends them to the venues. *)
+  (** What happens when the bot finds an opportunity. [Paper] fills the
+      orders the opportunity implies in an {!Execution.Simulator}; [Live]
+      sends them to the venues through {!Execution.Kalshi_live}, which needs
+      the credentials named in {!Execution.Kalshi_live.Credentials} in the
+      environment. *)
   type t =
     | Paper
     | Live

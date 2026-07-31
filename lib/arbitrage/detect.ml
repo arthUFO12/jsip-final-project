@@ -14,10 +14,18 @@ module Entry = struct
   type t =
     { venue : Venue.t
     ; market_id : Market_id.t
+    ; price : Price.t
     }
   [@@deriving sexp_of]
 
-  let of_leg ({ venue; market_id; book = _ } : Leg.t) = { venue; market_id }
+  let of_leg ({ venue; market_id; book } : Leg.t) ~contract =
+    let price =
+      match (contract : Contract_type.t) with
+      | Yes -> book.yes_ask
+      | No -> book.no_ask
+    in
+    { venue; market_id; price }
+  ;;
 end
 
 type opportunity =
@@ -39,21 +47,9 @@ module Mode = struct
   let require_size = function Exact -> true | Reckless -> false
 end
 
-let kalshi_fee (price : Price.t) : Price.t =
-  let p = Price.to_microcents price in
-  let numerator = 7 * p * (Price.microcents_per_dollar - p) in
-  let denominator =
-    100 * Price.microcents_per_dollar * Price.microcents_per_cent
-  in
-  let fee_cents = (numerator + denominator - 1) / denominator in
-  Price.of_microcents (fee_cents * Price.microcents_per_cent)
-;;
-
-(* Adding a venue to {!Venue.t}? The compiler stops here: name its taker fee
-   and the rest of the detector supports it unchanged. *)
-let taker_fee (venue : Venue.t) price =
-  match venue with Kalshi -> kalshi_fee price | Polymarket -> Price.zero
-;;
+(* Fee logic lives in {!Execution.Fees} so the detector that prices an edge
+   and the executor that charges a fill can never disagree. *)
+let taker_fee = Execution.Fees.taker_fee
 
 let cost_and_size ~mode ~(yes : Leg.t) ~(no : Leg.t) =
   let yes_ask = yes.book.yes_ask in
@@ -74,8 +70,8 @@ let find ~mode left right =
        && ((not (Mode.require_size mode)) || Size.( > ) size Size.zero)
     then
       Some
-        { yes = Entry.of_leg yes
-        ; no = Entry.of_leg no
+        { yes = Entry.of_leg yes ~contract:Contract_type.Yes
+        ; no = Entry.of_leg no ~contract:Contract_type.No
         ; cost
         ; edge = Price.( - ) Price.one cost
         ; size
@@ -89,7 +85,7 @@ let find ~mode left right =
 ;;
 
 module For_testing = struct
-  let kalshi_fee = kalshi_fee
+  let kalshi_fee = Execution.Fees.kalshi_taker_fee
   let taker_fee = taker_fee
   let cost_and_size = cost_and_size
 end

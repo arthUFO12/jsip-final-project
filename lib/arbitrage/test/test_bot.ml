@@ -77,9 +77,9 @@ let%expect_test "scan: Exact reports nothing on depthless L1 data; Reckless \
   [%expect
     {|
     ()
-    (((yes ((venue Kalshi) (market_id K1)))
-      (no ((venue Polymarket) (market_id P1))) (cost 99000000) (edge 1000000)
-      (size 0)))
+    (((yes ((venue Kalshi) (market_id K1) (price 49000000)))
+      (no ((venue Polymarket) (market_id P1) (price 50000000))) (cost 99000000)
+      (edge 1000000) (size 0)))
     |}];
   return ()
 ;;
@@ -101,9 +101,9 @@ let%expect_test "scan drops edges thinner than min_edge" =
   print_s [%sexp (scan 2 : Detect.opportunity list)];
   [%expect
     {|
-    (((yes ((venue Kalshi) (market_id K1)))
-      (no ((venue Polymarket) (market_id P1))) (cost 99000000) (edge 1000000)
-      (size 0)))
+    (((yes ((venue Kalshi) (market_id K1) (price 49000000)))
+      (no ((venue Polymarket) (market_id P1) (price 50000000))) (cost 99000000)
+      (edge 1000000) (size 0)))
     ()
     |}];
   return ()
@@ -229,6 +229,66 @@ let%expect_test "candidates_of_approved: the tick prices exactly the pairs \
   [%expect {|
     0
     Will BTC hit $100k?  <->  will btc hit 100k
+    |}];
+  return ()
+;;
+
+let%expect_test "orders_of_opportunity turns a hit into its two limit \
+                 orders — YES here, NO there, at the asks the detector saw \
+                 — and a missing stub is an error, not a guess"
+  =
+  let kalshi_stub = L1_market_metadata.to_market_stub kalshi_l1 in
+  let poly_stub = L1_market_metadata.to_market_stub poly_l1 in
+  let stubs =
+    Market_id.Map.of_alist_exn
+      [ kalshi_stub.market_id, kalshi_stub; poly_stub.market_id, poly_stub ]
+  in
+  let opportunity =
+    { Detect.yes =
+        { venue = Kalshi
+        ; market_id = kalshi_stub.market_id
+        ; price = Price.of_int_cents 49
+        }
+    ; no =
+        { venue = Polymarket
+        ; market_id = poly_stub.market_id
+        ; price = Price.of_int_cents 50
+        }
+    ; cost = Price.of_int_cents 99
+    ; edge = Price.of_int_cents 1
+    ; size = Size.of_int 10
+    }
+  in
+  let print_orders stubs =
+    match Bot.orders_of_opportunity ~stubs opportunity with
+    | Error error -> print_s [%message "no orders" ~_:(error : Error.t)]
+    | Ok orders ->
+      List.iter
+        orders
+        ~f:
+          (fun
+            { Execution.Order.market; contract; side; limit_price; size } ->
+          print_s
+            [%message
+              ""
+                ~market:(market.market_id : Market_id.t)
+                ~venue:(market.venue : Venue.t)
+                (contract : Contract_type.t)
+                (side : Side.t)
+                (limit_price : Price.t)
+                (size : Size.t)])
+  in
+  print_orders stubs;
+  print_orders (Map.remove stubs poly_stub.market_id);
+  [%expect
+    {|
+    ((market K1) (venue Kalshi) (contract Yes) (side Buy) (limit_price 49000000)
+     (size 10))
+    ((market P1) (venue Polymarket) (contract No) (side Buy)
+     (limit_price 50000000) (size 10))
+    ("no orders"
+     ("opportunity references a market with no stub"
+      (entry ((venue Polymarket) (market_id P1) (price 50000000)))))
     |}];
   return ()
 ;;

@@ -5,9 +5,13 @@ open! Types
 (** The polling loop gluing the pipeline together: read the approved pairs
     from the store (the gate {!Sweep} fills and a human curates), fetch each
     involved market's live order book, price with {!Detect} driven by
-    {!Config.Execution}, and act on hits per {!Config.Trading} — [Paper]
-    prints them, [Live] is not implemented yet. Orchestration and nothing
-    else: no arbitrage arithmetic and no matching logic of its own.
+    {!Config.Execution}, and act on hits through an {!Execution.Executor}
+    chosen once from {!Config.Trading} — [Paper] fills a
+    {!Execution.Simulator} against the live book, [Live] sends real Kalshi
+    orders (credentials from the environment; see
+    {!Execution.Kalshi_live.Credentials}). Everything after that choice is
+    the same code path. Orchestration and nothing else: no arbitrage
+    arithmetic and no matching logic of its own.
 
     The caller must have called {!Database.Database_exec.init_database}
     before anything here runs — the store is where pairs come from. Pricing
@@ -57,15 +61,28 @@ val scan
   -> Matcher.Candidate.t list
   -> Detect.opportunity list
 
-(** [scan_once ~config] is one full tick: read the approved pairs, fetch
-    their books, price. Individual book failures only drop their market. *)
+(** [scan_once ~config] is one full tick of detection only: read the approved
+    pairs, fetch their books, price. Individual book failures only drop their
+    market. No orders are placed — {!run} is the loop that acts. *)
 val scan_once
   :  config:Config.t
   -> Detect.opportunity list Deferred.Or_error.t
 
-(** [run ~config] validates [config] and then loops [scan_once] every
-    [poll_interval], printing each hit. Returns promptly with an error on an
-    invalid config or [Live] trading (not implemented); in [Paper] mode the
-    result stays undetermined for the life of the bot — scan failures are
-    logged and retried, never fatal. *)
+(** [orders_of_opportunity ~stubs opportunity] is the pair of orders acting
+    on a hit: buy YES on one venue and NO on the other, each limited at the
+    ask the detector saw and sized at the opportunity's size. [stubs] joins
+    the opportunity's market ids back to the routing data an order carries; a
+    missing stub is an error. Pure. *)
+val orders_of_opportunity
+  :  stubs:Market_stub.t Market_id.Map.t
+  -> Detect.opportunity
+  -> Execution.Order.t list Or_error.t
+
+(** [run ~config] validates [config], builds the executor its
+    {!Config.Trading} names — this is the only paper-vs-live fork — and loops
+    every [poll_interval]: scan, then place both legs of each hit, printing
+    fills. Returns promptly with an error on an invalid config or when [Live]
+    credentials are missing from the environment; otherwise the result stays
+    undetermined for the life of the bot — scan and order failures are logged
+    and retried, never fatal. *)
 val run : config:Config.t -> unit Deferred.Or_error.t

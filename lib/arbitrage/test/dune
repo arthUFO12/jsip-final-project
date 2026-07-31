@@ -4,6 +4,7 @@
  (libraries
   arbitrage
   database
+  execution
   types
   core
   async

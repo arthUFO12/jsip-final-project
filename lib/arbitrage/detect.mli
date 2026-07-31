@@ -28,11 +28,13 @@ end
 
 module Entry : sig
   (** One executable order implied by an opportunity: buy this outcome's leg
-      on this venue and market. A {!Leg.t} minus the book — the prices that
-      justified it live in the surrounding [opportunity]. *)
+      on this venue and market at up to [price] — the ask that was quoted
+      when the opportunity was detected, and so the natural limit price for
+      the order that acts on it. A {!Leg.t} minus the book. *)
   type t =
     { venue : Venue.t
     ; market_id : Market_id.t
+    ; price : Price.t
     }
   [@@deriving sexp_of]
 end
@@ -78,7 +80,9 @@ val find : mode:Mode.t -> Leg.t -> Leg.t -> opportunity option
     directly. Production code should only use {!find}. *)
 module For_testing : sig
   (** Kalshi's taker fee for one contract bought at this price:
-      [ceil (0.07 * P * (1 - P))], rounded up to a whole cent. *)
+      [ceil (0.07 * P * (1 - P))], rounded up to a whole cent. Delegates to
+      {!Execution.Fees}, which the executors also charge — one source of fee
+      truth. *)
   val kalshi_fee : Price.t -> Price.t
 
   (** The taker fee one venue charges for one contract at this price. *)
