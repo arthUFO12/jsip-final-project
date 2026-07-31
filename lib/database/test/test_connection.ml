@@ -6,7 +6,7 @@ open Database
 let real_id = Market_id.of_string "12345"
 let fake_id = Market_id.of_string "23456"
 let db_name = "test.db"
-let db_dir = "/home/ubuntu/jsip-final-project/"
+let db_dir = "/tmp/"
 
 let file_exists file_name =
   let%bind db_existence = Sys.file_exists file_name in
@@ -20,6 +20,7 @@ let make_stub ~venue ~market_id ~slug ~title ~close_time : Market_stub.t =
   ; series_ticker = None
   ; clob_token_id = None
   ; title
+  ; category = Miscellaneous
   ; close_time = Some (Time_ns.of_string close_time)
   }
 ;;
@@ -29,7 +30,7 @@ let%expect_test "successfully connect to database" =
   let%bind () =
     if db_exists then Sys.remove (db_dir ^ db_name) else return ()
   in
-  (match Database_exec.init_database db_name with
+  (match Database_exec.init_database (db_dir ^ db_name) with
    | Ok () -> print_endline "Database connection is online!"
    | Error e -> print_endline (Error.to_string_hum e));
   return [%expect {| Database connection is online! |}]
@@ -86,7 +87,7 @@ let%expect_test "duplicate stub id is not inserted into the table" =
    | Error e -> print_endline (Error.to_string_hum e));
   return
     [%expect
-      {| Request to <sqlite3:///home/ubuntu/jsip-final-project/test.db> failed: UNIQUE constraint failed: market_stubs.market_id (ERC#1555). Query: " INSERT INTO market_stubs (venue, market_id, slug, series_ticker, clob_token_id, title, close_time) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7) ". |}]
+      {| Response from <sqlite3:///tmp/test.db> failed: UNIQUE constraint failed: market_stubs.market_id. Query: " INSERT INTO market_stubs (venue, market_id, slug, series_ticker, clob_token_id, title, category, close_time) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8) ". |}]
 ;;
 
 let%expect_test "market stub is successfully found" =
@@ -100,7 +101,7 @@ let%expect_test "market stub is successfully found" =
    | Error e -> print_endline (Error.to_string_hum e));
   return
     [%expect
-      {| Stub found: venue: Polymarket, market_id: 12345, slug: 12345, title: Don trump tweets, close_time: 2026-07-25 15:45:00.000000000Z |}]
+      {| Stub found: venue: Polymarket, market_id: 12345, slug: 12345, title: Don trump tweets, category: Miscellaneous, close_time: 2026-07-25 15:45:00.000000000Z |}]
 ;;
 
 let%expect_test "Nonexistent market ID is not found" =
@@ -128,5 +129,5 @@ let%expect_test "Market stubs after 2026-07-19 are found" =
    | Error e -> print_endline (Error.to_string_hum e));
   return
     [%expect
-      {| venue: Polymarket, market_id: 12345, slug: 12345, title: Don trump tweets, close_time: 2026-07-25 15:45:00.000000000Z |}]
+      {| venue: Polymarket, market_id: 12345, slug: 12345, title: Don trump tweets, category: Miscellaneous, close_time: 2026-07-25 15:45:00.000000000Z |}]
 ;;

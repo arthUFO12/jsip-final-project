@@ -30,14 +30,15 @@ let market_id_type =
 let market_stub_type =
   let representation =
     T.(
-      t7
+      t8
         T.string
         T.string
         T.string
         (T.option T.string)
         (T.option T.string)
         T.string
-        T.int64)
+        T.string
+        (T.option T.int64))
   in
   let encode
     ({ venue
@@ -46,6 +47,7 @@ let market_stub_type =
      ; series_ticker
      ; clob_token_id
      ; title
+     ; category
      ; close_time
      } :
       Market_stub.t)
@@ -57,7 +59,8 @@ let market_stub_type =
       , Option.map series_ticker ~f:Slug.to_string
       , clob_token_id
       , title
-      , Option.value_exn close_time |> time_ns_to_int64 )
+      , Category.to_string category
+      , Option.map close_time ~f:time_ns_to_int64 )
   in
   let decode
     ( venue_str
@@ -66,6 +69,7 @@ let market_stub_type =
     , series_ticker_str
     , clob_token_id
     , title
+    , category_str
     , close_time_int )
     =
     Ok
@@ -75,9 +79,44 @@ let market_stub_type =
        ; series_ticker = Option.map series_ticker_str ~f:Slug.of_string
        ; clob_token_id
        ; title
-       ; close_time = Some (int64_to_time_ns close_time_int)
+       ; category = Category.of_string category_str
+       ; close_time = Option.map close_time_int ~f:int64_to_time_ns
        }
        : Market_stub.t)
+  in
+  T.custom ~encode ~decode representation
+;;
+
+let pair_status_type =
+  let representation = T.string in
+  let encode (status : Pair_proposal.Status.t) =
+    Ok (Pair_proposal.Status.to_string status)
+  in
+  let decode status_str = Ok (Pair_proposal.Status.of_string status_str) in
+  T.custom ~encode ~decode representation
+;;
+
+let pair_proposal_type =
+  let representation =
+    T.(t5 T.string T.string T.float (T.option T.string) T.string)
+  in
+  let encode ({ left; right; score; explanation; status } : Pair_proposal.t) =
+    Ok
+      ( Market_id.to_string left
+      , Market_id.to_string right
+      , score
+      , explanation
+      , Pair_proposal.Status.to_string status )
+  in
+  let decode (left_str, right_str, score, explanation, status_str) =
+    Ok
+      ({ left = Market_id.of_string left_str
+       ; right = Market_id.of_string right_str
+       ; score
+       ; explanation
+       ; status = Pair_proposal.Status.of_string status_str
+       }
+       : Pair_proposal.t)
   in
   T.custom ~encode ~decode representation
 ;;

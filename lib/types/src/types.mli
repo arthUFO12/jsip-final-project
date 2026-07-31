@@ -15,3 +15,5 @@ module Volume = Volume
 module L1_market_metadata = L1_market_metadata
 module Category = Category
 module Bbo = Bbo
+module Binary_book = Binary_book
+module Pair_proposal = Pair_proposal

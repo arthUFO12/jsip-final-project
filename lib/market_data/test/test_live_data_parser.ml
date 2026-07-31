@@ -59,3 +59,21 @@ let%expect_test "parse_data limit caps returned metadatas" =
     printf "parsed: %d\n" (List.length markets);
     [%expect {| parsed: 0 |}]
 ;;
+
+let%expect_test "parse polymarket search fixture: markets flattened, event \
+                 tags drive the category"
+  =
+  let body = In_channel.read_all "example_json/polymarket_search.json" in
+  match Live_data_parser.parse_polymarket_search body with
+  | Error e -> print_s [%sexp (e : Error.t)]
+  | Ok markets ->
+    List.iter markets ~f:(fun (m : L1_market_metadata.t) ->
+      print_endline
+        [%string
+          "%{m.category#Category} | %{m.title} | active: %{m.active#Bool}"]);
+    [%expect
+      {|
+      Crypto | Will the price of Bitcoin be less than $120K on July 15 at 5PM ET? | active: false
+      Crypto | Will the price of Bitcoin be between $120K and $121K on July 15 at 5PM ET? | active: false
+      |}]
+;;

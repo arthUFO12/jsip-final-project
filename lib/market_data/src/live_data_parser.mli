@@ -23,3 +23,18 @@ val parse_data
   -> venue:Venue.t
   -> string (* body *)
   -> L1_market_metadata.t list Or_error.t
+
+(** Decodes a Polymarket public-search payload
+    ({[ {"events": [{"tags": .., "markets": [..]}, ..]} ]}) into the same
+    normalized records as {!parse_data}: markets are flattened out of their
+    events, with the event's [tags] applied to each so the category
+    derivation works. *)
+val parse_polymarket_search
+  :  ?limit:int
+  -> string (* body *)
+  -> L1_market_metadata.t list Or_error.t
+
+(** The pagination cursor of a Kalshi events payload: pass it back via
+    {!Fetch_live.fetch_kalshi_markets}'s [?cursor] to get the next page.
+    [None] once the listing is exhausted (or the body is unreadable). *)
+val parse_kalshi_cursor : string -> string option

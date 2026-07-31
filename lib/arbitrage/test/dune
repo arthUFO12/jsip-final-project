@@ -1,0 +1,48 @@
+(library
+ (name arbitrage_test)
+ (modules test_matcher test_llm_matcher test_detect test_config test_bot)
+ (libraries
+  arbitrage
+  database
+  types
+  core
+  async
+  yojson
+  expect_test_helpers_core)
+ (inline_tests
+  (flags -source-tree-root .))
+ (preprocess
+  (pps ppx_jane)))
+
+; Live smoke test: hits the real API (needs ANTHROPIC_API_KEY), so it's a
+; manually-run executable, not part of `dune runtest`.
+; Run with: dune exec lib/arbitrage/test/llm_smoke.exe
+
+(executable
+ (name llm_smoke)
+ (modules llm_smoke)
+ (libraries arbitrage types core async)
+ (preprocess
+  (pps ppx_jane)))
+
+; Live smoke of the full arbitrage pipeline: fetch both venues, match
+; (text-only, no API key), detect under both modes. Manually run:
+; dune exec lib/arbitrage/test/arb_smoke.exe
+
+(executable
+ (name arb_smoke)
+ (modules arb_smoke)
+ (libraries arbitrage market_data types core async)
+ (preprocess
+  (pps ppx_jane)))
+
+; Step-1 smoke of the pair store on live markets with one real LLM call.
+; Needs ANTHROPIC_API_KEY; manually run:
+; set -a; source .env; set +a; dune exec lib/arbitrage/test/pairs_smoke.exe
+
+(executable
+ (name pairs_smoke)
+ (modules pairs_smoke)
+ (libraries arbitrage market_data database types core async)
+ (preprocess
+  (pps ppx_jane)))

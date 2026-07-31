@@ -5,10 +5,13 @@ open! Caqti_type
 open Types
 
 let global_pool = ref None
-let db_folder = "sqlite3:///home/ubuntu/jsip-final-project/"
 
-let init_database db_name =
-  let db_uri = Uri.of_string (db_folder ^ db_name) in
+(* "sqlite3://" ^ an absolute path yields sqlite3:///path/to/file. The old
+   version baked in a directory that doesn't exist on this checkout. *)
+let uri_scheme = "sqlite3://"
+
+let init_database db_path =
+  let db_uri = Uri.of_string (uri_scheme ^ db_path) in
   match Caqti_async.connect_pool db_uri with
   | Error err -> Or_error.error_string (Caqti_error.show err)
   | Ok pool ->
@@ -84,3 +87,45 @@ module For_testing = struct
     | Error e -> Deferred.Or_error.error_string (Caqti_error.show e)
   ;;
 end
+
+let create_pair_proposal_table () : unit Deferred.Or_error.t =
+  let%bind success_or_error =
+    with_pool (fun (module C : Caqti_async.CONNECTION) ->
+      C.exec Database_commands.create_pair_proposal_table ())
+  in
+  match success_or_error with
+  | Ok () -> return (Ok ())
+  | Error e -> Deferred.Or_error.error_string (Caqti_error.show e)
+;;
+
+let propose_pair proposal : unit Deferred.Or_error.t =
+  let%bind success_or_error =
+    with_pool (fun (module C : Caqti_async.CONNECTION) ->
+      C.exec Database_commands.insert_pair_proposal proposal)
+  in
+  match success_or_error with
+  | Ok () -> return (Ok ())
+  | Error e -> Deferred.Or_error.error_string (Caqti_error.show e)
+;;
+
+let set_pair_status ~left ~right status : unit Deferred.Or_error.t =
+  let%bind success_or_error =
+    with_pool (fun (module C : Caqti_async.CONNECTION) ->
+      C.exec Database_commands.set_pair_status (status, left, right))
+  in
+  match success_or_error with
+  | Ok () -> return (Ok ())
+  | Error e -> Deferred.Or_error.error_string (Caqti_error.show e)
+;;
+
+let list_pair_proposals_by_status status
+  : Pair_proposal.t list Deferred.Or_error.t
+  =
+  let%bind pairs_or_error =
+    with_pool (fun (module C : Caqti_async.CONNECTION) ->
+      C.collect_list Database_commands.list_pair_proposals_by_status status)
+  in
+  match pairs_or_error with
+  | Ok pairs -> return (Ok pairs)
+  | Error e -> Deferred.Or_error.error_string (Caqti_error.show e)
+;;

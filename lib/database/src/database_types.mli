@@ -5,3 +5,5 @@ val market_stub_type : Market_stub.t Caqti_type.t
 val market_id_type : Market_id.t Caqti_type.t
 val int64_to_time_ns : int64 -> Time_ns.t
 val time_ns_to_int64 : Time_ns.t -> int64
+val pair_status_type : Pair_proposal.Status.t Caqti_type.t
+val pair_proposal_type : Pair_proposal.t Caqti_type.t
