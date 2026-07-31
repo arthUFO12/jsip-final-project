@@ -3,7 +3,7 @@ open! Core
 type t =
   | Yes
   | No
-[@@deriving sexp_of, compare, equal, hash]
+[@@deriving sexp_of, compare, equal, hash, bin_io]
 
 let flip = function Yes -> No | No -> Yes
 let sign = function Yes -> Sign.Pos | No -> Sign.Neg

@@ -136,7 +136,26 @@ let apply_action pnl (action : Action.t) ~time : Action_response.t =
     Action_accepted { action; time_stamp = time }
 ;;
 
-let run market_stubs (P ((module Bot), config)) =
+module Recording = struct
+  module Tick = struct
+    type t =
+      { time : Time_ns.t
+      ; cash : Price.t
+      ; realized_pnl : Price.t
+      ; unrealized_pnl : Price.t
+      ; yes_prices : Price.t Slug.Table.t
+      }
+  end
+
+  type t =
+    { ticks : Tick.t list
+    ; responses : Action_response.t list
+    ; sim_start : Time_ns.t
+    ; summary : Action_summary.t
+    }
+end
+
+let run_recorded market_stubs (P ((module Bot), config)) =
   let start = Bot.Config.start config in
   let finish = Bot.Config.finish config in
   let interval = Bot.Config.interval config in
@@ -159,15 +178,40 @@ let run market_stubs (P ((module Bot), config)) =
     Time_ns.add data_start (Bot.Config.sim_start_offset config)
   in
   Bot.on_start config state;
+  (* Both accumulate newest-first and reverse once at the end. *)
+  let ticks = ref [] in
+  let recorded_responses = ref [] in
   List.iter (ticks_of_series series_by_slug) ~f:(fun (time, points) ->
     update_pnl_prices pnl points;
     Bot.State.forward_time state time;
     data := Bot.update_data config !data points;
-    match Time_ns.( >= ) time sim_start with
-    | false -> ()
-    | true ->
-      let actions = Bot.on_tick config state !data in
-      let responses = List.map actions ~f:(apply_action pnl ~time) in
-      Bot.on_response config state responses (summarize pnl));
-  Deferred.Or_error.return (summarize pnl)
+    (match Time_ns.( >= ) time sim_start with
+     | false -> ()
+     | true ->
+       let actions = Bot.on_tick config state !data in
+       let responses = List.map actions ~f:(apply_action pnl ~time) in
+       Bot.on_response config state responses (summarize pnl);
+       recorded_responses := List.rev_append responses !recorded_responses);
+    let tick : Recording.Tick.t =
+      { time
+      ; cash = Pnl.cash pnl
+      ; realized_pnl = Pnl.realized_pnl pnl
+      ; unrealized_pnl = Pnl.unrealized_pnl pnl
+      ; yes_prices =
+          Hashtbl.map points ~f:(fun (point : Time_series.Point.t) ->
+            point.yes_price)
+      }
+    in
+    ticks := tick :: !ticks);
+  Deferred.Or_error.return
+    { Recording.ticks = List.rev !ticks
+    ; responses = List.rev !recorded_responses
+    ; sim_start
+    ; summary = summarize pnl
+    }
+;;
+
+let run market_stubs packed =
+  Deferred.Or_error.map (run_recorded market_stubs packed) ~f:(fun r ->
+    r.Recording.summary)
 ;;

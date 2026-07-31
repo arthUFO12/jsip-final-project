@@ -1,6 +1,6 @@
 (library
  (name types)
  (public_name arbiter.types)
- (libraries core async cohttp-async yojson)
+ (libraries core)
  (preprocess
   (pps ppx_jane)))

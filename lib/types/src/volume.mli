@@ -10,4 +10,9 @@ open! Core
 type t =
   | Contracts of Size.t (** Kalshi: contracts traded, rounded to whole *)
   | Notional of Price.t (** Polymarket: USD traded *)
-[@@deriving sexp_of, compare, equal]
+[@@deriving sexp, bin_io, compare, equal, hash]
+
+(** The bare magnitude (contract count or dollars), for ranking markets by
+    activity. Only meaningful as an ordering key within one venue — the units
+    differ across constructors. *)
+val to_float : t -> float

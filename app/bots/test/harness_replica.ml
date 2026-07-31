@@ -40,13 +40,7 @@ let apply_action pnl (action : Action.t) ~time : Action_response.t =
     Action_accepted { action; time_stamp = time }
 ;;
 
-let summarize pnl : Action_summary.t =
-  { cash = Pnl.cash pnl
-  ; realized_pnl = Pnl.realized_pnl pnl
-  ; unrealized_pnl = Pnl.unrealized_pnl pnl
-  ; inventory = Pnl.inventories pnl
-  }
-;;
+let summarize = Simulation.Harness.summarize
 
 (* Run the bot over [yes_prices] (one per hourly tick, all for [slug]), with
    the first [warmup] ticks before the sim starts. *)

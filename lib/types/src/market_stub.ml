@@ -9,6 +9,9 @@ type t =
   ; title : string
   ; created_time : Time_ns.t
   ; close_time : Time_ns.t
+  ; category : Category.t
+  ; volume : Volume.t option
+  (** Lifetime traded volume; [None] when the venue did not report one. *)
   }
 
 let to_string t =

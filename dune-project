@@ -31,9 +31,14 @@
   bonsai_term_components
   bonsai_web
   virtual_dom
+  bonsai_web_components
+  async_js
   cohttp-async
+  cohttp_static_handler
   yojson
-  postgresql
+  caqti
+  caqti-async
+  caqti-driver-sqlite3
   core
   core_unix
   core_bench

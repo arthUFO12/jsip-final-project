@@ -1,0 +1,20 @@
+(executable
+ (name server)
+ (libraries
+  core
+  async
+  async_rpc_kernel
+  async_rpc_websocket
+  cohttp-async
+  cohttp_static_handler
+  core_unix.command_unix
+  types
+  market_data
+  database
+  parser
+  pnl
+  simulation
+  bots
+  protocol)
+ (preprocess
+  (pps ppx_jane)))

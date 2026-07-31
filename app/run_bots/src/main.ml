@@ -91,42 +91,6 @@ let choose_stubs metadata ~count =
           ~found:(List.length chosen : int)]
 ;;
 
-(* The window where every chosen market has data: latest first entry to
-   earliest last entry. Mirrors {!Bots.Basic.Config}'s probe. *)
-let shared_window series_by_stub =
-  let open Or_error.Let_syntax in
-  let%bind bounds =
-    List.map series_by_stub ~f:(fun ((stub : Market_stub.t), series) ->
-      match List.hd series, List.last series with
-      | Some (first : Time_series.Point.t), Some (last : Time_series.Point.t)
-        ->
-        Ok (first.time, last.time)
-      | _, _ ->
-        Or_error.error_s
-          [%message
-            "no recent time series data" ~market:(stub.slug : Slug.t)])
-    |> Or_error.combine_errors
-  in
-  let start =
-    List.map bounds ~f:fst
-    |> List.max_elt ~compare:Time_ns.compare
-    |> Option.value_exn ~here:[%here]
-  in
-  let finish =
-    List.map bounds ~f:snd
-    |> List.min_elt ~compare:Time_ns.compare
-    |> Option.value_exn ~here:[%here]
-  in
-  match Time_ns.( < ) start finish with
-  | true -> Ok (start, finish)
-  | false ->
-    Or_error.error_s
-      [%message
-        "chosen markets have no overlapping data"
-          (start : Time_ns.t)
-          (finish : Time_ns.t)]
-;;
-
 let read_program stdin ~slugs =
   print_endline "";
   print_endline
@@ -156,7 +120,9 @@ let run_interactive ~id =
       ~finish:probe_finish
       ~interval
   in
-  let%bind start, finish = Deferred.return (shared_window series_by_stub) in
+  let%bind start, finish =
+    Deferred.return (Time_series.shared_window series_by_stub)
+  in
   print_endline "your bot will trade on:";
   List.iter stubs ~f:(fun stub ->
     print_endline [%string "  %{stub#Market_stub}"]);

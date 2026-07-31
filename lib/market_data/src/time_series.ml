@@ -90,3 +90,36 @@ let interpolate (t : t) ~start ~finish ~interval : t Or_error.t =
     in
     Or_error.map interpolated ~f:List.rev)
 ;;
+
+let shared_window series_by_stub =
+  let open Or_error.Let_syntax in
+  let%bind bounds =
+    List.map series_by_stub ~f:(fun ((stub : Market_stub.t), series) ->
+      match List.hd series, List.last series with
+      | Some (first : Point.t), Some (last : Point.t) ->
+        Ok (first.time, last.time)
+      | _, _ ->
+        Or_error.error_s
+          [%message
+            "no recent time series data" ~market:(stub.slug : Slug.t)])
+    |> Or_error.combine_errors
+  in
+  let start =
+    List.map bounds ~f:fst
+    |> List.max_elt ~compare:Time_ns.compare
+    |> Option.value_exn ~here:[%here]
+  in
+  let finish =
+    List.map bounds ~f:snd
+    |> List.min_elt ~compare:Time_ns.compare
+    |> Option.value_exn ~here:[%here]
+  in
+  match Time_ns.( < ) start finish with
+  | true -> Ok (start, finish)
+  | false ->
+    Or_error.error_s
+      [%message
+        "chosen markets have no overlapping data"
+          (start : Time_ns.t)
+          (finish : Time_ns.t)]
+;;
