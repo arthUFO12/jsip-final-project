@@ -121,6 +121,25 @@ let settle_expired_bets t ~now =
       Hashtbl.set t.positions ~key:slug ~data:new_position)
 ;;
 
+let realize_on_expiry size = Size.multiply_by_price size Price.one
+
+let realized_expired_bets t curr_time =
+  Hashtbl.fold t.data ~f:(fun ~key:slug ~data:slug_data acc ->
+    let position =
+      Hashtbl.find_or_add t.positions slug ~default:flat_position
+    in
+    match slug_data.expiration with
+    | None -> acc
+    | Some expiry ->
+      if Time_ns.(curr_time > expiry.date)
+      then (
+        let realized_winnings = realize_on_expiry position.inventory in
+        Hashtbl.set
+          t.positions
+          ~key:slug
+          ~data:{ position with inventory = Size.zero }))
+;;
+
 (* [inventory] encodes direction in its sign; revenue is always the magnitude
    marked at the side we could sell into. *)
 let calculate_unrealized_bet_revenue position data =

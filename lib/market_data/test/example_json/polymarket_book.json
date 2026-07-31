@@ -1,0 +1,14 @@
+{
+  "market": "0xaabbcc",
+  "asset_id": "123456789",
+  "timestamp": "1753900000000",
+  "hash": "0xdeadbeef",
+  "bids": [
+    { "price": "0.40", "size": "1000" },
+    { "price": "0.50", "size": "125.5" }
+  ],
+  "asks": [
+    { "price": "0.60", "size": "90" },
+    { "price": "0.52", "size": "44.9" }
+  ]
+}

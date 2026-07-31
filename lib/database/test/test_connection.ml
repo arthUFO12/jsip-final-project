@@ -6,7 +6,7 @@ open Database
 let real_id = Market_id.of_string "12345"
 let fake_id = Market_id.of_string "23456"
 let db_name = "test.db"
-let db_dir = "/home/ubuntu/jsip-final-project/"
+let db_dir = "/tmp/"
 
 let file_exists file_name =
   let%bind db_existence = Sys.file_exists file_name in
@@ -22,8 +22,9 @@ let make_stub ~venue ~market_id ~slug ~title ~created_time ~close_time
   ; series_ticker = None
   ; clob_token_id = None
   ; title
+  ; category = Miscellaneous
+  ; close_time = Some (Time_ns.of_string close_time)
   ; created_time = Time_ns.of_string created_time
-  ; close_time = Time_ns.of_string close_time
   }
 ;;
 
@@ -32,7 +33,7 @@ let%expect_test "successfully connect to database" =
   let%bind () =
     if db_exists then Sys.remove (db_dir ^ db_name) else return ()
   in
-  (match Database_exec.init_database db_name with
+  (match Database_exec.init_database (db_dir ^ db_name) with
    | Ok () -> print_endline "Database connection is online!"
    | Error e -> print_endline (Error.to_string_hum e));
   return [%expect {| Database connection is online! |}]

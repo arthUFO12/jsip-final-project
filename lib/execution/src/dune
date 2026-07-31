@@ -1,0 +1,18 @@
+(library
+ (name execution)
+ (public_name arbiter.execution)
+ (libraries
+  core
+  async
+  types
+  market_data
+  cohttp-async
+  yojson
+  base64
+  cstruct
+  mirage-crypto
+  mirage-crypto-pk
+  mirage-crypto-rng
+  x509)
+ (preprocess
+  (pps ppx_jane)))

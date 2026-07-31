@@ -21,3 +21,24 @@ val list_market_stubs_after
       , Types.Market_stub.t
       , [ `Many | `One | `Zero ] )
       Caqti_request.t
+
+(** Creates the [pair_proposals] table if it does not already exist. *)
+val create_pair_proposal_table : (unit, unit, [ `Zero ]) Caqti_request.t
+
+(** Inserts a proposal; a pair that already exists (in any status) is left
+    untouched, so re-proposing never resets a human decision. *)
+val insert_pair_proposal
+  : (Types.Pair_proposal.t, unit, [ `Zero ]) Caqti_request.t
+
+val set_pair_status
+  : ( Types.Pair_proposal.Status.t * Types.Market_id.t * Types.Market_id.t
+      , unit
+      , [ `Zero ] )
+      Caqti_request.t
+
+(** Best score first. *)
+val list_pair_proposals_by_status
+  : ( Types.Pair_proposal.Status.t
+      , Types.Pair_proposal.t
+      , [ `Many | `One | `Zero ] )
+      Caqti_request.t

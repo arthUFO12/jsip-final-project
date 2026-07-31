@@ -33,6 +33,12 @@
   virtual_dom
   cohttp-async
   yojson
+  base64
+  cstruct
+  mirage-crypto
+  mirage-crypto-pk
+  mirage-crypto-rng
+  x509
   postgresql
   core
   core_unix
