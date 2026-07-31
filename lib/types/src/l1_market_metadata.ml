@@ -22,7 +22,8 @@ type t =
   ; volume : Volume.t option (* Lifetime traded volume *)
   ; volume_24h : Volume.t option (* Traded volume, trailing 24 hours *)
   ; active : bool
-  ; close_time : Time_ns.t option
+  ; created_time : Time_ns.t
+  ; close_time : Time_ns.t
   }
 [@@deriving sexp_of, fields]
 
@@ -34,6 +35,7 @@ let to_market_stub t : Market_stub.t =
   ; clob_token_id = t.clob_token_id
   ; title = t.title
   ; category = t.category
+  ; created_time = t.created_time
   ; close_time = t.close_time
   }
 ;;

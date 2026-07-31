@@ -63,9 +63,11 @@ let%expect_test "polymarket fetch -> parse round trip" =
     round_trip ~venue:Venue.Polymarket ~fetch:(fun () ->
       Fetch_live.fetch_polymarket_markets ~limit:10 ())
   in
-  [%expect {|
+  [%expect
+    {|
     Number of markets 5
     All markets open: true
+    parse_data: skipped 2/10 entries
     |}]
 ;;
 
@@ -132,8 +134,7 @@ let%expect_test "kalshi time series fetch -> parse round trip" =
     time_series_round_trip
       ~venue:Venue.Kalshi
       ~usable:(fun (market : L1_market_metadata.t) ->
-        Option.is_some market.series_ticker
-        && Option.is_some market.close_time)
+        Option.is_some market.series_ticker)
       ~fetch_markets:(fun () -> Fetch_live.fetch_kalshi_markets ~limit:1 ())
       ~fetch_series:Fetch_time_series.fetch_kalshi_data
       ~parse_series:Time_series_parser.parse_kalshi_time_series
@@ -162,5 +163,6 @@ let%expect_test "polymarket time series fetch -> parse round trip" =
     Has points: true
     All prices within $0..$1: true
     Times nondecreasing: true
+    parse_data: skipped 2/10 entries
     |}]
 ;;

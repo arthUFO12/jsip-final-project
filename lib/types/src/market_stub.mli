@@ -9,6 +9,7 @@ type t =
   ; title : string
   ; category : Category.t
   ; close_time : Time_ns.t option
+  ; created_time : Time_ns.t
   }
 [@@deriving sexp_of]
 

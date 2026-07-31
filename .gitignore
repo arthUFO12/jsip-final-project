@@ -38,3 +38,5 @@ _opam/
 # Secrets (API keys) 
 .env
 *.db
+
+test.db

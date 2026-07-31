@@ -19,7 +19,8 @@ let%expect_test "parse kalshi fixture" =
        (category Miscellaneous) (yes_bid (12000000)) (yes_ask (13000000))
        (last_price (13000000)) (volume ((Contracts 114510)))
        (volume_24h ((Contracts 43))) (active true)
-       (close_time ((2099-08-01 04:59:00.000000000Z))))
+       (created_time (2025-08-28 20:40:16.168768000Z))
+       (close_time (2099-08-01 04:59:00.000000000Z)))
       |}]
 ;;
 
@@ -45,7 +46,8 @@ let%expect_test "parse polymarket fixture" =
        (category Politics) (yes_bid (50000000)) (yes_ask (51000000))
        (last_price (51000000)) (volume ((Notional 87713660105302)))
        (volume_24h ((Notional 304691306800))) (active true)
-       (close_time ((2026-07-31 12:00:00.000000000Z))))
+       (created_time (2025-05-02 15:04:43.762151000Z))
+       (close_time (2026-07-31 12:00:00.000000000Z)))
       |}]
 ;;
 

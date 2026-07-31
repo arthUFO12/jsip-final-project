@@ -48,6 +48,7 @@ let market_stub_type =
      ; clob_token_id
      ; title
      ; category
+     ; created_time
      ; close_time
      } :
       Market_stub.t)
@@ -61,6 +62,7 @@ let market_stub_type =
       , title
       , Category.to_string category
       , Option.map close_time ~f:time_ns_to_int64 )
+      , time_ns_to_int64 created_time)
   in
   let decode
     ( venue_str
@@ -70,6 +72,7 @@ let market_stub_type =
     , clob_token_id
     , title
     , category_str
+    , created_time_int
     , close_time_int )
     =
     Ok
@@ -81,6 +84,7 @@ let market_stub_type =
        ; title
        ; category = Category.of_string category_str
        ; close_time = Option.map close_time_int ~f:int64_to_time_ns
+       ; created_time = int64_to_time_ns created_time_int
        }
        : Market_stub.t)
   in

@@ -1,6 +1,0 @@
-(library
- (name bot_runtime)
- (public_name arbiter.bot_runtime)
- (libraries core types)
- (preprocess
-  (pps ppx_jane)))

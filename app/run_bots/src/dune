@@ -1,0 +1,5 @@
+(executable
+ (name run_bots)
+ (libraries core async core_unix.command_unix types simulation bots)
+ (preprocess
+  (pps ppx_jane)))

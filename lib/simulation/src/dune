@@ -1,0 +1,6 @@
+(library
+ (name simulation)
+ (public_name arbiter.simulation)
+ (libraries core types market_data pnl async)
+ (preprocess
+  (pps ppx_jane)))

@@ -13,7 +13,8 @@ let create_market_stub_table =
       clob_token_id TEXT,
       title TEXT NOT NULL,
       category TEXT NOT NULL,
-      close_time BIGINT
+      created_time BIGINT NOT NULL,
+      close_time BIGINT NOT NULL
     )
   |}
 ;;
@@ -31,7 +32,7 @@ let create_config_table =
 let insert_market_stub =
   let open Caqti_request.Infix in
   (Database_types.market_stub_type ->. T.unit)
-    {| INSERT INTO market_stubs (venue, market_id, slug, series_ticker, clob_token_id, title, category, close_time) VALUES (?, ?, ?, ?, ?, ?, ?, ?) |}
+    {| INSERT INTO market_stubs (venue, market_id, slug, series_ticker, clob_token_id, title, created_time, close_time) VALUES (?, ?, ?, ?, ?, ?, ?, ?) |}
 ;;
 
 let find_market_stub =
