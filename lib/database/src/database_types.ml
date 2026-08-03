@@ -62,7 +62,6 @@ let market_stub_type =
      ; category
      ; created_time
      ; close_time
-     ; category
      ; volume
      } :
       Market_stub.t)
@@ -100,7 +99,6 @@ let market_stub_type =
        ; category = Category.of_string category_str
        ; created_time = int64_to_time_ns created_time_int
        ; close_time = int64_to_time_ns close_time_int
-       ; category = Category.of_string category_str
        ; volume = Option.map volume_str ~f:volume_of_string
        }
        : Market_stub.t)

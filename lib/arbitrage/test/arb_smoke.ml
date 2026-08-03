@@ -22,6 +22,7 @@ let main () =
             ~venue
             ~closed:false
             ~limit:scan_limit
+            ()
         in
         printf
           !"fetched %{Venue}: %d markets, %d with two-sided quotes\n"

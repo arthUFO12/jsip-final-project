@@ -57,6 +57,9 @@ val delete_market_stub : (Types.Market_id.t, unit, [ `Zero ]) Caqti_request.t
 val list_oldest_market_stubs_before
   : ( int64 * int
       , Types.Market_stub.t
+      , [ `Many | `One | `Zero ] )
+      Caqti_request.t
+
 (** Creates the [pair_proposals] table if it does not already exist. *)
 val create_pair_proposal_table : (unit, unit, [ `Zero ]) Caqti_request.t
 

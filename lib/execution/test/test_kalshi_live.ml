@@ -54,6 +54,7 @@ let stub ~venue ~id =
   ; category = Crypto
   ; created_time = Time_ns.epoch
   ; close_time = Time_ns.of_string "2030-01-01 00:00:00Z"
+  ; volume = None
   }
 ;;
 
@@ -155,7 +156,7 @@ let%expect_test "orders kalshi cannot price are rejected before any network \
           (slug KXBTC-25DEC31-B100000) (series_ticker ()) (clob_token_id ())
           (title "test market") (category Crypto)
           (created_time (1970-01-01 00:00:00.000000000Z))
-          (close_time (2030-01-01 00:00:00.000000000Z))))
+          (close_time (2030-01-01 00:00:00.000000000Z)) (volume ())))
         (contract Yes) (side Buy) (limit_price 45500000) (size 7)))))
     (Error
      ("kalshi limit must be between 1c and 99c" (price_cents 100)
@@ -165,7 +166,7 @@ let%expect_test "orders kalshi cannot price are rejected before any network \
           (slug KXBTC-25DEC31-B100000) (series_ticker ()) (clob_token_id ())
           (title "test market") (category Crypto)
           (created_time (1970-01-01 00:00:00.000000000Z))
-          (close_time (2030-01-01 00:00:00.000000000Z))))
+          (close_time (2030-01-01 00:00:00.000000000Z)) (volume ())))
         (contract Yes) (side Buy) (limit_price 100000000) (size 7)))))
     (Error
      ("order size must be positive"
@@ -175,7 +176,7 @@ let%expect_test "orders kalshi cannot price are rejected before any network \
           (slug KXBTC-25DEC31-B100000) (series_ticker ()) (clob_token_id ())
           (title "test market") (category Crypto)
           (created_time (1970-01-01 00:00:00.000000000Z))
-          (close_time (2030-01-01 00:00:00.000000000Z))))
+          (close_time (2030-01-01 00:00:00.000000000Z)) (volume ())))
         (contract Yes) (side Buy) (limit_price 49000000) (size 0)))))
     |}];
   return ()
@@ -201,7 +202,7 @@ let%expect_test "the venue's create-order response becomes a fill: order id \
           (slug KXBTC-25DEC31-B100000) (series_ticker ()) (clob_token_id ())
           (title "test market") (category Crypto)
           (created_time (1970-01-01 00:00:00.000000000Z))
-          (close_time (2030-01-01 00:00:00.000000000Z))))
+          (close_time (2030-01-01 00:00:00.000000000Z)) (volume ())))
         (contract Yes) (side Buy) (limit_price 49000000) (size 10)))
       (filled_size 7) (price 49000000) (fee 14000000) (venue_order_id (abc-123))))
     |}];
@@ -220,7 +221,7 @@ let%expect_test "the venue's create-order response becomes a fill: order id \
           (slug KXBTC-25DEC31-B100000) (series_ticker ()) (clob_token_id ())
           (title "test market") (category Crypto)
           (created_time (1970-01-01 00:00:00.000000000Z))
-          (close_time (2030-01-01 00:00:00.000000000Z))))
+          (close_time (2030-01-01 00:00:00.000000000Z)) (volume ())))
         (contract Yes) (side Buy) (limit_price 49000000) (size 10)))
       (filled_size 0) (price 49000000) (fee 0) (venue_order_id (abc-124))))
     |}];

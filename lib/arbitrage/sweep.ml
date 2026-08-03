@@ -193,6 +193,7 @@ let sweep_once ~matching ~markets_to_sweep () =
       ~venue:Kalshi
       ~closed:false
       ~limit:listing_limit
+      ()
   in
   let targets =
     List.sort

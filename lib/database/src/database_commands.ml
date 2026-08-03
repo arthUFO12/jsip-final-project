@@ -12,7 +12,6 @@ let create_market_stub_table =
       series_ticker VARCHAR(255),
       clob_token_id TEXT,
       title TEXT NOT NULL,
-      category TEXT NOT NULL,
       created_time BIGINT NOT NULL,
       close_time BIGINT NOT NULL,
       category TEXT NOT NULL,

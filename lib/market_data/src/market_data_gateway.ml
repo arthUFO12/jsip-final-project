@@ -2,6 +2,29 @@ open! Core
 open! Async
 open Types
 
+let fetch_book (market_stub : Market_stub.t) =
+  match market_stub.venue with
+  | Kalshi ->
+    let%bind.Deferred.Or_error payload =
+      Fetch_books.fetch_kalshi_book
+        ~ticker:(Market_id.to_string market_stub.market_id)
+        ()
+    in
+    Deferred.return (Book_parser.parse_kalshi_book payload.body)
+  | Polymarket ->
+    (match market_stub.clob_token_id with
+     | None ->
+       Deferred.Or_error.error_s
+         [%message
+           "polymarket stub carries no clob_token_id; cannot fetch its book"
+             (market_stub : Market_stub.t)]
+     | Some token_id ->
+       let%bind.Deferred.Or_error payload =
+         Fetch_books.fetch_polymarket_book ~token_id ()
+       in
+       Deferred.return (Book_parser.parse_polymarket_book payload.body))
+;;
+
 let fetch_l1_market_data ?events_limit ~(venue : Venue.t) ~closed ~limit () =
   let%bind.Deferred.Or_error payload =
     match (venue : Venue.t) with

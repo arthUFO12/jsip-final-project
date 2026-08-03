@@ -19,6 +19,7 @@ let stub ~close_time ~venue ~id title =
   ; category = Miscellaneous
   ; created_time = Time_ns.epoch
   ; close_time
+  ; volume = None
   }
 ;;
 

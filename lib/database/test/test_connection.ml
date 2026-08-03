@@ -31,7 +31,6 @@ let make_stub
   ; series_ticker = None
   ; clob_token_id = None
   ; title
-  ; category = Miscellaneous
   ; created_time = Time_ns.of_string created_time
   ; close_time = Time_ns.of_string close_time
   ; category
@@ -117,7 +116,7 @@ let%expect_test "market stub is successfully found" =
    | Error e -> print_endline (Error.to_string_hum e));
   return
     [%expect
-      {| Stub found: venue: Kalshi, market_id: 12345, slug: 12345, title: France wins world cup, created_time: 2026-07-01 00:00:00.000000000Z, close_time: 2026-08-15 00:00:00.000000000Z |}]
+      {| Stub found: venue: Kalshi, market_id: 12345, slug: 12345, title: France wins world cup, category: Miscellaneous, created_time: 2026-07-01 00:00:00.000000000Z, close_time: 2026-08-15 00:00:00.000000000Z |}]
 ;;
 
 let%expect_test "Nonexistent market ID is not found" =
@@ -145,7 +144,7 @@ let%expect_test "Market stubs after 2026-07-19 are found" =
    | Error e -> print_endline (Error.to_string_hum e));
   return
     [%expect
-      {| venue: Kalshi, market_id: 12345, slug: 12345, title: France wins world cup, created_time: 2026-07-01 00:00:00.000000000Z, close_time: 2026-08-15 00:00:00.000000000Z |}]
+      {| venue: Kalshi, market_id: 12345, slug: 12345, title: France wins world cup, category: Miscellaneous, created_time: 2026-07-01 00:00:00.000000000Z, close_time: 2026-08-15 00:00:00.000000000Z |}]
 ;;
 
 let historical_id = Market_id.of_string "34567"
@@ -186,7 +185,7 @@ let%expect_test "stubs are also findable by slug" =
    | Ok (Some stub) -> print_endline [%string "found: %{stub#Market_stub}"]
    | Error e -> print_endline (Error.to_string_hum e));
   [%expect
-    {| found: venue: Kalshi, market_id: 34567, slug: old-final, title: Old cup final, created_time: 2026-06-01 00:00:00.000000000Z, close_time: 2026-06-30 00:00:00.000000000Z |}];
+    {| found: venue: Kalshi, market_id: 34567, slug: old-final, title: Old cup final, category: Sports, created_time: 2026-06-01 00:00:00.000000000Z, close_time: 2026-06-30 00:00:00.000000000Z |}];
   let%bind missing_or_error =
     Database_exec.find_market_stub_by_slug (Slug.of_string "no-such")
   in
@@ -210,7 +209,7 @@ let%expect_test "Market stubs closed before 2026-07-19 are historical" =
    | Error e -> print_endline (Error.to_string_hum e));
   return
     [%expect
-      {| venue: Kalshi, market_id: 34567, slug: old-final, title: Old cup final, created_time: 2026-06-01 00:00:00.000000000Z, close_time: 2026-06-30 00:00:00.000000000Z |}]
+      {| venue: Kalshi, market_id: 34567, slug: old-final, title: Old cup final, category: Sports, created_time: 2026-06-01 00:00:00.000000000Z, close_time: 2026-06-30 00:00:00.000000000Z |}]
 ;;
 
 let%expect_test "counts split current from historical at the injected time" =
