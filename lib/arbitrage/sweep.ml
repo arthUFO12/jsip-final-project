@@ -215,17 +215,44 @@ let compare_once ~threshold ~apply_veto ~markets_to_sweep () =
               "search failed; skipping market"
                 (l1.market_id : Market_id.t)
                 (error : Error.t)];
-          Ok [])
+          Ok Matcher.Comparison.Report.empty)
   in
-  (* Two searches can surface the same pair; report it once. *)
+  (* Merge the per-market reports. Judged pairs are deduplicated (two
+     searches can surface the same pair); the Neither tallies and
+     coverage may count such a pair twice, which is fine for a
+     diagnostic. *)
+  let merged =
+    List.fold
+      per_market
+      ~init:Matcher.Comparison.Report.empty
+      ~f:(fun merged (report : Matcher.Comparison.Report.t) ->
+        { Matcher.Comparison.Report.judged = merged.judged @ report.judged
+        ; near_misses = merged.near_misses @ report.near_misses
+        ; neither = merged.neither + report.neither
+        ; coverage =
+            Matcher.Comparison.Coverage.merge merged.coverage report.coverage
+        })
+  in
+  let comparison_key (comparison : Matcher.Comparison.t) =
+    candidate_key comparison.candidate
+  in
   return
-    (List.concat per_market
-     |> List.dedup_and_sort
-          ~compare:
-            (Comparable.lift
-               String.compare
-               ~f:(fun (comparison : Matcher.Comparison.t) ->
-                 candidate_key comparison.candidate)))
+    { merged with
+      Matcher.Comparison.Report.judged =
+        List.dedup_and_sort
+          merged.judged
+          ~compare:(Comparable.lift String.compare ~f:comparison_key)
+    ; near_misses =
+        List.dedup_and_sort
+          merged.near_misses
+          ~compare:(Comparable.lift String.compare ~f:comparison_key)
+        |> List.sort
+             ~compare:
+               (Comparable.reverse
+                  (Comparable.lift
+                     Float.compare
+                     ~f:(fun (c : Matcher.Comparison.t) -> c.score)))
+    }
 ;;
 
 (* Shared by both sweeps: everything the store already knows, as keys. *)
