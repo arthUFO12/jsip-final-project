@@ -81,8 +81,10 @@ val orders_of_opportunity
 (** [run ~config] validates [config], builds the executor its
     {!Config.Trading} names — this is the only paper-vs-live fork — and loops
     every [poll_interval]: scan, then place both legs of each hit, printing
-    fills. Returns promptly with an error on an invalid config or when [Live]
-    credentials are missing from the environment; otherwise the result stays
-    undetermined for the life of the bot — scan and order failures are logged
-    and retried, never fatal. *)
+    fills. Quiet ticks print a heartbeat instead — how many pairs were priced
+    and the best edge that fell short of [min_edge] — so a running bot is
+    always visibly alive. Returns promptly with an error on an invalid config
+    or when [Live] credentials are missing from the environment; otherwise
+    the result stays undetermined for the life of the bot — scan and order
+    failures are logged and retried, never fatal. *)
 val run : config:Config.t -> unit Deferred.Or_error.t

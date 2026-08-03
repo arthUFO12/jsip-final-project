@@ -214,11 +214,48 @@ let stub_map candidates =
     first)
 ;;
 
+(* A quiet market must still show a pulse: when nothing clears [min_edge],
+   re-price with a zero floor (pure — the books are already fetched) and say
+   how close the best pair came. *)
+let heartbeat ~(config : Config.t) ~legs candidates =
+  let thin =
+    scan
+      ~execution:{ config.execution with min_edge = Price.zero }
+      ~legs
+      candidates
+  in
+  let best =
+    List.max_elt
+      thin
+      ~compare:
+        (Comparable.lift Price.compare ~f:(fun (o : Detect.opportunity) ->
+           o.edge))
+  in
+  match best with
+  | None ->
+    print_s
+      [%message
+        "tick: no positive edge"
+          ~pairs:(List.length candidates : int)
+          ~legs_priced:(List.length legs : int)]
+  | Some { edge; size; _ } ->
+    print_s
+      [%message
+        "tick: best edge is below min_edge"
+          ~edge:(Price.to_string_dollar edge : string)
+          ~size:(size : Size.t)
+          ~min_edge:
+            (Price.to_string_dollar config.execution.min_edge : string)]
+;;
+
 let tick ~(config : Config.t) ~executor =
   let open Deferred.Or_error.Let_syntax in
   let%bind candidates = candidates_of_approved () in
   let%bind legs = Deferred.ok (fetch_legs candidates) in
   let opportunities = scan ~execution:config.execution ~legs candidates in
+  (match opportunities with
+   | [] -> heartbeat ~config ~legs candidates
+   | _ :: _ -> ());
   Deferred.ok
     (Deferred.List.iter
        ~how:`Sequential

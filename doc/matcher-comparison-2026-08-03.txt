@@ -1,0 +1,297 @@
+# Matcher comparison, full cross-product run — 2026-08-03
+# dune exec app/arbitrage/src/arbitrage_cli.exe -- compare -full
+# 70,171 Kalshi x 2,075 Polymarket active markets; 10,050,019 blocked pairs judged
+
+fetched Kalshi: 70171 active markets
+fetched Polymarket: 2075 active markets
+
+== both systems agree (1) ==
+  0.50  Will the Bank of Japan Hike 25bps at the September 2026 Monetary Policy Meeting?  <->  Will the Bank of Japan announce a 25 bps increase at the September 2026 meeting?
+
+== claims only — text pipeline missed these (7) ==
+  0.49  Will the Federal Reserve Cut rates by 25bps at their September 2026 meeting? (Cut 25bps)  <->  Will the Fed decrease interest rates by 25 bps after the September 2026 meeting?
+  0.48  Will the Federal Reserve Cut rates by 25bps at their October 2026 meeting? (Cut 25bps)  <->  Will the Fed decrease interest rates by 25 bps after the October 2026 meeting?
+  0.48  Will the Federal Reserve Hike rates by 25bps at their September 2026 meeting? (Hike 25bps)  <->  Will the Fed increase interest rates by 25 bps after the September 2026 meeting?
+  0.47  Will the Federal Reserve Hike rates by 25bps at their December 2026 meeting? (Hike 25bps)  <->  Will the Fed increase interest rates by 25 bps after the December 2026 meeting?
+  0.46  Will the Bank of Japan Maintain current rate at the September 2026 Monetary Policy Meeting?  <->  Will the Bank of Japan announce no change at the September 2026 meeting?
+  0.35  Will the Federal Reserve Hike rates by 0bps at their September 2026 meeting? (Fed maintains rate)  <->  Will there be no change in Fed interest rates after the September 2026 meeting?
+  0.26  Will Bank of Canada Hike rates by 0bps at their September 2026 meeting? (Maintains rate)  <->  Will the Bank of Canada make no change to the target for the overnight rate at the September interest rate announcement?
+
+== text only — claims abstained (Opaque) (260) ==
+  1.00  Will Barrett Pfeiffer win Big Brother Season 28?  <->  Will Barrett Pfeiffer win Big Brother season 28?
+  0.88  Will Javokhir Sindarov win the World Chess Championship?  <->  Will Javokhir Sindarov win the 2026 World Chess Championship?
+  0.83  Who will win the Nobel Peace Prize? (International Court of Justice (ICJ))  <->  Will the International Court of Justice win the Nobel Peace Prize in 2026?
+  0.80  Tohoku Rakuten Golden Eagles vs Orix Buffaloes winner?  <->  Orix Buffaloes vs. Tohoku Rakuten Golden Eagles
+  0.80  Tohoku Rakuten Golden Eagles vs Orix Buffaloes winner?  <->  Orix Buffaloes vs. Tohoku Rakuten Golden Eagles
+  0.80  Tohoku Rakuten Golden Eagles vs Orix Buffaloes winner?  <->  Orix Buffaloes vs. Tohoku Rakuten Golden Eagles
+  0.80  Tohoku Rakuten Golden Eagles vs Orix Buffaloes winner?  <->  Orix Buffaloes vs. Tohoku Rakuten Golden Eagles
+  0.78  Pandemic in 2026?  <->  New pandemic in 2026?
+  0.76  Will Rasmus Højgaard win the Wyndham Championship?  <->  Will Rasmus Hojgaard win the 2026 Wyndham Championship?
+  0.75  Who will win the Nobel Peace Prize? (Yulia Navalnaya)  <->  Will Yulia Navalnaya win the Nobel Peace Prize in 2026?
+  0.75  Who will win the Ballon d'Or in 2026? (Khvicha Kvaratskhelia)  <->  Will Khvicha Kvaratskhelia win the 2026 Ballon d'Or?
+  0.74  Who will win the Nobel Peace Prize? (Donald Trump)  <->  Will Donald Trump win the Nobel Peace Prize in 2026?
+  0.73  Who will win the Ballon d'Or in 2026? (Lamine Yamal)  <->  Will Lamine Yamal win the 2026 Ballon d'Or?
+  0.73  Will Robert F. Kennedy Jr. be the next person to leave the Trump Cabinet?  <->  Will Robert F. Kennedy Jr. be the next to leave the Trump Cabinet before 2027?
+  0.73  Who will win the Ballon d'Or in 2026? (Jude Bellingham)  <->  Will Jude Bellingham win the 2026 Ballon d'Or?
+  0.71  Will The Bombing of Pan Am 103: Limited Series be Top Global Netflix Show on Aug 3, 2026?  <->  Will "The Bombing of Pan Am 103: Limited Series" be the #2 global Netflix show this week?
+  0.71  Who will win the Ballon d'Or in 2026? (Erling Haaland)  <->  Will Erling Haaland win the 2026 Ballon d'Or?
+  0.71  Will Victoria Mboko win the US Open Women's Singles?  <->  Will Victoria Mboko win the 2026 Women’s US Open?
+  0.71  Who will win the Ballon d'Or in 2026? (Mohamed Salah)  <->  Will Mohamed Salah win the 2026 Ballon d'Or?
+  0.71  Who will win the Ballon d'Or in 2026? (Michael Olise)  <->  Will Michael Olise win the 2026 Ballon d'Or?
+  0.70  Who will win the Ballon d'Or in 2026? (Lionel Messi)  <->  Will Lionel Messi win the 2026 Ballon d'Or?
+  0.70  Will Emma Navarro win the US Open Women's Singles?  <->  Will Emma Navarro win the 2026 Women’s US Open?
+  0.70  Will Lee Jae Myung be arrested before Jan 2027?  <->  Lee Jae-myung arrested before 2027?
+  0.69  Will Bayern Munich win the Champions League?  <->  Will Bayern Munich win the 2026-27 UEFA Champions League Championship?
+  0.69  Who will win the Ballon d'Or in 2026? (Declan Rice)  <->  Will Declan Rice win the 2026 Ballon d'Or?
+  0.69  Will Carlos Alcaraz win the US Open Men's Singles?  <->  Will Carlos Alcaraz win the 2026 Men's US Open?
+  0.69  Will Trump buy Greenland? (Before 2027)  <->  Will Trump acquire Greenland before 2027?
+  0.69  Who will win the Ballon d'Or in 2026? (Harry Kane)  <->  Will Harry Kane win the 2026 Ballon d'Or?
+  0.69  Who will win the Ballon d'Or in 2026? (Kylian Mbappe)  <->  Will Kylian Mbappé win the 2026 Ballon d'Or?
+  0.68  Will Nottingham Forest win the English Premier League?  <->  Will Nottingham Forest win the 2026-27 English Premier League (EPL) Championship?
+  0.68  Will Jack Draper win the US Open Men's Singles?  <->  Will Jack Draper win the 2026 Men's US Open?
+  0.67  Will Feyenoord win the Champions League?  <->  Will Feyenoord win the 2026-27 UEFA Champions League Championship?
+  0.67  Will Barcelona win the Champions League?  <->  Will Barcelona win the 2026-27 UEFA Champions League Championship?
+  0.67  Will Barrett Pfeiffer finish in 2 place in Big Brother Season 28?  <->  Will Barrett Pfeiffer win Big Brother season 28?
+  0.67  Will Newcastle United win the English Premier League?  <->  Will Newcastle United win the 2026-27 English Premier League (EPL) Championship?
+  0.67  Will Manchester United win the English Premier League?  <->  Will Manchester United win the 2026-27 English Premier League (EPL) Championship?
+  0.67  Will Crystal Palace win the English Premier League?  <->  Will Crystal Palace win the 2026-27 English Premier League (EPL) Championship?
+  0.67  Will Carlos Sainz Jr. win the F1 Drivers Championship?  <->  Will Carlos Sainz Jr. be the 2026 F1 Drivers' Champion?
+  0.67  Cracovia Krakow vs Pogon Szczecin Winner?  <->  KS Cracovia Krakow vs. Pogon Szczecin: O/U 2.5
+  0.67  Cracovia Krakow vs Pogon Szczecin Winner?  <->  KS Cracovia Krakow vs. Pogon Szczecin: O/U 2.5
+  0.67  Who will win the Ballon d'Or in 2026? (Vitinha)  <->  Will Vitinha win the 2026 Ballon d'Or?
+  0.67  Who will win the Ballon d'Or in 2026? (Ousmane Dembele)  <->  Will Ousmane Dembélé win the 2026 Ballon d'Or?
+  0.66  Will Philadelphia win the 2026 Pro Baseball National League Championship?  <->  Will Philadelphia Phillies win the 2026 National League Championship Series?
+  0.66  Will Coventry City win the English Premier League?  <->  Will Coventry City win the 2026-27 English Premier League (EPL) Championship?
+  0.66  Will Barrett Pfeiffer finish in 3 place in Big Brother Season 28?  <->  Will Barrett Pfeiffer win Big Brother season 28?
+  0.66  Will Ferrari win the F1 Constructors Championship?  <->  Will Ferrari be the 2026 F1 Constructors' Champion?
+  0.66  Will Manchester City win the English Premier League?  <->  Will Manchester City win the 2026-27 English Premier League (EPL) Championship?
+  0.66  Will Oscar Piastri win the F1 Drivers Championship?  <->  Will Oscar Piastri be the 2026 F1 Drivers' Champion?
+  0.66  Will Lewis Hamilton win the F1 Drivers Championship?  <->  Will Lewis Hamilton be the 2026 F1 Drivers' Champion?
+  0.66  Will Charles Leclerc win the F1 Drivers Championship?  <->  Will Charles Leclerc be the 2026 F1 Drivers' Champion?
+  0.65  Who will win the Ballon d'Or in 2026? (Rodri)  <->  Will Rodri win the 2026 Ballon d'Or?
+  0.65  Who will win the Ballon d'Or in 2026? (Pedri)  <->  Will Pedri win the 2026 Ballon d'Or?
+  0.65  Will Lando Norris win the F1 Drivers Championship?  <->  Will Lando Norris be the 2026 F1 Drivers' Champion?
+  0.65  Will Isack Hadjar win the F1 Drivers Championship?  <->  Will Isack Hadjar be the 2026 F1 Drivers' Champion?
+  0.65  Will Esteban Ocon win the F1 Drivers Championship?  <->  Will Esteban Ocon be the 2026 F1 Drivers' Champion?
+  0.65  Will Ipswich Town win the English Premier League?  <->  Will Ipswich Town win the 2026-27 English Premier League (EPL) Championship?
+  0.64  Will Leeds United win the English Premier League?  <->  Will Leeds United win the 2026-27 English Premier League (EPL) Championship?
+  0.64  Will Bournemouth win the English Premier League?  <->  Will Bournemouth win the 2026-27 English Premier League (EPL) Championship?
+  0.64  Will Tottenham win the English Premier League?  <->  Will Tottenham win the 2026-27 English Premier League (EPL) Championship?
+  0.64  Will Inde Navarrette win Best Actress at the Oscars?  <->  Will Inde Navarrette win Best Actress at the 99th Academy Awards?
+  0.64  Will Chelsea win the English Premier League?  <->  Will Chelsea win the 2026-27 English Premier League (EPL) Championship?
+  0.64  Will Lille win the Champions League?  <->  Will Lille win the 2026-27 UEFA Champions League Championship?
+  0.64  Will Sunderland win the English Premier League?  <->  Will Sunderland win the 2026-27 English Premier League (EPL) Championship?
+  0.64  Will Aston Villa win the English Premier League?  <->  Will Aston Villa win the 2026-27 English Premier League (EPL) Championship?
+  0.64  Will Hull City win the English Premier League?  <->  Will Hull City win the 2026-27 English Premier League (EPL) Championship?
+  0.64  Will Julianne Moore win Best Actress at the Oscars?  <->  Will Julianne Moore win Best Actress at the 99th Academy Awards?
+  0.64  Who will win the Nobel Peace Prize? (International Criminal Court)  <->  Will the International Court of Justice win the Nobel Peace Prize in 2026?
+  0.63  Will Liverpool win the English Premier League?  <->  Will Liverpool win the 2026-27 English Premier League (EPL) Championship?
+  0.63  Will Brentford win the English Premier League?  <->  Will Brentford win the 2026-27 English Premier League (EPL) Championship?
+  0.63  Tohoku Rakuten Golden Eagles vs Orix Buffaloes: First Inning Run? (Yes)  <->  Orix Buffaloes vs. Tohoku Rakuten Golden Eagles
+  0.63  Tohoku Rakuten Golden Eagles vs Orix Buffaloes: First Inning Run? (Yes)  <->  Orix Buffaloes vs. Tohoku Rakuten Golden Eagles
+  0.63  Will Brighton win the English Premier League?  <->  Will Brighton win the 2026-27 English Premier League (EPL) Championship?
+  0.62  Will Fulham win the English Premier League?  <->  Will Fulham win the 2026-27 English Premier League (EPL) Championship?
+  0.62  Will Gen.G Global Academy win map 2 in the Hanwha Life Esports Challengers vs. Gen.G Global Academy match?  <->  LoL: Gen.G Global Academy vs Hanwha Life Esports Challengers - Game 2 Winner
+  0.62  Will Everton win the English Premier League?  <->  Will Everton win the 2026-27 English Premier League (EPL) Championship?
+  0.62  Will Arsenal win the English Premier League?  <->  Will Arsenal win the 2026-27 English Premier League (EPL) Championship?
+  0.62  Will The Bombing of Pan Am 103: Limited Series be Top US Netflix Show on Aug 3, 2026?  <->  Will "The Bombing of Pan Am 103: Limited Series" be the #2 global Netflix show this week?
+  0.62  Cracovia Krakow vs Pogon Szczecin Winner? (Tie)  <->  KS Cracovia Krakow vs. Pogon Szczecin: O/U 2.5
+  0.61  Which city will host Eurovision 2027? (Burgas)  <->  Will Burgas host Eurovision 2027?
+  0.61  Where will Vinicius Junior go next? (Manchester City)  <->  Will Vinicius Junior join Manchester City?
+  0.61  Will Colorado win the MLS Cup?  <->  Will Colorado Rapids win the 2026 MLS Cup?
+  0.61  Will Hanwha Life Esports Challengers win map 2 in the Hanwha Life Esports Challengers vs. Gen.G Global Academy match?  <->  LoL: Gen.G Global Academy vs Hanwha Life Esports Challengers - Game 2 Winner
+  0.61  Will Gentle Mates GC win the Karmine Corp GC vs. Gentle Mates GC Valorant match?  <->  Valorant: Gentle Mates GC vs Karmine Corp GC - Map 1 Winner
+  0.61  Will Karmine Corp GC win the Karmine Corp GC vs. Gentle Mates GC Valorant match?  <->  Valorant: Gentle Mates GC vs Karmine Corp GC - Map 1 Winner
+  0.60  Which city will host Eurovision 2027? (Sofia)  <->  Will Sofia host Eurovision 2027?
+  0.60  Will 2026 be the hottest year on record?  <->  Will July 2026 be the 1st hottest on record?
+  0.60  Will 2026 be the hottest year on record?  <->  Will July 2026 be the 1st hottest on record?
+  0.60  Will Xi Jinping visit Taiwan before Jan 1, 2027? (Before 2027)  <->  Will Xi Jinping visit US before 2027?
+  0.60  Will Matt Damon win Best Actor at the Oscars?  <->  Will Matt Damon win Best Actor at the 99th Academy Awards?
+  0.59  #2 Global Netflix Show on Aug 3, 2026? (I Will Find You: Limited Series)  <->  Will "I Will Find You: Limited Series" be the #2 global Netflix show this week?
+  0.58  Where will Vinicius Junior go next? (Bayern Munich)  <->  Will Vinicius Junior join Bayern Munich?
+  0.58  Where will Vinicius Junior go next? (Real Madrid)  <->  Will Vinicius Junior stay at Real Madrid?
+  0.58  Will Andrea Kimi Antonelli win the F1 Drivers Championship?  <->  Will Kimi Antonelli be the 2026 F1 Drivers' Champion?
+  0.57  Giovanni Mpetshi Perricard vs Botic Van de Zandschulp: Total Games (Over 30.5 games)  <->  Canadian Open: Giovanni Mpetshi Perricard vs Botic van de Zandschulp
+  0.57  Giovanni Mpetshi Perricard vs Botic Van de Zandschulp: Total Games (Over 25.5 games)  <->  Canadian Open: Giovanni Mpetshi Perricard vs Botic van de Zandschulp
+  0.57  Giovanni Mpetshi Perricard vs Botic Van de Zandschulp: Total Games (Over 20.5 games)  <->  Canadian Open: Giovanni Mpetshi Perricard vs Botic van de Zandschulp
+  0.57  Will Rasmus Neergaard-Petersen win the Wyndham Championship?  <->  Will Rasmus Hojgaard win the 2026 Wyndham Championship?
+  0.57  Will the unemployment rate (U-3) be above 4.3% in July?  <->  Will the July 2026 unemployment rate be 4.3%?
+  0.57  Will DTF St. Louis win Limited Series  at the Emmy Awards?  <->  Will "DTF St. Louis" win 0 or 1 awards at the Emmys?
+  0.57  Will DTF St. Louis win Limited Series  at the Emmy Awards?  <->  Will "DTF St. Louis" win 2 or 3 awards at the Emmys?
+  0.57  Will DTF St. Louis win Limited Series  at the Emmy Awards?  <->  Will "DTF St. Louis" win 4 or 5 awards at the Emmys?
+  0.57  Will Kansas City win the Pro Football AFC Championship?  <->  Will Kansas City Chiefs win the 2027 NFL AFC Championship?
+  0.57  Will Widow's Bay win Comedy Series at the Emmy Awards?  <->  Will "Widow's Bay" win 2 or 3 awards at the Emmys?
+  0.57  Will Widow's Bay win Comedy Series at the Emmy Awards?  <->  Will "Widow's Bay" win 4 or 5 awards at the Emmys?
+  0.57  Will Botic Van de Zandschulp win set 2 in the Giovanni Mpetshi Perricard vs Botic Van de Zandschulp match  <->  Canadian Open: Giovanni Mpetshi Perricard vs Botic van de Zandschulp
+  0.57  Will Giovanni Mpetshi Perricard win set 2 in the Giovanni Mpetshi Perricard vs Botic Van de Zandschulp match  <->  Canadian Open: Giovanni Mpetshi Perricard vs Botic van de Zandschulp
+  0.57  Will Botic Van de Zandschulp win set 1 in the Giovanni Mpetshi Perricard vs Botic Van de Zandschulp match  <->  Canadian Open: Giovanni Mpetshi Perricard vs Botic van de Zandschulp
+  0.57  Will Giovanni Mpetshi Perricard win set 1 in the Giovanni Mpetshi Perricard vs Botic Van de Zandschulp match  <->  Canadian Open: Giovanni Mpetshi Perricard vs Botic van de Zandschulp
+  0.56  Los Angeles A vs Baltimore Winner?  <->  Los Angeles Angels vs. Baltimore Orioles
+  0.56  Los Angeles A vs Baltimore Winner?  <->  Los Angeles Angels vs. Baltimore Orioles
+  0.56  Los Angeles A vs Baltimore Winner?  <->  Los Angeles Angels vs. Baltimore Orioles
+  0.56  Los Angeles A vs Baltimore Winner?  <->  Los Angeles Angels vs. Baltimore Orioles
+  0.56  Los Angeles A vs Baltimore Winner?  <->  Los Angeles Angels vs. Baltimore Orioles
+  0.56  Los Angeles A vs Baltimore Winner?  <->  Los Angeles Angels vs. Baltimore Orioles
+  0.56  Will Benjamin Netanyahu leave Prime Minister of Israel before Jan 1, 2027?  <->  Will Benjamin Netanyahu be the next Prime Minister of Israel?
+  0.56  Celtic vs Dundee FC Winner?  <->  Celtic FC vs. Dundee FC: O/U 3.5
+  0.56  Celtic vs Dundee FC Winner?  <->  Celtic FC vs. Dundee FC: O/U 3.5
+  0.56  Where will Bradley Barcola go next? (Liverpool)  <->  Will Bradley Barcola join Liverpool?
+  0.56  Will the unemployment rate (U-3) be above 4.2% in July?  <->  Will the July 2026 unemployment rate be 4.2%?
+  0.56  Will Pluribus win Drama Series at the Emmy Awards?  <->  Will "Pluribus" win 2 or 3 awards at the Emmys?
+  0.56  Pandemic in 2026?  <->  Hantavirus pandemic in 2026?
+  0.56  Will Kansas City win the 2027 Pro Football Championship?  <->  Will Kansas City Chiefs win the 2027 NFL AFC Championship?
+  0.56  Will SK Nebula win the FOKUS Sakura vs. SK Nebula Valorant match?  <->  Valorant: SK Nebula vs FOKUS Sakura - Map 1 Winner
+  0.56  Will SK Nebula win the FOKUS Sakura vs. SK Nebula Valorant match?  <->  Valorant: SK Nebula vs FOKUS Sakura - Map 2 Winner
+  0.56  Will FOKUS Sakura win the FOKUS Sakura vs. SK Nebula Valorant match?  <->  Valorant: SK Nebula vs FOKUS Sakura - Map 1 Winner
+  0.56  Will FOKUS Sakura win the FOKUS Sakura vs. SK Nebula Valorant match?  <->  Valorant: SK Nebula vs FOKUS Sakura - Map 2 Winner
+  0.56  Taylor Fritz vs Rafael Jodar: Total Games (Over 28.5 games)  <->  Taylor Fritz vs. Rafael Jodar: Total Sets O/U 2.5
+  0.56  Taylor Fritz vs Rafael Jodar: Total Games (Over 23.5 games)  <->  Taylor Fritz vs. Rafael Jodar: Total Sets O/U 2.5
+  0.56  Taylor Fritz vs Rafael Jodar: Total Games (Over 18.5 games)  <->  Taylor Fritz vs. Rafael Jodar: Total Sets O/U 2.5
+  0.55  Will Gen.G Global Academy win the Hanwha Life Esports Challengers vs. Gen.G Global Academy League of Legends match?  <->  LoL: Gen.G Global Academy vs Hanwha Life Esports Challengers - Game 2 Winner
+  0.55  Where will Yan Diomande go next? (Real Madrid)  <->  Will Yan Diomande join Real Madrid?
+  0.55  Where will Mohamed Salah go next? (Al-Ittihad)  <->  Will Mohamed Salah join Al-Ittihad?
+  0.55  Will New Orleans win the 2027 Pro Basketball Finals?  <->  Will New Orleans Pelicans win the 2027 NBA Finals?
+  0.55  Jeju SK vs Bayern Munich Winner?  <->  Jeju SK FC vs. Bayern Munich: O/U 3.5
+  0.55  Jeju SK vs Bayern Munich Winner?  <->  Jeju SK FC vs. Bayern Munich: O/U 4.5
+  0.55  Jeju SK vs Bayern Munich Winner?  <->  Jeju SK FC vs. Bayern Munich: O/U 3.5
+  0.55  Jeju SK vs Bayern Munich Winner?  <->  Jeju SK FC vs. Bayern Munich: O/U 4.5
+  0.55  Will the United States recognize Reza Pahlavi as the leader of Iran in 2026? (Before 2027)  <->  US recognizes Reza Pahlavi as leader of Iran in 2026?
+  0.55  Will Yakult's Brothers win the Vici Gaming vs. Yakult's Brothers Dota 2 match?  <->  Dota 2: Vici Gaming vs Yakult Brothers - Game 2 Winner
+  0.55  Will Vici Gaming win the Vici Gaming vs. Yakult's Brothers Dota 2 match?  <->  Dota 2: Vici Gaming vs Yakult Brothers - Game 2 Winner
+  0.54  Will the unemployment rate (U-3) be above 4.4% in July?  <->  Will the July 2026 unemployment rate be 4.3%?
+  0.54  Will the unemployment rate (U-3) be above 4.4% in July?  <->  Will the July 2026 unemployment rate be 4.2%?
+  0.54  Will the unemployment rate (U-3) be above 4.3% in July?  <->  Will the July 2026 unemployment rate be 4.2%?
+  0.54  Will LaTrice Verrett win Big Brother Season 28?  <->  Will Barrett Pfeiffer win Big Brother season 28?
+  0.54  Where will Vinicius Junior go next? (Chelsea)  <->  Will Vinicius Junior join Chelsea?
+  0.54  Where will Vinicius Junior go next? (Arsenal)  <->  Will Vinicius Junior join Arsenal?
+  0.54  Who will win the Ballon d'Or in 2026? (Rodri)  <->  Will Pedri win the 2026 Ballon d'Or?
+  0.54  Who will win the Ballon d'Or in 2026? (Pedri)  <->  Will Rodri win the 2026 Ballon d'Or?
+  0.54  Will Los Angeles R win the 2027 Pro Football Championship?  <->  Will the Los Angeles Rams win the 2027 NFL league championship?
+  0.54  Will Houston win the Pro Football AFC Championship?  <->  Will Houston Texans win the 2027 NFL AFC Championship?
+  0.54  Will Oklahoma City win the 2027 Pro Basketball Finals?  <->  Will Oklahoma City Thunder win the 2027 NBA Finals?
+  0.54  Will Golden State win the 2027 Pro Basketball Finals?  <->  Will Golden State Warriors win the 2027 NBA Finals?
+  0.54  Will Manchester United win the Champions League?  <->  Will Manchester United win the 2026-27 English Premier League (EPL) Championship?
+  0.54  Will Hanwha Life Esports Challengers win the Hanwha Life Esports Challengers vs. Gen.G Global Academy League of Legends match?  <->  LoL: Gen.G Global Academy vs Hanwha Life Esports Challengers - Game 2 Winner
+  0.54  Where will Mohamed Salah go next? (Any Saudi Pro League Club)  <->  Will Mohamed Salah play in Saudi Pro League next?
+  0.53  Will the unemployment rate (U-3) be above 4.9% in July?  <->  Will the July 2026 unemployment rate be 4.3%?
+  0.53  Will the unemployment rate (U-3) be above 4.9% in July?  <->  Will the July 2026 unemployment rate be 4.2%?
+  0.53  Will the unemployment rate (U-3) be above 4.8% in July?  <->  Will the July 2026 unemployment rate be 4.3%?
+  0.53  Will the unemployment rate (U-3) be above 4.8% in July?  <->  Will the July 2026 unemployment rate be 4.2%?
+  0.53  Will the unemployment rate (U-3) be above 4.7% in July?  <->  Will the July 2026 unemployment rate be 4.3%?
+  0.53  Will the unemployment rate (U-3) be above 4.7% in July?  <->  Will the July 2026 unemployment rate be 4.2%?
+  0.53  Will the unemployment rate (U-3) be above 4.6% in July?  <->  Will the July 2026 unemployment rate be 4.3%?
+  0.53  Will the unemployment rate (U-3) be above 4.6% in July?  <->  Will the July 2026 unemployment rate be 4.2%?
+  0.53  Will the unemployment rate (U-3) be above 4.5% in July?  <->  Will the July 2026 unemployment rate be 4.3%?
+  0.53  Will the unemployment rate (U-3) be above 4.5% in July?  <->  Will the July 2026 unemployment rate be 4.2%?
+  0.53  Will the unemployment rate (U-3) be above 4.2% in July?  <->  Will the July 2026 unemployment rate be 4.3%?
+  0.53  Will the unemployment rate (U-3) be above 4.1% in July?  <->  Will the July 2026 unemployment rate be 4.3%?
+  0.53  Will the unemployment rate (U-3) be above 4.1% in July?  <->  Will the July 2026 unemployment rate be 4.2%?
+  0.53  Will the unemployment rate (U-3) be above 4.0% in July?  <->  Will the July 2026 unemployment rate be 4.3%?
+  0.53  Will the unemployment rate (U-3) be above 4.0% in July?  <->  Will the July 2026 unemployment rate be 4.2%?
+  0.53  Will Paris win the 2026-27 Ligue 1?  <->  Will Paris Saint-Germain win the 2026-27 Ligue 1 Championship?
+  0.53  #2 Global Netflix Show on Aug 3, 2026? (Ransom Canyon: Season 2)  <->  Will "Ransom Canyon: Season 2" be the #2 global Netflix show this week?
+  0.53  Will San Antonio win the 2027 Pro Basketball Finals?  <->  Will San Antonio Spurs win the 2027 NBA Finals?
+  0.53  Will Philadelphia win the 2027 Pro Basketball Finals?  <->  Will Philadelphia 76ers win the 2027 NBA Finals?
+  0.53  Where will Yan Diomande go next? (Liverpool)  <->  Will Yan Diomande join Liverpool?
+  0.53  Palmeiras vs Internacional Winner?  <->  SE Palmeiras vs. SC Internacional: O/U 2.5
+  0.53  Palmeiras vs Internacional Winner?  <->  SE Palmeiras vs. SC Internacional: O/U 2.5
+  0.53  Will Los Angeles L win the 2027 Pro Basketball Finals?  <->  Will Los Angeles Lakers win the 2027 NBA Finals?
+  0.53  Will Inde Navarrette win Best Supporting Actress at the Oscars?  <->  Will Inde Navarrette win Best Actress at the 99th Academy Awards?
+  0.53  Will Houston win the 2027 Pro Football Championship?  <->  Will Houston Texans win the 2027 NFL AFC Championship?
+  0.53  Celtic vs Dundee FC Winner?  <->  Celtic FC vs. Dundee FC: Celtic FC O/U 2.5
+  0.53  Celtic vs Dundee FC Winner?  <->  Celtic FC vs. Dundee FC: Celtic FC O/U 2.5
+  0.53  Will there be more than 4000 measles cases in 2026? (Above 4000)  <->  Will there be at least 4000 measles cases in the U.S. in 2026?
+  0.53  LDU Quito vs Delfin Winner?  <->  LDU Quito vs. Delfin SC: O/U 2.5
+  0.53  LDU Quito vs Delfin Winner?  <->  LDU Quito vs. Delfin SC: O/U 2.5
+  0.53  Will the Bank of Korea Hike 1-25bps at the August Bank of Korea Monetary Policy Board meeting?  <->  Will the Bank of Korea hike by 25 bps at the August 2026 meeting?
+  0.53  Will Hacks win Comedy Series  at the Emmy Awards?  <->  Will "Hacks" win 4 or 5 awards at the Emmys?
+  0.53  Will Hacks win Comedy Series  at the Emmy Awards?  <->  Will "Hacks" win 2 or 3 awards at the Emmys?
+  0.53  Will Manchester City win the Champions League?  <->  Will Manchester City win the 2026-27 English Premier League (EPL) Championship?
+  0.52  Will Ryan Gerard win the Wyndham Championship?  <->  Will Rasmus Hojgaard win the 2026 Wyndham Championship?
+  0.52  Los Angeles D vs Chicago C Winner?  <->  Los Angeles Dodgers vs. Chicago Cubs
+  0.52  Los Angeles D vs Chicago C Winner?  <->  Los Angeles Dodgers vs. Chicago Cubs
+  0.52  Los Angeles D vs Chicago C Winner?  <->  Los Angeles Dodgers vs. Chicago Cubs
+  0.52  Los Angeles D vs Chicago C Winner?  <->  Los Angeles Dodgers vs. Chicago Cubs
+  0.52  Los Angeles D vs Chicago C Winner?  <->  Los Angeles Dodgers vs. Chicago Cubs
+  0.52  Los Angeles D vs Chicago C Winner?  <->  Los Angeles Dodgers vs. Chicago Cubs
+  0.52  Will Los Angeles C win the 2027 Pro Football Championship?  <->  Will the Los Angeles Rams win the 2027 NFL league championship?
+  0.52  Will Javokhir Sindarov win the Grand Chess Tour 2026 Finals?  <->  Will Javokhir Sindarov win the 2026 World Chess Championship?
+  0.52  Who will win the Ballon d'Or in 2026? (Raphinha)  <->  Will Vitinha win the 2026 Ballon d'Or?
+  0.52  Will Manchester United win the English Premier League?  <->  Will Manchester City win the 2026-27 English Premier League (EPL) Championship?
+  0.52  Will Manchester City win the English Premier League?  <->  Will Manchester United win the 2026-27 English Premier League (EPL) Championship?
+  0.52  Will Villarreal win the Champions League?  <->  Will Villarreal win the 2026-27 LALIGA Championship?
+  0.52  Will Gen.G Global Academy win the Hanwha Life Esports Challengers vs. Gen.G Global Academy League of Legends match?  <->  LoL: Gen.G Global Academy vs Hanwha Life Esports Challengers (BO3) - LCK Challengers League Rounds 3-4 Trial Group
+  0.52  Will Denver win the Pro Football AFC Championship?  <->  Will Denver Broncos win the 2027 NFL AFC Championship?
+  0.52  Will Los Angeles C win the 2027 Pro Basketball Finals?  <->  Will Los Angeles Clippers win the 2027 NBA Finals?
+  0.51  Will I Knew It, I Knew You be #2 on the Billboard Hot 100 during the week of Aug 15, 2026  <->  Will "I Knew It, I Knew You - Taylor Swift" be the Billboard Hot 100 #2 song for the week of August 8?
+  0.51  Will I Knew It, I Knew You be #2 on the Billboard Hot 100 during the week of Aug 15, 2026  <->  Will "I Knew It, I Knew You - Taylor Swift" be the Billboard Hot 100 #2 song for the week of August 8?
+  0.51  Will Tennessee win the 2027 Pro Football Championship?  <->  Will the Tennessee Titans win the 2027 NFL league championship?
+  0.51  Will Las Vegas win the 2027 Pro Football Championship?  <->  Will the Las Vegas Raiders win the 2027 NFL league championship?
+  0.51  What will be Steph Curry's next team? (Stays with Golden State or Retires)  <->  Will Steph Curry's next team be Golden State Warriors?
+  0.51  James Duckworth vs Christopher O'Connell: Total Games (Over 28.5 games)  <->  National Bank Open: James Duckworth vs Christopher O'Connell
+  0.51  James Duckworth vs Christopher O'Connell: Total Games (Over 23.5 games)  <->  National Bank Open: James Duckworth vs Christopher O'Connell
+  0.51  James Duckworth vs Christopher O'Connell: Total Games (Over 18.5 games)  <->  National Bank Open: James Duckworth vs Christopher O'Connell
+  0.51  Juan Manuel Cerundolo vs Hamad Medjedovic: Total Games (Over 27.5 games)  <->  Canadian Open: Juan Manuel Cerundolo vs Hamad Medjedovic
+  0.51  Juan Manuel Cerundolo vs Hamad Medjedovic: Total Games (Over 22.5 games)  <->  Canadian Open: Juan Manuel Cerundolo vs Hamad Medjedovic
+  0.51  Juan Manuel Cerundolo vs Hamad Medjedovic: Total Games (Over 17.5 games)  <->  Canadian Open: Juan Manuel Cerundolo vs Hamad Medjedovic
+  0.51  Will Hamad Medjedovic win set 2 in the Juan Manuel Cerundolo vs Hamad Medjedovic match  <->  Canadian Open: Juan Manuel Cerundolo vs Hamad Medjedovic
+  0.51  Will Juan Manuel Cerundolo win set 2 in the Juan Manuel Cerundolo vs Hamad Medjedovic match  <->  Canadian Open: Juan Manuel Cerundolo vs Hamad Medjedovic
+  0.51  Will Hamad Medjedovic win set 1 in the Juan Manuel Cerundolo vs Hamad Medjedovic match  <->  Canadian Open: Juan Manuel Cerundolo vs Hamad Medjedovic
+  0.51  Will Juan Manuel Cerundolo win set 1 in the Juan Manuel Cerundolo vs Hamad Medjedovic match  <->  Canadian Open: Juan Manuel Cerundolo vs Hamad Medjedovic
+  0.51  Will Javokhir Sindarov win the 2026 Sinquefield Cup chess tournament?  <->  Will Javokhir Sindarov win the 2026 World Chess Championship?
+  0.51  Where will Yan Diomande go next? (Arsenal)  <->  Will Yan Diomande join Arsenal?
+  0.51  Where will Rafael Leao go next? (AC Milan)  <->  Will Rafael Leao stay at AC Milan?
+  0.51  Will I Knew It, I Knew You be on the Billboard Hot 100 during the week of Aug 15, 2026  <->  Will "I Knew It, I Knew You - Taylor Swift" be the Billboard Hot 100 #2 song for the week of August 8?
+  0.51  Will I Knew It, I Knew You be on the Billboard Hot 100 during the week of Aug 15, 2026  <->  Will "I Knew It, I Knew You - Taylor Swift" be the Billboard Hot 100 #2 song for the week of August 8?
+  0.51  Will I Knew It, I Knew You be on the Billboard Hot 100 during the week of Aug 15, 2026  <->  Will "I Knew It, I Knew You - Taylor Swift" be the Billboard Hot 100 #2 song for the week of August 8?
+  0.51  Will Lens win the Champions League?  <->  Will Lille win the 2026-27 UEFA Champions League Championship?
+  0.51  Will Beef win Limited Series  at the Emmy Awards?  <->  Will "Beef" win 2 or 3 awards at the Emmys?
+  0.51  Will Dplus KIA Challengers win the Nongshim Esports Academy vs. Dplus KIA Challengers League of Legends match?  <->  LoL: Dplus KIA Challengers vs Nongshim Esports Academy (BO3) - LCK Challengers League Rounds 3-4 Challenge Group
+  0.51  Will Los Angeles C win the 2027 Pro Basketball Finals?  <->  Will Los Angeles Lakers win the 2027 NBA Finals?
+  0.51  Will Denver win the 2027 Pro Football Championship?  <->  Will Denver Broncos win the 2027 NFL AFC Championship?
+  0.51  #2 US Netflix Show on Aug 3, 2026? (Ransom Canyon: Season 2)  <->  Will "Ransom Canyon: Season 2" be the #2 US Netflix show this week?
+  0.51  Will Hull City win the English Premier League?  <->  Will Coventry City win the 2026-27 English Premier League (EPL) Championship?
+  0.51  Will Coventry City win the English Premier League?  <->  Will Hull City win the 2026-27 English Premier League (EPL) Championship?
+  0.50  Will Hanwha Life Esports Challengers win the Hanwha Life Esports Challengers vs. Gen.G Global Academy League of Legends match?  <->  LoL: Gen.G Global Academy vs Hanwha Life Esports Challengers (BO3) - LCK Challengers League Rounds 3-4 Trial Group
+  0.50  Will Xi Jinping visit the White House before Jan 1, 2027?  <->  Will Xi Jinping visit US before 2027?
+  0.50  Will Nicolás Maduro de facto hold head of state of Venezuela at the end of 2026?  <->  Will Nicolás Maduro be the leader of Venezuela end of 2026?
+  0.50  Will I Knew It, I Knew You be #1 on the Billboard Hot 100 during the week of Aug 15, 2026  <->  Will "I Knew It, I Knew You - Taylor Swift" be the Billboard Hot 100 #2 song for the week of August 8?
+  0.50  Celtic vs Dundee FC Winner? (Tie)  <->  Celtic FC vs. Dundee FC: O/U 3.5
+  0.50  New pandemic by 2026? (In Dec 31, 2026)  <->  New pandemic in 2026?
+  0.50  Top Global Netflix Show on Aug 3, 2026? (Ransom Canyon: Season 2)  <->  Will "Ransom Canyon: Season 2" be the #2 global Netflix show this week?
+  0.50  Washington vs Philadelphia Winner?  <->  Washington Nationals vs. Philadelphia Phillies
+  0.50  Washington vs Philadelphia Winner?  <->  Washington Nationals vs. Philadelphia Phillies
+  0.50  Washington vs Philadelphia Winner?  <->  Washington Nationals vs. Philadelphia Phillies
+  0.50  Washington vs Philadelphia Winner?  <->  Washington Nationals vs. Philadelphia Phillies
+  0.50  Washington vs Philadelphia Winner?  <->  Washington Nationals vs. Philadelphia Phillies
+  0.50  Washington vs Philadelphia Winner?  <->  Washington Nationals vs. Philadelphia Phillies
+  0.50  Will Nellie Taraba Wallberg win the Vogt vs Taraba Wallberg: W75 Leipzig Round of 16 match?  <->  ITF W75 Leipzig Women: Marie Vogt vs Nellie Taraba Wallberg
+  0.50  Jeju SK vs Bayern Munich Winner? (Tie)  <->  Jeju SK FC vs. Bayern Munich: O/U 3.5
+  0.50  Jeju SK vs Bayern Munich Winner? (Tie)  <->  Jeju SK FC vs. Bayern Munich: O/U 4.5
+  0.50  Will the Bank of Korea Hike more than 25bps at the August Bank of Korea Monetary Policy Board meeting?  <->  Will the Bank of Korea hike by 25 bps at the August 2026 meeting?
+  0.50  Guabira vs CD Real Tomayapo Winner?  <->  Club Guabirá vs. CD Real Tomayapo: O/U 3.5
+  0.50  Guabira vs CD Real Tomayapo Winner?  <->  Club Guabirá vs. CD Real Tomayapo: O/U 3.5
+  0.50  Will Rome Seymour win Big Brother Season 28?  <->  Will Barrett Pfeiffer win Big Brother season 28?
+  0.50  Will I Knew It, I Knew You be on the Billboard Hot 100 during the week of Aug 15, 2026 (9)  <->  Will "I Knew It, I Knew You - Taylor Swift" be the Billboard Hot 100 #2 song for the week of August 8?
+  0.50  Will I Knew It, I Knew You be on the Billboard Hot 100 during the week of Aug 15, 2026 (8)  <->  Will "I Knew It, I Knew You - Taylor Swift" be the Billboard Hot 100 #2 song for the week of August 8?
+  0.50  Will I Knew It, I Knew You be on the Billboard Hot 100 during the week of Aug 15, 2026 (7)  <->  Will "I Knew It, I Knew You - Taylor Swift" be the Billboard Hot 100 #2 song for the week of August 8?
+  0.50  Will I Knew It, I Knew You be #4 on the Billboard Hot 100 during the week of Aug 15, 2026  <->  Will "I Knew It, I Knew You - Taylor Swift" be the Billboard Hot 100 #2 song for the week of August 8?
+  0.50  Will I Knew It, I Knew You be #3 on the Billboard Hot 100 during the week of Aug 15, 2026  <->  Will "I Knew It, I Knew You - Taylor Swift" be the Billboard Hot 100 #2 song for the week of August 8?
+  0.50  Will I Knew It, I Knew You be #1 on the Billboard Hot 100 during the week of Aug 15, 2026  <->  Will "I Knew It, I Knew You - Taylor Swift" be the Billboard Hot 100 #2 song for the week of August 8?
+
+== conflicts — text would propose, claims veto (1) ==
+  0.51 Disjoint  Will the Bank of Japan Cut 25bps at the September 2026 Monetary Policy Meeting?  <->  Will the Bank of Japan announce a 25 bps increase at the September 2026 meeting?
+
+== near misses — rejected by both systems, best 10 of 10050019 (10) ==
+  0.65 [veto: titles disagree on numbers: [1 2027] vs [2026]]  Will Donald Trump visit California before Jan 1, 2027?  <->  Will Donald Trump visit California in 2026?
+  0.61 [veto: titles disagree on numbers: [1] vs [2]]  Will Gen.G Global Academy win map 1 in the Hanwha Life Esports Challengers vs. Gen.G Global Academy match?  <->  LoL: Gen.G Global Academy vs Hanwha Life Esports Challengers - Game 2 Winner
+  0.59 [veto: titles disagree on numbers: [1] vs [2]]  Will Hanwha Life Esports Challengers win map 1 in the Hanwha Life Esports Challengers vs. Gen.G Global Academy match?  <->  LoL: Gen.G Global Academy vs Hanwha Life Esports Challengers - Game 2 Winner
+  0.58 [veto: titles disagree on numbers: [2027] vs [2026]]  Will Satoshi move any Bitcoin by 2027? (Before 2027)  <->  Will Satoshi move any Bitcoin in 2026?
+  0.57 [veto: titles disagree on numbers: [1 2029] vs [2027]]  Will Xi Jinping visit Taiwan before Jan 1, 2029? (Before 2029)  <->  Will Xi Jinping visit US before 2027?
+  0.57 [veto: titles disagree on numbers: [1 2028] vs [2027]]  Will Xi Jinping visit Taiwan before Jan 1, 2028? (Before 2028)  <->  Will Xi Jinping visit US before 2027?
+  0.56 [veto: titles disagree on numbers: [2026 3] vs [2]]  Top Global Netflix Show on Aug 3, 2026? (I Will Find You: Limited Series)  <->  Will "I Will Find You: Limited Series" be the #2 global Netflix show this week?
+  0.55 [veto: titles disagree on numbers: [1] vs [2026]]  Will Rasmus Hojgaard lead at the end of Round 1 in the Wyndham Championship?  <->  Will Rasmus Hojgaard win the 2026 Wyndham Championship?
+  0.54 [veto: titles disagree on numbers: [1 2030] vs [2027]]  Will Xi Jinping visit Taiwan before Jan 1, 2030? (Before 2030)  <->  Will Xi Jinping visit US before 2027?
+  0.54 [veto: titles disagree on numbers: [2026 27] vs [2027 76]]  Will Philadelphia Flyers win the 2026-27 Stanley Cup® Finals?  <->  Will Philadelphia 76ers win the 2027 NBA Finals?
+
+summary: both 1 / claims-only 7 / text-only 260 / conflict 1 / neither 10050019

@@ -168,6 +168,65 @@ let sweep_one_market ~matching ~known (l1 : L1_market_metadata.t) =
   return (List.length hits, List.length fresh, proposed, auto_rejected)
 ;;
 
+(* Sweep-shaped comparison: the same discovery as [sweep_once] — the top
+   Kalshi markets by volume, one Polymarket search each — but instead of
+   filing proposals, both matching systems judge every discovered pair.
+   Read-only: nothing touches the store, no LLM is called. *)
+let compare_once ~threshold ~apply_veto ~markets_to_sweep () =
+  let open Deferred.Or_error.Let_syntax in
+  let%bind kalshi =
+    Market_data.Market_data_gateway.fetch_l1_market_data
+      ~venue:Kalshi
+      ~closed:false
+      ~limit:listing_limit
+  in
+  let targets =
+    List.sort
+      kalshi
+      ~compare:
+        (Comparable.reverse (Comparable.lift Int.compare ~f:sweep_priority))
+    |> fun sorted -> List.take sorted markets_to_sweep
+  in
+  let%bind per_market =
+    Deferred.Or_error.List.map
+      ~how:`Sequential
+      targets
+      ~f:(fun (l1 : L1_market_metadata.t) ->
+        match%map.Deferred
+          Market_data.Market_data_gateway.search_polymarket
+            ~query:(query_of_title l1.title)
+        with
+        | Ok hits ->
+          let hit_stubs =
+            List.filter hits ~f:L1_market_metadata.active
+            |> List.map ~f:L1_market_metadata.to_market_stub
+          in
+          Ok
+            (Matcher.compare_pipelines
+               ~threshold
+               ~apply_veto
+               [ L1_market_metadata.to_market_stub l1 ]
+               hit_stubs)
+        | Error error ->
+          (* One dead search must not kill the comparison. *)
+          Core.eprint_s
+            [%message
+              "search failed; skipping market"
+                (l1.market_id : Market_id.t)
+                (error : Error.t)];
+          Ok [])
+  in
+  (* Two searches can surface the same pair; report it once. *)
+  return
+    (List.concat per_market
+     |> List.dedup_and_sort
+          ~compare:
+            (Comparable.lift
+               String.compare
+               ~f:(fun (comparison : Matcher.Comparison.t) ->
+                 candidate_key comparison.candidate)))
+;;
+
 (* Shared by both sweeps: everything the store already knows, as keys. *)
 let known_pairs () =
   let open Deferred.Or_error.Let_syntax in

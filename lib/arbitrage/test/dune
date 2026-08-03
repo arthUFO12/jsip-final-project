@@ -1,6 +1,12 @@
 (library
  (name arbitrage_test)
- (modules test_matcher test_llm_matcher test_detect test_config test_bot)
+ (modules
+  test_claim
+  test_matcher
+  test_llm_matcher
+  test_detect
+  test_config
+  test_bot)
  (libraries
   arbitrage
   database

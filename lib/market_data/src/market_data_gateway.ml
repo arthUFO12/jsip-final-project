@@ -89,8 +89,9 @@ let search_polymarket ~query =
 ;;
 
 (* Backstops are exhaustive by definition, so cap pages loudly rather than
-   truncate silently. *)
-let max_pages = 25
+   truncate silently. 100 pages x 200 events comfortably covers Kalshi's open
+   listing today; the 25-page cap it replaces was hit with pages left. *)
+let max_pages = 100
 
 let fetch_all_kalshi () =
   let open Deferred.Or_error.Let_syntax in

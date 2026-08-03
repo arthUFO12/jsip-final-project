@@ -1,15 +1,17 @@
 open! Core
 open! Types
 
-(** Answers "are these two markets the same bet?" using text only.
+(** Answers "are these two markets the same bet?" without seeing a price.
 
-    Internally this runs three phases: narrow the candidate set using tags so
-    you aren't comparing everything to everything; score the surviving
-    candidates by string similarity (trigram Jaccard); veto any candidate
-    whose numbers or dates conflict, regardless of how similar the text is.
-    Callers only see the combined pipeline via {!find_candidates}. Never sees
-    a price, never touches the network, never makes a trade decision. Fully
-    testable with hand-written examples. *)
+    Two passes. First each stub is compiled to a typed {!Claim.t}; when both
+    sides of a pair compile, {!Claim.classify}'s relation is final — kept iff
+    [Equivalent], and a wrong entity, style, or bound is a hard veto no
+    string score can overrule. Only pairs with at least one [Opaque] side
+    fall back to the string pipeline: narrow the candidate set using tags,
+    score survivors by string similarity (trigram Jaccard), veto candidates
+    whose numbers conflict. Callers only see the combined pipeline via
+    {!find_candidates}. Never touches the network, never makes a trade
+    decision. Fully testable with hand-written examples. *)
 
 module Candidate : sig
   type t =
@@ -20,18 +22,75 @@ module Candidate : sig
 end
 
 (** [find_candidates ~threshold ~apply_veto lefts rights] returns the pairs
-    of markets that block together, whose title similarity is at least
-    [threshold] (0.0 to 1.0), and — when [apply_veto] is true — that survive
-    the numeric/date veto. Callers should take both settings from
-    {!Config.Matching}: a loose threshold with the veto off when an LLM
-    adjudicates afterwards, strict with the veto on when this pipeline has
-    the final word. *)
+    that block together (by shared title tag, or by shared
+    {!Claim.Blocking_key} when both sides compile) and survive the gates. A
+    pair whose two claims both compile is decided by {!Claim.classify} alone
+    — kept iff [Equivalent], with [threshold] and [apply_veto] ignored. A
+    pair with an [Opaque] side must have title similarity at least
+    [threshold] (0.0 to 1.0) and — when [apply_veto] is true — survive the
+    numeric veto. Callers should take both settings from {!Config.Matching}:
+    a loose threshold with the veto off when an LLM adjudicates afterwards,
+    strict with the veto on when this pipeline has the final word. *)
 val find_candidates
   :  threshold:float
   -> apply_veto:bool
   -> Market_stub.t list
   -> Market_stub.t list
   -> Candidate.t list
+
+module Comparison : sig
+  (** One pair as judged by both matching systems independently, for
+      side-by-side evaluation of the claim gate against the string pipeline.
+      {!find_candidates} is defined as the tradeable subset of this report
+      (every bucket except [Conflict]), so the comparison can never drift
+      from what the pipeline actually proposes. *)
+
+  module Bucket : sig
+    type t =
+      | Both (** claims say Equivalent and the string pipeline passes *)
+      | Claims_only
+      (** claims say Equivalent; the string pipeline missed it — too low a
+          similarity score, or no shared title tag at all *)
+      | Text_only
+      (** the string pipeline passes; claims abstained because at least one
+          side is [Opaque] *)
+      | Conflict of Claim.Relation.t
+      (** the string pipeline passes but the claims veto: either one of the
+          old system's false positives, or a claim parser bug — exactly the
+          pairs worth a human look *)
+      | Neither
+      (** blocked together but rejected by both systems. The near-misses:
+          reviewing the best-scoring of these answers "is either matcher
+          missing real pairs?" *)
+    [@@deriving sexp_of]
+  end
+
+  type t =
+    { candidate : Candidate.t
+    ; bucket : Bucket.t
+    ; score : float (** trigram similarity, whatever the bucket *)
+    ; veto : string option
+    (** why the numeric veto fired, if it did — so a rejected pair's report
+        row can say what the accept gate actually read *)
+    ; deciding : string
+    (** the claims' reason: which field decided ({!Claim.Verdict}), which
+        field abstained, or ["unparsed"] *)
+    ; left_claim : Claim.t option (** [None] = did not compile *)
+    ; right_claim : Claim.t option
+    }
+  [@@deriving sexp_of]
+end
+
+(** [compare_pipelines ~threshold ~apply_veto lefts rights] judges every
+    blocked pair by both systems and reports them all, [Neither]s included.
+    Pure and LLM-free — [threshold] and [apply_veto] configure only the
+    string side. *)
+val compare_pipelines
+  :  threshold:float
+  -> apply_veto:bool
+  -> Market_stub.t list
+  -> Market_stub.t list
+  -> Comparison.t list
 
 (** Internals of the pipeline, exposed so tests can exercise each phase
     directly. Production code should only use {!find_candidates}. *)
