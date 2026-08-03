@@ -34,6 +34,7 @@ let to_market_stub t : Market_stub.t =
   ; series_ticker = t.series_ticker
   ; clob_token_id = t.clob_token_id
   ; title = t.title
+  ; category = t.category
   ; created_time = t.created_time
   ; close_time = t.close_time
   ; category = t.category

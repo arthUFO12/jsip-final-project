@@ -1,0 +1,12 @@
+(executable
+ (name arbitrage_cli)
+ (libraries
+  arbitrage
+  market_data
+  database
+  types
+  core
+  core_unix.command_unix
+  async)
+ (preprocess
+  (pps ppx_jane)))

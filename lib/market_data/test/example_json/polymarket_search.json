@@ -1,0 +1,51 @@
+{
+ "events": [
+  {
+   "title": "Bitcoin Price - July 15, 5PM ET",
+   "tags": [
+    {
+     "id": "235",
+     "slug": "bitcoin"
+    },
+    {
+     "id": "21",
+     "slug": "crypto"
+    },
+    {
+     "id": "102133",
+     "slug": "today"
+    }
+   ],
+   "markets": [
+    {
+     "conditionId": "0xe3f962292e654695857b0910f3313c4285b5fe26ed4e9a8b129cafb3f1e2bfd9",
+     "question": "Will the price of Bitcoin be less than $120K on July 15 at 5PM ET?",
+     "slug": "will-the-price-of-bitcoin-be-less-than-120k-on-july-15-at-5pm-et",
+     "clobTokenIds": "[\"98621231775902540774590057476100696248826670152489758105781948217993547022179\", \"76317639015769516778378568638081132130093770472867401335599889689471895552179\"]",
+     "bestBid": 0.999,
+     "bestAsk": 1,
+     "lastTradePrice": 1,
+     "volumeNum": 118975.31815,
+     "active": true,
+     "closed": true,
+     "endDate": "2025-07-15T21:00:00Z"
+    },
+    {
+     "conditionId": "0xefd93c9a44c4073e75f880876b9ea95ca2da2a70af31d511e4e49482895807ee",
+     "question": "Will the price of Bitcoin be between $120K and $121K on July 15 at 5PM ET?",
+     "slug": "will-the-price-of-bitcoin-be-between-120k-and-121k-on-july-15-at-5pm-et",
+     "clobTokenIds": "[\"101720317507398086011007127612620487568672577846711511654599118059476033283806\", \"43033475467226859541341377467612473816360092989336663668552859139475669894987\"]",
+     "bestAsk": 0.001,
+     "lastTradePrice": 1,
+     "volumeNum": 62189.317937,
+     "active": true,
+     "closed": true,
+     "endDate": "2025-07-15T21:00:00Z"
+    }
+   ]
+  }
+ ],
+ "pagination": {
+  "hasMore": false
+ }
+}

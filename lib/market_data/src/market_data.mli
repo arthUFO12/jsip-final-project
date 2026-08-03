@@ -1,4 +1,6 @@
 module Fetch_live = Fetch_live
+module Fetch_books = Fetch_books
+module Book_parser = Book_parser
 module Fetch_time_series = Fetch_time_series
 module Live_data_parser = Live_data_parser
 module Time_series_parser = Time_series_parser

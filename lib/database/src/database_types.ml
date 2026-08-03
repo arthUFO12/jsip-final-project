@@ -36,6 +36,8 @@ let volume_of_string text = Volume.t_of_sexp (Sexp.of_string text)
 (* The nested pairing exists only because Caqti tuples stop at [t8]; the row
    is flat — columns follow the CREATE TABLE order. *)
 let market_stub_type =
+  (* Caqti tops out at [t8]; the two timestamps ride as a nested pair, which
+     Caqti flattens to two ordinary columns. *)
   let representation =
     T.(
       t2
@@ -57,6 +59,7 @@ let market_stub_type =
      ; series_ticker
      ; clob_token_id
      ; title
+     ; category
      ; created_time
      ; close_time
      ; category
@@ -94,12 +97,47 @@ let market_stub_type =
        ; series_ticker = Option.map series_ticker_str ~f:Slug.of_string
        ; clob_token_id
        ; title
+       ; category = Category.of_string category_str
        ; created_time = int64_to_time_ns created_time_int
        ; close_time = int64_to_time_ns close_time_int
        ; category = Category.of_string category_str
        ; volume = Option.map volume_str ~f:volume_of_string
        }
        : Market_stub.t)
+  in
+  T.custom ~encode ~decode representation
+;;
+
+let pair_status_type =
+  let representation = T.string in
+  let encode (status : Pair_proposal.Status.t) =
+    Ok (Pair_proposal.Status.to_string status)
+  in
+  let decode status_str = Ok (Pair_proposal.Status.of_string status_str) in
+  T.custom ~encode ~decode representation
+;;
+
+let pair_proposal_type =
+  let representation =
+    T.(t5 T.string T.string T.float (T.option T.string) T.string)
+  in
+  let encode ({ left; right; score; explanation; status } : Pair_proposal.t) =
+    Ok
+      ( Market_id.to_string left
+      , Market_id.to_string right
+      , score
+      , explanation
+      , Pair_proposal.Status.to_string status )
+  in
+  let decode (left_str, right_str, score, explanation, status_str) =
+    Ok
+      ({ left = Market_id.of_string left_str
+       ; right = Market_id.of_string right_str
+       ; score
+       ; explanation
+       ; status = Pair_proposal.Status.of_string status_str
+       }
+       : Pair_proposal.t)
   in
   T.custom ~encode ~decode representation
 ;;

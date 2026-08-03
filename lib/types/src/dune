@@ -1,6 +1,7 @@
 (library
  (name types)
  (public_name arbiter.types)
- (libraries core)
+ (libraries core async cohttp-async yojson)
+ (modules_without_implementation pairs policy sim)
  (preprocess
   (pps ppx_jane)))

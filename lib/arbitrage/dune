@@ -1,0 +1,15 @@
+(library
+ (name arbitrage)
+ (public_name arbiter.arbitrage)
+ (modules bot config matcher llm_matcher detect sweep)
+ (libraries
+  core
+  types
+  market_data
+  database
+  execution
+  async
+  cohttp-async
+  yojson)
+ (preprocess
+  (pps ppx_jane)))

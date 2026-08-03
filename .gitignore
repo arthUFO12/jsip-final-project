@@ -35,5 +35,9 @@ setup.log
 # Local OPAM switch
 _opam/
 
+# Secrets (API keys) 
+.env
+*.db
 
 test.dbarbiter.db
+test.db
