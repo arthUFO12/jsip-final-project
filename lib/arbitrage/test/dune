@@ -43,16 +43,6 @@
  (preprocess
   (pps ppx_jane)))
 
-; Temporary perf probe over a market snapshot. Manually run:
-; dune exec lib/arbitrage/test/perf_probe.exe <snapshot> [kalshi-prefix]
-
-(executable
- (name perf_probe)
- (modules perf_probe)
- (libraries arbitrage types core async)
- (preprocess
-  (pps ppx_jane)))
-
 ; Step-1 smoke of the pair store on live markets with one real LLM call.
 ; Needs ANTHROPIC_API_KEY; manually run:
 ; set -a; source .env; set +a; dune exec lib/arbitrage/test/pairs_smoke.exe

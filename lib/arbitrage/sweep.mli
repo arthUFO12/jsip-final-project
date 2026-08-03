@@ -53,7 +53,7 @@ val compare_once
   -> apply_veto:bool
   -> markets_to_sweep:int
   -> unit
-  -> Matcher.Comparison.Report.t Deferred.Or_error.t
+  -> Matcher.Comparison.t list Deferred.Or_error.t
 
 (** [sweep_full ~matching ~max_adjudications ()] is the recall backstop: page
     through {e every} open market on both venues and run the matcher over the

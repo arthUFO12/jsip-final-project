@@ -260,64 +260,7 @@ module Comparison = struct
     ; right_claim : Claim.t option
     }
   [@@deriving sexp_of]
-
-  module Coverage = struct
-    module Row = struct
-      type t =
-        { pairs : int
-        ; decided : int
-        ; abstentions : int String.Map.t
-        }
-      [@@deriving sexp_of]
-
-      let empty = { pairs = 0; decided = 0; abstentions = String.Map.empty }
-
-      let merge a b =
-        { pairs = a.pairs + b.pairs
-        ; decided = a.decided + b.decided
-        ; abstentions =
-            Map.merge_skewed a.abstentions b.abstentions ~combine:
-              (fun ~key:(_ : string) left right -> left + right)
-        }
-      ;;
-    end
-
-    type t = Row.t String.Map.t [@@deriving sexp_of]
-
-    let merge a b =
-      Map.merge_skewed a b ~combine:(fun ~key:(_ : string) left right ->
-        Row.merge left right)
-    ;;
-  end
-
-  module Report = struct
-    type comparison = t [@@deriving sexp_of]
-
-    (* Millions of blocked pairs are judged, but almost all are [Neither]
-       junk collisions: those exist here only as counts and a bounded
-       best-scoring sample, never as a materialized list — at full-listing
-       scale the list alone is gigabytes. *)
-    type t =
-      { judged : comparison list (* every non-Neither pair *)
-      ; near_misses : comparison list (* best few Neither, score order *)
-      ; neither : int
-      ; coverage : Coverage.t
-      }
-    [@@deriving sexp_of]
-
-    let empty =
-      { judged = []
-      ; near_misses = []
-      ; neither = 0
-      ; coverage = String.Map.empty
-      }
-    ;;
-  end
 end
-
-(* Enough near-misses to eyeball; anything deeper belongs in a rerun with
-   a lower threshold, not in memory. *)
-let near_miss_limit = 10
 
 let compare_pipelines ~threshold ~apply_veto lefts rights =
   let left_claims = claims_by_id lefts in
@@ -332,7 +275,17 @@ let compare_pipelines ~threshold ~apply_veto lefts rights =
   let features_of features (stub : Market_stub.t) =
     Map.find_exn features stub.market_id
   in
-  let judge ~tag_blocked ({ Candidate.left; right } as candidate) =
+  let pair_key ({ left; right } : Candidate.t) =
+    [%string "%{left.market_id#Market_id}|%{right.market_id#Market_id}"]
+  in
+  let text_blocked = block lefts rights in
+  let text_block_keys =
+    String.Set.of_list (List.map text_blocked ~f:pair_key)
+  in
+  text_blocked @ claim_block lefts rights ~left_claims ~right_claims
+  |> List.dedup_and_sort
+       ~compare:(Comparable.lift String.compare ~f:pair_key)
+  |> List.map ~f:(fun ({ Candidate.left; right } as candidate) ->
     let left_text = features_of left_features left in
     let right_text = features_of right_features right in
     let score =
@@ -343,18 +296,17 @@ let compare_pipelines ~threshold ~apply_veto lefts rights =
         ~left_numbers:left_text.numbers
         ~right_numbers:right_text.numbers
     in
-    (* The string pipeline's verdict: tag-blocked, above threshold, and
-       (when the veto applies) numerically consistent. *)
+    (* The string pipeline's verdict: tag-blocked, above threshold, and (when
+       the veto applies) numerically consistent. *)
     let text_pass =
-      tag_blocked
+      Set.mem text_block_keys (pair_key candidate)
       && Float.( >= ) score threshold
       && ((not apply_veto) || Option.is_none veto_reason)
     in
     let left_claim = claim_of left_claims left in
     let right_claim = claim_of right_claims right in
-    (* [None] verdict: the claims have nothing to say (a side didn't
-       compile, or a field abstained) — the string pipeline referees this
-       pair. *)
+    (* [None] verdict: the claims have nothing to say (a side didn't compile,
+       or a field abstained) — the string pipeline referees this pair. *)
     let claim_verdict, deciding =
       match left_claim, right_claim with
       | Some left_claim, Some right_claim ->
@@ -388,93 +340,12 @@ let compare_pipelines ~threshold ~apply_veto lefts rights =
     ; deciding
     ; left_claim
     ; right_claim
-    }
-  in
-  let domain_of (comparison : Comparison.t) =
-    match comparison.left_claim, comparison.right_claim with
-    | Some claim, (Some _ | None) | None, Some claim ->
-      Claim.Domain.to_string claim.domain
-    | None, None -> "(unparsed)"
-  in
-  let count_coverage coverage comparison =
-    Map.update coverage (domain_of comparison) ~f:(fun row ->
-      let row =
-        Option.value row ~default:Comparison.Coverage.Row.empty
-      in
-      let row = { row with pairs = row.pairs + 1 } in
-      if String.is_prefix comparison.deciding ~prefix:"abstained"
-      then
-        { row with
-          abstentions =
-            Map.update row.abstentions comparison.deciding ~f:(fun count ->
-              Option.value count ~default:0 + 1)
-        }
-      else if String.equal comparison.deciding "unparsed"
-      then row
-      else { row with decided = row.decided + 1 })
-  in
-  (* Bounded, score-descending; almost every insert loses to the current
-     minimum and is O(1). *)
-  let insert_near_miss near_misses comparison =
-    let full = List.length near_misses >= near_miss_limit in
-    match List.last near_misses with
-    | Some (worst : Comparison.t)
-      when full && Float.( <= ) comparison.Comparison.score worst.score ->
-      near_misses
-    | Some _ | None ->
-      List.take
-        (List.sort
-           (comparison :: near_misses)
-           ~compare:
-             (Comparable.reverse
-                (Comparable.lift
-                   Float.compare
-                   ~f:(fun (c : Comparison.t) -> c.score))))
-        near_miss_limit
-  in
-  let absorb (report : Comparison.Report.t) comparison =
-    let coverage = count_coverage report.coverage comparison in
-    match comparison.Comparison.bucket with
-    | Both | Claims_only | Text_only | Conflict (_ : Claim.Relation.t) ->
-      { report with judged = comparison :: report.judged; coverage }
-    | Neither ->
-      { report with
-        neither = report.neither + 1
-      ; near_misses = insert_near_miss report.near_misses comparison
-      ; coverage
-      }
-  in
-  (* Stream: judge each blocked pair as [block] produces it, keeping only
-     the judged buckets, the bounded near-miss sample, and counts. The
-     [Neither] majority — millions of pairs at full-listing scale — is
-     never materialized. *)
-  let report =
-    List.fold
-      (block lefts rights)
-      ~init:Comparison.Report.empty
-      ~f:(fun report candidate -> absorb report (judge ~tag_blocked:true candidate))
-  in
-  (* Claim-blocked extras: the few pairs sharing a blocking key but no
-     title tag. Tag-blocked ones already streamed through above. *)
-  let tag_blocked_pair ({ left; right } : Candidate.t) =
-    categories_compatible left.category right.category
-    && not (Set.are_disjoint (tags left.title) (tags right.title))
-  in
-  let report =
-    List.fold
-      (claim_block lefts rights ~left_claims ~right_claims)
-      ~init:report
-      ~f:(fun report candidate ->
-        if tag_blocked_pair candidate
-        then report
-        else absorb report (judge ~tag_blocked:false candidate))
-  in
-  { report with judged = List.rev report.judged }
+    })
 ;;
 
 let find_candidates ~threshold ~apply_veto lefts rights =
-  let report = compare_pipelines ~threshold ~apply_veto lefts rights in
-  List.filter_map report.judged ~f:(fun { Comparison.candidate; bucket; _ } ->
+  compare_pipelines ~threshold ~apply_veto lefts rights
+  |> List.filter_map ~f:(fun { Comparison.candidate; bucket; _ } ->
     match bucket with
     (* Claims decide when both sides compile ([Both]/[Claims_only]); the
        string pipeline decides when they don't ([Text_only]). A [Conflict] is
@@ -483,9 +354,7 @@ let find_candidates ~threshold ~apply_veto lefts rights =
        yet: fed through as equivalent it would double the bet instead of
        hedging it. Surface those once Detect understands relations. *)
     | Both | Claims_only | Text_only -> Some candidate
-    | Conflict (_ : Claim.Relation.t) -> None
-    (* Unreachable: [judged] holds no [Neither]. *)
-    | Neither -> None)
+    | Conflict (_ : Claim.Relation.t) | Neither -> None)
 ;;
 
 module For_testing = struct

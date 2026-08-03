@@ -79,61 +79,18 @@ module Comparison : sig
     ; right_claim : Claim.t option
     }
   [@@deriving sexp_of]
-
-  module Coverage : sig
-    (** Per-domain accounting over every blocked pair: how many the
-        claims decided vs abstained on, with each abstention's cause
-        counted — "claims only speak rates" as a table, not an
-        inference. Keyed by {!Claim.Domain.to_string} (or ["(unparsed)"]
-        when neither side compiled). *)
-    module Row : sig
-      type t =
-        { pairs : int
-        ; decided : int
-        ; abstentions : int String.Map.t (** cause -> count *)
-        }
-      [@@deriving sexp_of]
-
-      val empty : t
-      val merge : t -> t -> t
-    end
-
-    type t = Row.t String.Map.t [@@deriving sexp_of]
-
-    val merge : t -> t -> t
-  end
-
-  module Report : sig
-    type comparison := t
-
-    (** Millions of blocked pairs are judged, but almost all are
-        [Neither] junk collisions: those exist here only as [neither]
-        counts and the bounded best-scoring [near_misses] sample, never
-        as a list — at full-listing scale that list alone is
-        gigabytes. *)
-    type t =
-      { judged : comparison list (** every non-[Neither] pair *)
-      ; near_misses : comparison list
-      (** best-scoring [Neither]s, descending *)
-      ; neither : int
-      ; coverage : Coverage.t
-      }
-    [@@deriving sexp_of]
-
-    val empty : t
-  end
 end
 
-(** [compare_pipelines ~threshold ~apply_veto lefts rights] streams every
-    blocked pair through both systems and returns the report. Pure and
-    LLM-free — [threshold] and [apply_veto] configure only the string
-    side. *)
+(** [compare_pipelines ~threshold ~apply_veto lefts rights] judges every
+    blocked pair by both systems and reports them all, [Neither]s included.
+    Pure and LLM-free — [threshold] and [apply_veto] configure only the
+    string side. *)
 val compare_pipelines
   :  threshold:float
   -> apply_veto:bool
   -> Market_stub.t list
   -> Market_stub.t list
-  -> Comparison.Report.t
+  -> Comparison.t list
 
 (** Internals of the pipeline, exposed so tests can exercise each phase
     directly. Production code should only use {!find_candidates}. *)

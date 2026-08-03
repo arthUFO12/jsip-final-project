@@ -209,31 +209,50 @@ let print_section title entries =
            right.title)
 ;;
 
-(* Coverage table straight from the matcher's per-domain accounting:
-   how many pairs the claims decided vs abstained on, and which field
-   caused each abstention. *)
-let print_coverage (coverage : Matcher.Comparison.Coverage.t) =
+(* Which domain a pair belongs to, for the coverage table. *)
+let comparison_domain (comparison : Matcher.Comparison.t) =
+  match comparison.left_claim, comparison.right_claim with
+  | Some claim, (Some _ | None) | None, Some claim ->
+    Claim.Domain.to_string claim.domain
+  | None, None -> "(unparsed)"
+;;
+
+(* Coverage table: for each domain, how many pairs the claims decided vs
+   abstained on, and which field caused each abstention — so "claims only
+   speak rates" is a table row, not an inference from reading 260 titles. *)
+let print_coverage comparisons =
   printf "\n== claims coverage by domain ==\n";
-  Map.iteri
-    coverage
-    ~f:(fun ~key:domain ~data:{ Matcher.Comparison.Coverage.Row.pairs; decided; abstentions } ->
-      let abstained =
-        Map.fold abstentions ~init:0 ~f:(fun ~key:_ ~data:count total ->
-          total + count)
-      in
-      let causes =
-        Map.to_alist abstentions
-        |> List.map ~f:(fun (cause, count) ->
-          [%string "%{count#Int}x %{cause}"])
-        |> String.concat ~sep:", "
-      in
-      printf
-        "  %-14s pairs %-8d decided %-8d abstained %-6d %s\n"
-        domain
-        pairs
-        decided
+  List.sort_and_group
+    comparisons
+    ~compare:(Comparable.lift String.compare ~f:comparison_domain)
+  |> List.iter ~f:(fun group ->
+    let domain = comparison_domain (List.hd_exn group) in
+    let abstained, decided =
+      List.partition_tf group ~f:(fun (c : Matcher.Comparison.t) ->
+        String.is_prefix c.deciding ~prefix:"abstained")
+    in
+    let decided =
+      List.filter decided ~f:(fun (c : Matcher.Comparison.t) ->
+        not (String.equal c.deciding "unparsed"))
+    in
+    let abstention_causes =
+      List.sort_and_group
         abstained
-        causes)
+        ~compare:
+          (Comparable.lift
+             String.compare
+             ~f:(fun (c : Matcher.Comparison.t) -> c.deciding))
+      |> List.map ~f:(fun cause ->
+        [%string "%{List.length cause#Int}x %{(List.hd_exn cause).deciding}"])
+      |> String.concat ~sep:", "
+    in
+    printf
+      "  %-14s pairs %-8d decided %-8d abstained %-6d %s\n"
+      domain
+      (List.length group)
+      (List.length decided)
+      (List.length abstained)
+      abstention_causes)
 ;;
 
 (* The golden set: labeled pairs frozen to a file, so "did the next run
@@ -385,16 +404,13 @@ let compare_command =
        let stopwatch = ref (Time_ns.now ()) in
        let lap label =
          let now = Time_ns.now () in
-         Core.eprintf
+         eprintf
            !"timing: %s took %{Time_ns.Span}\n"
            label
            (Time_ns.diff now !stopwatch);
-         (* The matching phase blocks the scheduler for minutes; flush so
-            timings survive even a killed run. *)
-         Stdlib.flush Stdlib.stderr;
          stopwatch := now
        in
-       let%bind report =
+       let%bind comparisons =
          if not full
          then
            Sweep.compare_once
@@ -465,31 +481,43 @@ let compare_command =
            lap "match";
            return comparisons)
        in
-       let both, claims_only, text_only, conflicts =
+       let both, claims_only, text_only, conflicts, neither =
          List.fold
-           report.Matcher.Comparison.Report.judged
-           ~init:([], [], [], [])
-           ~f:(fun (both, claims, text, conflicts) comparison ->
+           comparisons
+           ~init:([], [], [], [], [])
+           ~f:(fun (both, claims, text, conflicts, neither) comparison ->
              match comparison.Matcher.Comparison.bucket with
-             | Both -> comparison :: both, claims, text, conflicts
-             | Claims_only -> both, comparison :: claims, text, conflicts
-             | Text_only -> both, claims, comparison :: text, conflicts
+             | Both -> comparison :: both, claims, text, conflicts, neither
+             | Claims_only ->
+               both, comparison :: claims, text, conflicts, neither
+             | Text_only ->
+               both, claims, comparison :: text, conflicts, neither
              | Conflict (_ : Claim.Relation.t) ->
-               both, claims, text, comparison :: conflicts
-             (* judged never holds Neither *)
-             | Neither -> both, claims, text, conflicts)
+               both, claims, text, comparison :: conflicts, neither
+             | Neither ->
+               both, claims, text, conflicts, comparison :: neither)
        in
        print_section "both systems agree" both;
        print_section "claims only — text pipeline missed these" claims_only;
        print_section "text only — claims abstained (Opaque)" text_only;
        print_section "conflicts — text would propose, claims veto" conflicts;
-       (* If a real twin hides among the near-misses, one of the gates
-          (threshold, veto, claim parse) is too strict. *)
+       (* The near-misses can number in the thousands under -full; only the
+          best-scoring few are worth eyes. If a real twin hides here, one of
+          the gates (threshold, veto, claim parse) is too strict. *)
+       let near_miss_display_limit = 10 in
        print_section
          [%string
            "near misses — rejected by both systems, best \
-            %{List.length report.near_misses#Int} of %{report.neither#Int}"]
-         report.near_misses;
+            %{near_miss_display_limit#Int} of %{List.length neither#Int}"]
+         (List.take
+            (List.sort
+               neither
+               ~compare:
+                 (Comparable.reverse
+                    (Comparable.lift
+                       Float.compare
+                       ~f:(fun (c : Matcher.Comparison.t) -> c.score))))
+            near_miss_display_limit);
        printf
          "\n\
           summary: both %d / claims-only %d / text-only %d / conflict %d / \
@@ -498,13 +526,13 @@ let compare_command =
          (List.length claims_only)
          (List.length text_only)
          (List.length conflicts)
-         report.neither;
-       print_coverage report.coverage;
+         (List.length neither);
+       print_coverage comparisons;
        if write_golden
-       then Deferred.ok (Golden.write ~file:golden_file report.judged)
+       then Deferred.ok (Golden.write ~file:golden_file comparisons)
        else (
          match%bind.Deferred Sys.file_exists golden_file with
-         | `Yes -> Deferred.ok (Golden.diff ~file:golden_file report.judged)
+         | `Yes -> Deferred.ok (Golden.diff ~file:golden_file comparisons)
          | `No | `Unknown -> return ()))
 ;;
 
