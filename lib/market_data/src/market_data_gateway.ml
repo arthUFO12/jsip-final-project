@@ -2,36 +2,13 @@ open! Core
 open! Async
 open Types
 
-let fetch_book (market_stub : Market_stub.t) =
-  match market_stub.venue with
-  | Kalshi ->
-    let%bind.Deferred.Or_error payload =
-      Fetch_books.fetch_kalshi_book
-        ~ticker:(Market_id.to_string market_stub.market_id)
-        ()
-    in
-    Deferred.return (Book_parser.parse_kalshi_book payload.body)
-  | Polymarket ->
-    (match market_stub.clob_token_id with
-     | None ->
-       Deferred.Or_error.error_s
-         [%message
-           "polymarket stub carries no clob_token_id; cannot fetch its book"
-             (market_stub : Market_stub.t)]
-     | Some token_id ->
-       let%bind.Deferred.Or_error payload =
-         Fetch_books.fetch_polymarket_book ~token_id ()
-       in
-       Deferred.return (Book_parser.parse_polymarket_book payload.body))
-;;
-
-let fetch_l1_market_data ~(venue : Venue.t) ~closed ~limit =
+let fetch_l1_market_data ?events_limit ~(venue : Venue.t) ~closed ~limit () =
   let%bind.Deferred.Or_error payload =
     match (venue : Venue.t) with
     | Polymarket -> Fetch_live.fetch_polymarket_markets ~closed ()
     | Kalshi ->
       let status = if closed then "closed" else "open" in
-      Fetch_live.fetch_kalshi_markets ~status ()
+      Fetch_live.fetch_kalshi_markets ?limit:events_limit ~status ()
   in
   Deferred.return (Live_data_parser.parse_data ~limit ~venue payload.body)
 ;;
@@ -74,7 +51,7 @@ let fetch_many_ticker_series
   =
   let%bind.Deferred.Or_error time_series =
     List.map market_stubs ~f:(fun stub ->
-      let%bind () = Clock.after (Time_float.Span.of_sec 0.1) in
+      let%bind () = Clock.after (Time_float.Span.of_sec 1.) in
       fetch_one_ticker_series stub ~start ~finish ~interval)
     |> Deferred.Or_error.all
   in

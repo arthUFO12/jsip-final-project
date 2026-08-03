@@ -3,6 +3,6 @@ open! Core
 type t =
   | Buy
   | Sell
-[@@deriving sexp, compare, equal]
+[@@deriving sexp_of, compare, equal, hash, bin_io]
 
 val flip : t -> t

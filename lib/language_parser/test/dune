@@ -1,6 +1,6 @@
 (library
  (name language_parser_test)
- (libraries core types async)
+ (libraries core types parser)
  ;; The OxCaml preview ppx_expect mis-resolves source paths from the
  ;; -source-tree-root the default backend passes; override it so expect
  ;; test corrections resolve relative to this directory.

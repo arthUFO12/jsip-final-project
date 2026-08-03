@@ -13,4 +13,4 @@ type t =
   | Finance
   | Tech
   | Miscellaneous
-[@@deriving string, hash, compare, equal, sexp]
+[@@deriving string, hash, compare, equal, sexp, bin_io]

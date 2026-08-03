@@ -27,20 +27,30 @@ let market_id_type =
   T.custom ~encode ~decode representation
 ;;
 
+(* [Volume.t] is stored as its sexp text: exact round-trip without a
+   numeric-column encoding for the variant. Rankings sort in OCaml via
+   {!Volume.to_float}, never in SQL. *)
+let volume_to_string volume = Sexp.to_string (Volume.sexp_of_t volume)
+let volume_of_string text = Volume.t_of_sexp (Sexp.of_string text)
+
+(* The nested pairing exists only because Caqti tuples stop at [t8]; the row
+   is flat — columns follow the CREATE TABLE order. *)
 let market_stub_type =
   (* Caqti tops out at [t8]; the two timestamps ride as a nested pair, which
      Caqti flattens to two ordinary columns. *)
   let representation =
     T.(
-      t8
-        T.string
-        T.string
-        T.string
-        (T.option T.string)
-        (T.option T.string)
-        T.string
-        T.string
-        (T.t2 T.int64 T.int64))
+      t2
+        (t8
+           T.string
+           T.string
+           T.string
+           (T.option T.string)
+           (T.option T.string)
+           T.string
+           T.int64
+           T.int64)
+        (t2 T.string (T.option T.string)))
   in
   let encode
     ({ venue
@@ -52,28 +62,33 @@ let market_stub_type =
      ; category
      ; created_time
      ; close_time
+     ; category
+     ; volume
      } :
       Market_stub.t)
     =
     Ok
-      ( Venue.to_string venue
-      , Market_id.to_string market_id
-      , Slug.to_string slug
-      , Option.map series_ticker ~f:Slug.to_string
-      , clob_token_id
-      , title
-      , Category.to_string category
-      , (time_ns_to_int64 created_time, time_ns_to_int64 close_time) )
+      ( ( Venue.to_string venue
+        , Market_id.to_string market_id
+        , Slug.to_string slug
+        , Option.map series_ticker ~f:Slug.to_string
+        , clob_token_id
+        , title
+        , time_ns_to_int64 created_time
+        , time_ns_to_int64 close_time )
+      , (Category.to_string category, Option.map volume ~f:volume_to_string)
+      )
   in
   let decode
-    ( venue_str
-    , market_id_str
-    , slug_str
-    , series_ticker_str
-    , clob_token_id
-    , title
-    , category_str
-    , (created_time_int, close_time_int) )
+    ( ( venue_str
+      , market_id_str
+      , slug_str
+      , series_ticker_str
+      , clob_token_id
+      , title
+      , created_time_int
+      , close_time_int )
+    , (category_str, volume_str) )
     =
     Ok
       ({ venue = Venue.of_string venue_str
@@ -85,6 +100,8 @@ let market_stub_type =
        ; category = Category.of_string category_str
        ; created_time = int64_to_time_ns created_time_int
        ; close_time = int64_to_time_ns close_time_int
+       ; category = Category.of_string category_str
+       ; volume = Option.map volume_str ~f:volume_of_string
        }
        : Market_stub.t)
   in

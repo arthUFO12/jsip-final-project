@@ -39,4 +39,5 @@ _opam/
 .env
 *.db
 
+test.dbarbiter.db
 test.db

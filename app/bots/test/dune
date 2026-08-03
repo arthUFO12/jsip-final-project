@@ -1,0 +1,10 @@
+(library
+ (name bots_test)
+ (libraries bots parser pnl simulation market_data types core async)
+ ;; The OxCaml preview ppx_expect mis-resolves source paths from the
+ ;; -source-tree-root the default backend passes; override it so expect
+ ;; test corrections resolve relative to this directory.
+ (inline_tests
+  (flags -source-tree-root .))
+ (preprocess
+  (pps ppx_jane)))

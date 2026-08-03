@@ -31,8 +31,14 @@
   bonsai_term_components
   bonsai_web
   virtual_dom
+  bonsai_web_components
+  async_js
   cohttp-async
+  cohttp_static_handler
   yojson
+  caqti
+  caqti-async
+  caqti-driver-sqlite3
   base64
   cstruct
   mirage-crypto
