@@ -63,11 +63,9 @@ let%expect_test "polymarket fetch -> parse round trip" =
     round_trip ~venue:Venue.Polymarket ~fetch:(fun () ->
       Fetch_live.fetch_polymarket_markets ~limit:10 ())
   in
-  [%expect
-    {|
+  [%expect {|
     Number of markets 5
     All markets open: true
-    parse_data: skipped 2/10 entries
     |}]
 ;;
 
@@ -163,6 +161,5 @@ let%expect_test "polymarket time series fetch -> parse round trip" =
     Has points: true
     All prices within $0..$1: true
     Times nondecreasing: true
-    parse_data: skipped 2/10 entries
     |}]
 ;;

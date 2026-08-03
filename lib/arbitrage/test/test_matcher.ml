@@ -3,9 +3,13 @@ open! Types
 open Arbitrage
 
 (* A minimal stub with only the fields the matcher looks at (title,
-   close_time, market_id for dedup). Everything else is filler. *)
+   close_time, market_id for dedup). Everything else is filler — and every
+   defaulted stub shares one close time so the veto never fires on filler
+   data. *)
+let default_close_time = Time_ns.of_string "2030-01-01 00:00:00Z"
+
 let stub
-  ?close_time
+  ?(close_time = default_close_time)
   ?(venue = Venue.Kalshi)
   ?(category = Category.Miscellaneous)
   ~id
@@ -18,6 +22,7 @@ let stub
   ; clob_token_id = None
   ; title
   ; category
+  ; created_time = Time_ns.epoch
   ; close_time
   }
 ;;
@@ -161,26 +166,17 @@ let%expect_test "veto rejects close times more than a day apart" =
     let result =
       Matcher.For_testing.veto
         (candidate
-           (stub ~id:"K1" ?close_time:left_time "Fed cuts rates")
-           (stub ~id:"P1" ?close_time:right_time "Fed cuts rates"))
+           (stub ~id:"K1" ~close_time:left_time "Fed cuts rates")
+           (stub ~id:"P1" ~close_time:right_time "Fed cuts rates"))
     in
     match result with
     | None -> print_endline "kept"
     | Some reason -> print_endline [%string "vetoed (%{reason})"]
   in
-  show_veto
-    (Some (time "2026-03-01 00:00:00Z"))
-    (Some (time "2026-06-01 00:00:00Z"));
-  show_veto
-    (Some (time "2026-03-01 00:00:00Z"))
-    (Some (time "2026-03-01 18:00:00Z"));
-  show_veto (Some (time "2026-03-01 00:00:00Z")) None;
-  show_veto None None;
-  [%expect
-    {|
+  show_veto (time "2026-03-01 00:00:00Z") (time "2026-06-01 00:00:00Z");
+  show_veto (time "2026-03-01 00:00:00Z") (time "2026-03-01 18:00:00Z");
+  [%expect {|
     vetoed (close times 92d apart)
-    kept
-    kept
     kept
     |}]
 ;;

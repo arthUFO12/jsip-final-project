@@ -32,7 +32,7 @@ let create_config_table =
 let insert_market_stub =
   let open Caqti_request.Infix in
   (Database_types.market_stub_type ->. T.unit)
-    {| INSERT INTO market_stubs (venue, market_id, slug, series_ticker, clob_token_id, title, created_time, close_time) VALUES (?, ?, ?, ?, ?, ?, ?, ?) |}
+    {| INSERT INTO market_stubs (venue, market_id, slug, series_ticker, clob_token_id, title, category, created_time, close_time) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) |}
 ;;
 
 let find_market_stub =

@@ -9,7 +9,7 @@ open Arbitrage
 
    Run with: dune exec lib/arbitrage/test/llm_smoke.exe *)
 
-let stub ?close_time ~venue ~id title =
+let stub ~close_time ~venue ~id title =
   { Market_stub.venue
   ; market_id = Market_id.of_string id
   ; slug = Slug.of_string id
@@ -17,6 +17,7 @@ let stub ?close_time ~venue ~id title =
   ; clob_token_id = None
   ; title
   ; category = Miscellaneous
+  ; created_time = Time_ns.epoch
   ; close_time
   }
 ;;

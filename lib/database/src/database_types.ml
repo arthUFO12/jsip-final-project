@@ -28,6 +28,8 @@ let market_id_type =
 ;;
 
 let market_stub_type =
+  (* Caqti tops out at [t8]; the two timestamps ride as a nested pair, which
+     Caqti flattens to two ordinary columns. *)
   let representation =
     T.(
       t8
@@ -38,7 +40,7 @@ let market_stub_type =
         (T.option T.string)
         T.string
         T.string
-        (T.option T.int64))
+        (T.t2 T.int64 T.int64))
   in
   let encode
     ({ venue
@@ -61,8 +63,7 @@ let market_stub_type =
       , clob_token_id
       , title
       , Category.to_string category
-      , Option.map close_time ~f:time_ns_to_int64 )
-      , time_ns_to_int64 created_time)
+      , (time_ns_to_int64 created_time, time_ns_to_int64 close_time) )
   in
   let decode
     ( venue_str
@@ -72,8 +73,7 @@ let market_stub_type =
     , clob_token_id
     , title
     , category_str
-    , created_time_int
-    , close_time_int )
+    , (created_time_int, close_time_int) )
     =
     Ok
       ({ venue = Venue.of_string venue_str
@@ -83,8 +83,8 @@ let market_stub_type =
        ; clob_token_id
        ; title
        ; category = Category.of_string category_str
-       ; close_time = Option.map close_time_int ~f:int64_to_time_ns
        ; created_time = int64_to_time_ns created_time_int
+       ; close_time = int64_to_time_ns close_time_int
        }
        : Market_stub.t)
   in

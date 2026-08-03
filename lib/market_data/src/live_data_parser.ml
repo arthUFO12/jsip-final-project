@@ -282,7 +282,17 @@ let parse_polymarket_search ?limit body =
           |> to_list
           |> List.map ~f:(fun market ->
             match market with
-            | `Assoc fields -> `Assoc (("tags", tags) :: fields)
+            | `Assoc fields ->
+              (* Gamma's search response carries no [createdAt] on its nested
+                 markets, and [created_time] is required — graft an epoch
+                 sentinel rather than dropping every search result. Full
+                 listings (which do carry it) are unaffected. *)
+              let fields =
+                if List.Assoc.mem fields "createdAt" ~equal:String.equal
+                then fields
+                else ("createdAt", `String "1970-01-01 00:00:00Z") :: fields
+              in
+              `Assoc (("tags", tags) :: fields)
             | market -> market))
         |> List.map ~f:parse_polymarket_market)
   in

@@ -27,15 +27,9 @@ let max_tokens = 1024
 
 let request_body (candidate : Matcher.Candidate.t) : Yojson.Safe.t =
   let describe (stub : Market_stub.t) =
-    let close_time =
-      Option.value_map
-        stub.close_time
-        ~default:"unknown"
-        ~f:Time_ns.to_string_utc
-    in
     [%string
       "venue: %{stub.venue#Venue}; title: %{stub.title}; closes: \
-       %{close_time}"]
+       %{Time_ns.to_string_utc stub.close_time}"]
   in
   let system_prompt =
     "You decide whether two prediction markets settle on the same \

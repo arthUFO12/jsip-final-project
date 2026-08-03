@@ -8,8 +8,8 @@ type t =
   ; clob_token_id : string option
   ; title : string
   ; category : Category.t
-  ; close_time : Time_ns.t option
   ; created_time : Time_ns.t
+  ; close_time : Time_ns.t
   }
 [@@deriving sexp_of]
 

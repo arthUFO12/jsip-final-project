@@ -57,7 +57,7 @@ let%expect_test "request_body has the Messages API shape" =
       "messages": [
         {
           "role": "user",
-          "content": "Do these two prediction markets settle on the same real-world event?\nMarket A: venue: Kalshi; title: Will Bitcoin hit $100k in 2026?; closes: 2026-12-31 23:00:00.000000000Z\nMarket B: venue: Polymarket; title: Bitcoin above $100,000 by December 31, 2026?; closes: unknown"
+          "content": "Do these two prediction markets settle on the same real-world event?\nMarket A: venue: Kalshi; title: Will Bitcoin hit $100k in 2026?; closes: 2026-12-31 23:00:00.000000000Z\nMarket B: venue: Polymarket; title: Bitcoin above $100,000 by December 31, 2026?; closes: 2030-01-01 00:00:00.000000000Z"
         }
       ],
       "output_config": {

@@ -171,13 +171,10 @@ let veto ({ left; right } : Candidate.t) =
         "titles disagree on numbers: [%{show left_numbers}] vs [%{show \
          right_numbers}]"])
   else (
-    match left.close_time, right.close_time with
-    | None, None | None, Some _ | Some _, None -> None
-    | Some left_time, Some right_time ->
-      let gap = Time_ns.abs_diff left_time right_time in
-      if Time_ns.Span.( > ) gap close_time_tolerance
-      then Some [%string "close times %{gap#Time_ns.Span} apart"]
-      else None)
+    let gap = Time_ns.abs_diff left.close_time right.close_time in
+    if Time_ns.Span.( > ) gap close_time_tolerance
+    then Some [%string "close times %{gap#Time_ns.Span} apart"]
+    else None)
 ;;
 
 let find_candidates ~threshold ~apply_veto lefts rights =
