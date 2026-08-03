@@ -8,7 +8,7 @@
     [$variables] for the rule editor.
 
     {[
-      let env = Autocomplete.of_list [ "IF"; "THEN"; "save-act" ] in
+      let env = Autocomplete.of_list [ "if"; "then"; "save-act" ] in
       Autocomplete.suggest env ~input:"sa" (* => ["save-act"] *)
     ]} *)
 

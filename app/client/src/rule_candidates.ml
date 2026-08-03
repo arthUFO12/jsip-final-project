@@ -1,30 +1,6 @@
 open! Core
 open Types
 
-let keywords =
-  [ "IF"
-  ; "THEN"
-  ; "ELSE"
-  ; "EVERY"
-  ; "WHEN"
-  ; "I"
-  ; "BUY"
-  ; "SELL"
-  ; "YES"
-  ; "NO"
-  ; "UP"
-  ; "DOWN"
-  ; "BY"
-  ; "SINCE"
-  ; "END"
-  ; "AGO"
-  ; "PRICE"
-  ; "INVENTORY"
-  ; "true"
-  ; "false"
-  ]
-;;
-
 let builtins = [ "$cash"; "$realized"; "$unrealized" ]
 
 let is_name_char c =
@@ -53,9 +29,10 @@ let defined_variables program =
 
 let env ~tickers ~program =
   Autocomplete.of_list
-    (keywords
+    (Parser.Ticker_name.keywords
      @ builtins
-     @ List.map tickers ~f:Slug.to_string
+     @ List.map tickers ~f:(fun ticker ->
+       Parser.Ticker_name.normalize (Slug.to_string ticker))
      @ defined_variables program)
 ;;
 

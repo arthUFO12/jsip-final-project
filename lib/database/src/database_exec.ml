@@ -109,6 +109,65 @@ let list_historical_market_stubs limit
   list_market_stubs_split `Historical ~time:(Time_ns.now ()) ~limit
 ;;
 
+let count_market_stubs_split split ~time : int Deferred.Or_error.t =
+  let split_time = Database_types.time_ns_to_int64 time in
+  let command =
+    match split with
+    | `Current -> Database_commands.count_market_stubs_after
+    | `Historical -> Database_commands.count_market_stubs_before
+  in
+  let%bind count_or_error =
+    with_pool (fun (module C : Caqti_async.CONNECTION) ->
+      C.find command split_time)
+  in
+  match count_or_error with
+  | Ok count -> return (Ok count)
+  | Error e -> Deferred.Or_error.error_string (Caqti_error.show e)
+;;
+
+let count_current_market_stubs () : int Deferred.Or_error.t =
+  count_market_stubs_split `Current ~time:(Time_ns.now ())
+;;
+
+let count_historical_market_stubs () : int Deferred.Or_error.t =
+  count_market_stubs_split `Historical ~time:(Time_ns.now ())
+;;
+
+let delete_market_stub market_id : unit Deferred.Or_error.t =
+  let%bind success_or_error =
+    with_pool (fun (module C : Caqti_async.CONNECTION) ->
+      C.exec Database_commands.delete_market_stub market_id)
+  in
+  match success_or_error with
+  | Ok () -> return (Ok ())
+  | Error e -> Deferred.Or_error.error_string (Caqti_error.show e)
+;;
+
+let delete_market_stubs_by_ids ids : unit Deferred.Or_error.t =
+  Deferred.Or_error.List.iter ids ~how:`Sequential ~f:delete_market_stub
+;;
+
+let list_oldest_historical_market_stubs_at limit ~time
+  : Market_stub.t list Deferred.Or_error.t
+  =
+  let split_time = Database_types.time_ns_to_int64 time in
+  let%bind stubs_or_error =
+    with_pool (fun (module C : Caqti_async.CONNECTION) ->
+      C.collect_list
+        Database_commands.list_oldest_market_stubs_before
+        (split_time, limit))
+  in
+  match stubs_or_error with
+  | Ok stubs -> return (Ok stubs)
+  | Error e -> Deferred.Or_error.error_string (Caqti_error.show e)
+;;
+
+let list_oldest_historical_market_stubs limit
+  : Market_stub.t list Deferred.Or_error.t
+  =
+  list_oldest_historical_market_stubs_at limit ~time:(Time_ns.now ())
+;;
+
 module For_testing = struct
   let list_current_market_stubs limit ~time =
     list_market_stubs_split `Current ~time ~limit
@@ -116,5 +175,17 @@ module For_testing = struct
 
   let list_historical_market_stubs limit ~time =
     list_market_stubs_split `Historical ~time ~limit
+  ;;
+
+  let count_current_market_stubs ~time =
+    count_market_stubs_split `Current ~time
+  ;;
+
+  let count_historical_market_stubs ~time =
+    count_market_stubs_split `Historical ~time
+  ;;
+
+  let list_oldest_historical_market_stubs limit ~time =
+    list_oldest_historical_market_stubs_at limit ~time
   ;;
 end

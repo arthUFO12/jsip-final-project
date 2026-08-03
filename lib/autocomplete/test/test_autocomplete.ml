@@ -4,15 +4,15 @@ open! Core
 
 let rule_env =
   Autocomplete.of_list
-    [ "IF"; "THEN"; "INVENTORY"; "SINCE"; "save-act"; "$cash" ]
+    [ "if"; "then"; "inventory"; "since"; "save-act"; "$cash" ]
 ;;
 
 let show suggestions = print_s [%sexp (suggestions : string list)]
 
 let%expect_test "prefix matches beat substring matches" =
-  (* "in" is a prefix of INVENTORY but only inside SINCE. *)
+  (* "in" is a prefix of inventory but only inside since. *)
   show (Autocomplete.suggest rule_env ~input:"in");
-  [%expect {| (INVENTORY SINCE) |}]
+  [%expect {| (inventory since) |}]
 ;;
 
 let%expect_test "ties break alphabetically" =
@@ -22,7 +22,7 @@ let%expect_test "ties break alphabetically" =
 ;;
 
 let%expect_test "exact and empty inputs suggest nothing" =
-  show (Autocomplete.suggest rule_env ~input:"IF");
+  show (Autocomplete.suggest rule_env ~input:"if");
   [%expect {| () |}];
   show (Autocomplete.suggest rule_env ~input:"   ");
   [%expect {| () |}]
@@ -30,7 +30,7 @@ let%expect_test "exact and empty inputs suggest nothing" =
 
 let%expect_test "matching is case-insensitive, spelling is preserved" =
   show (Autocomplete.suggest rule_env ~input:"inv");
-  [%expect {| (INVENTORY) |}];
+  [%expect {| (inventory) |}];
   show (Autocomplete.suggest rule_env ~input:"$c");
   [%expect {| ($cash) |}]
 ;;

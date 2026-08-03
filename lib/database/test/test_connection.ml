@@ -211,3 +211,68 @@ let%expect_test "Market stubs closed before 2026-07-19 are historical" =
     [%expect
       {| venue: Kalshi, market_id: 34567, slug: old-final, title: Old cup final, created_time: 2026-06-01 00:00:00.000000000Z, close_time: 2026-06-30 00:00:00.000000000Z |}]
 ;;
+
+let%expect_test "counts split current from historical at the injected time" =
+  let time = Time_ns.of_string "2026-07-19T00:00:00Z" in
+  let%bind current =
+    Database_exec.For_testing.count_current_market_stubs ~time
+  in
+  let%bind historical =
+    Database_exec.For_testing.count_historical_market_stubs ~time
+  in
+  print_s
+    [%message "" (current : int Or_error.t) (historical : int Or_error.t)];
+  return [%expect {| ((current (Ok 1)) (historical (Ok 1))) |}]
+;;
+
+let ancient_id = Market_id.of_string "45678"
+
+let%expect_test "oldest historical stubs come back oldest close time first" =
+  let stub =
+    make_stub
+      ~venue:"Kalshi"
+      ~market_id:ancient_id
+      ~slug:"ancient-final"
+      ~title:"Ancient cup final"
+      ~created_time:"2026-01-01T00:00:00Z"
+      ~close_time:"2026-01-31T00:00:00Z"
+      ()
+  in
+  let%bind (_ : unit Or_error.t) =
+    Database_exec.insert_market_stubs [ stub ]
+  in
+  let%bind stub_list_or_error =
+    Database_exec.For_testing.list_oldest_historical_market_stubs
+      5
+      ~time:(Time_ns.of_string "2026-07-19T00:00:00Z")
+  in
+  (match stub_list_or_error with
+   | Ok stub_list ->
+     List.iter stub_list ~f:(fun (stub : Market_stub.t) ->
+       print_endline [%string "%{stub.slug#Slug}"])
+   | Error e -> print_endline (Error.to_string_hum e));
+  return [%expect {|
+    ancient-final
+    old-final
+    |}]
+;;
+
+let%expect_test "deleting by id removes exactly the named rows" =
+  let%bind success_or_error =
+    Database_exec.delete_market_stubs_by_ids [ historical_id; ancient_id ]
+  in
+  (match success_or_error with
+   | Ok () -> print_endline "rows deleted"
+   | Error e -> print_endline (Error.to_string_hum e));
+  [%expect {| rows deleted |}];
+  let time = Time_ns.of_string "2026-07-19T00:00:00Z" in
+  let%bind current =
+    Database_exec.For_testing.count_current_market_stubs ~time
+  in
+  let%bind historical =
+    Database_exec.For_testing.count_historical_market_stubs ~time
+  in
+  print_s
+    [%message "" (current : int Or_error.t) (historical : int Or_error.t)];
+  return [%expect {| ((current (Ok 1)) (historical (Ok 0))) |}]
+;;

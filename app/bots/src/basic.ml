@@ -87,6 +87,7 @@ module Config = struct
         ~venue:Kalshi
         ~closed:false
         ~limit:market_fetch_limit
+        ()
     in
     let%bind stubs = Deferred.return (choose_markets metadata) in
     let%bind () = Fetch_time_series.update_kalshi_historical_cutoff () in

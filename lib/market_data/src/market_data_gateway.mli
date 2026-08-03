@@ -5,10 +5,16 @@ open! Core
 open! Async
 open Types
 
+(** [limit] caps the number of parsed markets. [events_limit] widens the
+    upstream Kalshi event-listing request (its default of 100 events can
+    supply fewer markets than [limit] asks for); Polymarket ignores it — its
+    listing is already counted in markets. *)
 val fetch_l1_market_data
-  :  venue:Venue.t
+  :  ?events_limit:int
+  -> venue:Venue.t
   -> closed:bool
   -> limit:int
+  -> unit
   -> L1_market_metadata.t list Deferred.Or_error.t
 
 val fetch_one_ticker_series

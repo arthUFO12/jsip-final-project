@@ -1,5 +1,7 @@
-(* The web app's server half: on startup it seeds the sqlite database with
-   Kalshi market stubs (current and historical), then serves the Bonsai
+(* The web app's server half: on startup it tops the sqlite database up to
+   its target of Kalshi market stubs (current and historical) — purging the
+   least interesting stored markets first when the targets are already met,
+   so the catalog rotates instead of resetting — then serves the Bonsai
    client bundle over HTTP and the {!Protocol} RPCs over the same port's
    websocket upgrade. *)
 
@@ -9,35 +11,134 @@ open Types
 open Market_data
 open Database
 
-let current_market_count = 100
-let historical_market_count = 50
+let current_market_count = 150
+let historical_market_count = 100
+
+(* The two halves are targeted jointly: Kalshi's "closed" listing is full of
+   markets whose close_time is still in the future, so rows fetched as
+   historical routinely count as current once stored. Splitting the targets
+   strictly by close_time would make the historical half unfillable. *)
+let total_market_target = current_market_count + historical_market_count
+
+(* When both halves are at target, this many rows rotate out per startup:
+   live markets by lowest volume, historical ones by oldest close time. *)
+let live_purge_count = 50
+let historical_purge_count = 30
+
+(* Kalshi's event listing has no pagination cursor, so the only way a refetch
+   can contain markets we have never stored is to ask for a deep page. 200
+   events is the endpoint's practical ceiling. *)
+let fetch_events_limit = 200
 
 (* Read-side bound, comfortably above the seed size. The listing query has no
    ORDER BY, so a limit below the row count would drop an arbitrary subset —
    which shows up as whole categories missing from the UI. *)
 let market_read_limit = 1_000
 
+let stored_ids stubs =
+  Market_id.Set.of_list
+    (List.map stubs ~f:(fun (stub : Market_stub.t) -> stub.market_id))
+;;
+
+(* When the database is full, evict [live_purge_count] +
+   [historical_purge_count] rows so the top-up below has room to rotate in
+   fresh markets. Returns the evicted ids so the top-up can prefer genuinely
+   new markets over re-adding these. *)
+let purge_when_full () =
+  let open Deferred.Or_error.Let_syntax in
+  let%bind current_count = Database_exec.count_current_market_stubs () in
+  let%bind historical_count =
+    Database_exec.count_historical_market_stubs ()
+  in
+  match current_count + historical_count >= total_market_target with
+  | false -> return Market_id.Set.empty
+  | true ->
+    let%bind live =
+      Database_exec.list_current_market_stubs market_read_limit
+    in
+    let live_victims =
+      Stub_selection.live_purge_victims live ~count:live_purge_count
+    in
+    let%bind oldest =
+      Database_exec.list_oldest_historical_market_stubs
+        historical_purge_count
+    in
+    let historical_victims =
+      List.map oldest ~f:(fun (stub : Market_stub.t) -> stub.market_id)
+    in
+    let victims = live_victims @ historical_victims in
+    let%bind () = Database_exec.delete_market_stubs_by_ids victims in
+    printf
+      "purged %d live and %d historical market stubs\n"
+      (List.length live_victims)
+      (List.length historical_victims);
+    return (Market_id.Set.of_list victims)
+;;
+
 (* Historical markets are inactive by definition, so unlike the bot flows
    nothing here filters on [active]. *)
+let seed_split split ~purged_ids =
+  let open Deferred.Or_error.Let_syntax in
+  let%bind current_count = Database_exec.count_current_market_stubs () in
+  let%bind historical_count =
+    Database_exec.count_historical_market_stubs ()
+  in
+  (* The current half tops up to its own target; the historical (closed)
+     fetch then fills whatever remains to [total_market_target], since its
+     rows may land on either side of the close_time boundary. *)
+  let name, closed, needed =
+    match split with
+    | `Current -> "current", false, current_market_count - current_count
+    | `Historical ->
+      ( "historical"
+      , true
+      , total_market_target - (current_count + historical_count) )
+  in
+  match needed <= 0 with
+  | true ->
+    printf "%s: target already met\n" name;
+    return ()
+  | false ->
+    let%bind metadata =
+      Market_data_gateway.fetch_l1_market_data
+        ~events_limit:fetch_events_limit
+        ~venue:Kalshi
+        ~closed
+        ~limit:total_market_target
+        ()
+    in
+    let fetched = List.map metadata ~f:L1_market_metadata.to_market_stub in
+    let%bind stored_current =
+      Database_exec.list_current_market_stubs market_read_limit
+    in
+    let%bind stored_historical =
+      Database_exec.list_historical_market_stubs market_read_limit
+    in
+    let chosen, readds =
+      Stub_selection.select_new
+        ~fetched
+        ~existing_ids:(stored_ids (stored_current @ stored_historical))
+        ~purged_ids
+        ~needed
+    in
+    let%bind () = Database_exec.insert_market_stubs chosen in
+    printf "%s: %d needed, %d inserted\n" name needed (List.length chosen);
+    (match readds > 0 with
+     | true ->
+       printf
+         "%s: %d of those re-add just-purged markets - the Kalshi listing \
+          held too few new ones\n"
+         name
+         readds
+     | false -> ());
+    return ()
+;;
+
 let seed_database () =
   let open Deferred.Or_error.Let_syntax in
-  let fetch_stubs ~closed ~limit =
-    let%bind metadata =
-      Market_data_gateway.fetch_l1_market_data ~venue:Kalshi ~closed ~limit
-    in
-    return (List.map metadata ~f:L1_market_metadata.to_market_stub)
-  in
-  let%bind current = fetch_stubs ~closed:false ~limit:current_market_count in
-  let%bind historical =
-    fetch_stubs ~closed:true ~limit:historical_market_count
-  in
-  let%bind () = Database_exec.clear_market_stubs () in
-  let%bind () = Database_exec.insert_market_stubs (current @ historical) in
-  printf
-    "seeded %d current and %d historical market stubs\n"
-    (List.length current)
-    (List.length historical);
-  return ()
+  let%bind purged_ids = purge_when_full () in
+  let%bind () = seed_split `Current ~purged_ids in
+  seed_split `Historical ~purged_ids
 ;;
 
 let implementations =
@@ -97,8 +198,8 @@ let serve ~port ~db_name ~client_js =
 let serve_command =
   Command.async_or_error
     ~summary:
-      "Seed the market database from Kalshi, then serve the client bundle \
-       and its RPCs"
+      "Top the market database up from Kalshi (rotating out stale markets \
+       when full), then serve the client bundle and its RPCs"
     [%map_open.Command
       let port =
         flag

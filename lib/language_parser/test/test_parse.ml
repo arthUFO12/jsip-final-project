@@ -173,7 +173,7 @@ let%expect_test "parse errors carry the line and reason" =
   [%expect
     {|
     ("parse error" (line 1) (line "IF PRICE save-act THEN BUY 1 save-act YES")
-     "PRICE is a numeric value; compare it to something to form a condition")
+     "price is a numeric value; compare it to something to form a condition")
     |}];
   show "save-act = 5";
   [%expect
@@ -186,7 +186,7 @@ let%expect_test "parse errors carry the line and reason" =
     {|
     ("parse error" (line 1)
      (line "IF save-act YES SIDEWAYS BY 3% SINCE 1h AGO THEN BUY 1 save-act YES")
-     "expected UP or DOWN, found 'SIDEWAYS'")
+     "expected up or down, found 'SIDEWAYS'")
     |}];
   (* Errors are collected across lines, not just the first. *)
   show {|EVERY 2h BUY $a save-act YES
@@ -225,4 +225,47 @@ let%expect_test "parsed spans and windows validate through Program.create" =
     (Error
      ("rule references a market not in this simulation" (slug other-market)))
     |}]
+;;
+
+let%expect_test "lowercase keywords and normalized tickers resolve to the \
+                 original slug"
+  =
+  let kalshi = Slug.of_string "KXELONMARS--99" in
+  let show text =
+    match Parse.program text ~slugs:[ kalshi ] with
+    | Error error -> print_s [%sexp (error : Error.t)]
+    | Ok rules ->
+      let eval = Expr.Eval.create (env ~price:0.60 ()) in
+      List.iter rules ~f:(fun rule ->
+        match Rule.eval rule eval with
+        | None -> print_endline "no action"
+        | Some { side = _; size = _; slug; contract = _ } ->
+          print_endline [%string "fires on %{slug#Slug}"])
+  in
+  (* The venue slug is uppercase with a double hyphen; the program spells it
+     lowercase with double underscores and gets the real slug back. *)
+  show "every 2h if price kxelonmars__99 > 0.5 then buy 1 kxelonmars__99 yes";
+  [%expect {| fires on KXELONMARS--99 |}];
+  (* Mixed casing of keywords is fine too. *)
+  show "EVERY 2h Buy 1 kxelonmars__99 YES";
+  [%expect {| fires on KXELONMARS--99 |}]
+;;
+
+let%expect_test "ticker vocabularies that cannot normalize are \
+                 whole-program errors"
+  =
+  let show slugs =
+    match Parse.program "every 2h buy 1 x yes" ~slugs with
+    | Error error -> print_s [%sexp (error : Error.t)]
+    | Ok (_ : Rule.t list) -> print_endline "parsed"
+  in
+  show [ Slug.of_string "KX-A"; Slug.of_string "kx_a" ];
+  [%expect
+    {|
+    ("two market tickers normalize to the same name" (name kx_a) (slug kx_a)
+     (clashes_with KX-A))
+    |}];
+  show [ Slug.of_string "BUY" ];
+  [%expect
+    {| ("market ticker collides with a language keyword" (slug BUY) (keyword buy)) |}]
 ;;

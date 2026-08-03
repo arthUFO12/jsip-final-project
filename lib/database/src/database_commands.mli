@@ -39,3 +39,23 @@ val list_market_stubs_before
       , Types.Market_stub.t
       , [ `Many | `One | `Zero ] )
       Caqti_request.t
+
+(** How many still-open markets are stored ([close_time >= t]). *)
+val count_market_stubs_after : (int64, int, [ `One ]) Caqti_request.t
+
+(** How many already-closed markets are stored ([close_time < t]). *)
+val count_market_stubs_before : (int64, int, [ `One ]) Caqti_request.t
+
+(** Removes one row by primary key — how the seed purges markets to make room
+    for fresh ones. *)
+val delete_market_stub : (Types.Market_id.t, unit, [ `Zero ]) Caqti_request.t
+
+(** Like {!list_market_stubs_before} but oldest [close_time] first, so the
+    seed can purge the longest-closed markets. [close_time] is a BIGINT and
+    sorts in SQL; volume does not (it is stored as a sexp) — rank by volume
+    in OCaml instead. *)
+val list_oldest_market_stubs_before
+  : ( int64 * int
+      , Types.Market_stub.t
+      , [ `Many | `One | `Zero ] )
+      Caqti_request.t

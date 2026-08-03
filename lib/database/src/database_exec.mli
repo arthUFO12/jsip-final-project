@@ -25,9 +25,13 @@ val insert_market_stub : Market_stub.t -> unit Deferred.Or_error.t
 (** {!insert_market_stub} over a whole fetch, stopping at the first error. *)
 val insert_market_stubs : Market_stub.t list -> unit Deferred.Or_error.t
 
-(** Empties the table. Run before reseeding so the database holds exactly the
-    latest seed rather than the union of every past one. *)
+(** Empties the table. The seed no longer does this on startup (it purges and
+    tops up incrementally instead); kept for tests and manual resets. *)
 val clear_market_stubs : unit -> unit Deferred.Or_error.t
+
+(** Deletes the given rows by [market_id], stopping at the first error — how
+    the seed evicts markets to make room for fresh ones. *)
+val delete_market_stubs_by_ids : Market_id.t list -> unit Deferred.Or_error.t
 
 val find_market_stub
   :  Market_id.t
@@ -49,9 +53,22 @@ val list_historical_market_stubs
   :  int
   -> Market_stub.t list Deferred.Or_error.t
 
+(** Like {!list_historical_market_stubs} but oldest [close_time] first — the
+    purge order for the historical half. *)
+val list_oldest_historical_market_stubs
+  :  int
+  -> Market_stub.t list Deferred.Or_error.t
+
+(** How many still-open markets are stored — the seed's "is the database
+    full" check for the current half. *)
+val count_current_market_stubs : unit -> int Deferred.Or_error.t
+
+(** Companion count for the already-closed half. *)
+val count_historical_market_stubs : unit -> int Deferred.Or_error.t
+
 module For_testing : sig
-  (** The listing queries with the "now" boundary injected, so tests are
-      independent of the wall clock. *)
+  (** The listing and counting queries with the "now" boundary injected, so
+      tests are independent of the wall clock. *)
 
   val list_current_market_stubs
     :  int
@@ -59,6 +76,17 @@ module For_testing : sig
     -> Market_stub.t list Deferred.Or_error.t
 
   val list_historical_market_stubs
+    :  int
+    -> time:Time_ns.t
+    -> Market_stub.t list Deferred.Or_error.t
+
+  val count_current_market_stubs : time:Time_ns.t -> int Deferred.Or_error.t
+
+  val count_historical_market_stubs
+    :  time:Time_ns.t
+    -> int Deferred.Or_error.t
+
+  val list_oldest_historical_market_stubs
     :  int
     -> time:Time_ns.t
     -> Market_stub.t list Deferred.Or_error.t

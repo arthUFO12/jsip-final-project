@@ -499,7 +499,7 @@ let rules_view
     ; Vdom.Node.textarea
         ~attrs:
           [ cls "editor"
-          ; Vdom.Attr.placeholder "EVERY 2h BUY 1 <ticker> YES"
+          ; Vdom.Attr.placeholder "every 2h buy 1 <ticker> yes"
           ; Vdom.Attr.value program
           ; Vdom.Attr.on_input (fun (_ : _ Js_of_ocaml.Js.t) text ->
               set_program text)

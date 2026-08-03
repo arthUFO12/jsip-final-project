@@ -64,3 +64,27 @@ let list_market_stubs_before =
   (T.t2 T.int64 T.int ->* Database_types.market_stub_type)
     {| SELECT * FROM market_stubs WHERE close_time < ? LIMIT ? |}
 ;;
+
+let count_market_stubs_after =
+  let open Caqti_request.Infix in
+  (T.int64 ->! T.int)
+    {| SELECT COUNT(*) FROM market_stubs WHERE close_time >= ? |}
+;;
+
+let count_market_stubs_before =
+  let open Caqti_request.Infix in
+  (T.int64 ->! T.int)
+    {| SELECT COUNT(*) FROM market_stubs WHERE close_time < ? |}
+;;
+
+let delete_market_stub =
+  let open Caqti_request.Infix in
+  (Database_types.market_id_type ->. T.unit)
+    {| DELETE FROM market_stubs WHERE market_id = ? |}
+;;
+
+let list_oldest_market_stubs_before =
+  let open Caqti_request.Infix in
+  (T.t2 T.int64 T.int ->* Database_types.market_stub_type)
+    {| SELECT * FROM market_stubs WHERE close_time < ? ORDER BY close_time ASC LIMIT ? |}
+;;

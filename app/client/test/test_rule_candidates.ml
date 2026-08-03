@@ -42,6 +42,18 @@ let%expect_test "comparison lines and nonsense do not define variables" =
     |}]
 ;;
 
+let%expect_test "tickers are offered in their normalized program spelling" =
+  let tickers =
+    List.map [ "KXELONMARS-99"; "KXALBUM--26OCT01" ] ~f:Slug.of_string
+  in
+  let env = Rule_candidates.env ~tickers ~program:"" in
+  Autocomplete.suggest env ~input:"kx" |> List.iter ~f:print_endline;
+  [%expect {|
+    kxalbum__26oct01
+    kxelonmars_99
+    |}]
+;;
+
 let%expect_test "current_token grabs the trailing word only" =
   List.iter
     [ "EVERY 2h BUY 1 save"; "IF $ca"; "IF save-act > 0.3 "; "" ]

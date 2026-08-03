@@ -108,6 +108,7 @@ let run_interactive ~id =
       ~venue:Kalshi
       ~closed:false
       ~limit:market_fetch_limit
+      ()
   in
   let%bind stubs = Deferred.return (choose_stubs metadata ~count) in
   let%bind () = Fetch_time_series.update_kalshi_historical_cutoff () in
@@ -128,9 +129,11 @@ let run_interactive ~id =
     print_endline [%string "  %{stub#Market_stub}"]);
   let slugs = List.map stubs ~f:(fun (stub : Market_stub.t) -> stub.slug) in
   print_endline
-    "tickers usable in your strategy (a bare ticker or PRICE <ticker> is \
-     its current YES price; INVENTORY <ticker> is your position):";
-  List.iter slugs ~f:(fun slug -> print_endline [%string "  %{slug#Slug}"]);
+    "tickers usable in your strategy (a bare ticker or price <ticker> is \
+     its current yes price; inventory <ticker> is your position):";
+  List.iter slugs ~f:(fun slug ->
+    let name = Parser.Ticker_name.normalize (Slug.to_string slug) in
+    print_endline [%string "  %{name}"]);
   let%bind rules = read_program stdin ~slugs in
   let%bind config =
     Deferred.return

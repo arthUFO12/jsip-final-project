@@ -14,7 +14,7 @@ open Types
     {!Live_data_parser.parse_data}. [status] selects the market lifecycle
     stage: ["open"] (default), ["closed"], or ["settled"]. *)
 val fetch_kalshi_markets
-  :  ?limit:int (* default 30 *)
+  :  ?limit:int (* default 100 *)
   -> ?status:string (* default "open" *)
   -> unit
   -> Raw_payload.t Deferred.Or_error.t

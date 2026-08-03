@@ -1,5 +1,5 @@
 (library
  (name client_logic)
- (libraries core types protocol autocomplete)
+ (libraries core types protocol autocomplete parser)
  (preprocess
   (pps ppx_jane)))
