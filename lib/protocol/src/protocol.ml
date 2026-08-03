@@ -82,12 +82,128 @@ module Sim_result = struct
   let final t = List.last t.ticks
 end
 
+module Pair_status = struct
+  type t =
+    | Proposed
+    | Approved
+    | Rejected
+  [@@deriving sexp_of, bin_io, compare, equal, enumerate]
+
+  let name = function
+    | Proposed -> "proposed"
+    | Approved -> "approved"
+    | Rejected -> "rejected"
+  ;;
+end
+
+module Pair_card = struct
+  type t =
+    { index : int
+    ; left_title : string
+    ; left_venue : string
+    ; right_title : string
+    ; right_venue : string
+    ; score : float
+    ; explanation : string option
+    ; status : Pair_status.t
+    }
+  [@@deriving sexp_of, bin_io]
+end
+
+module Sweep_request = struct
+  type t = { threshold : float } [@@deriving sexp_of, bin_io]
+end
+
+module Sweep_summary = struct
+  type t =
+    { markets_swept : int
+    ; search_hits : int
+    ; proposed : int
+    }
+  [@@deriving sexp_of, bin_io]
+end
+
+module Decide_request = struct
+  type t =
+    { index : int
+    ; approve : bool
+    }
+  [@@deriving sexp_of, bin_io]
+end
+
+module Edge_leg = struct
+  type t =
+    { venue : string
+    ; title : string
+    ; ask : float
+    }
+  [@@deriving sexp_of, bin_io]
+end
+
+module Edge_card = struct
+  type t =
+    { yes : Edge_leg.t
+    ; no : Edge_leg.t
+    ; cost : float
+    ; edge : float
+    ; size : int
+    ; tradable : bool
+    }
+  [@@deriving sexp_of, bin_io]
+end
+
+module Scan_report = struct
+  type t =
+    { pairs : int
+    ; legs_priced : int
+    ; edges : Edge_card.t list
+    ; tradable : int
+    }
+  [@@deriving sexp_of, bin_io]
+end
+
 let get_markets =
   Rpc.Rpc.create
     ~name:"get-markets"
     ~version:0
     ~bin_query:[%bin_type_class: unit]
     ~bin_response:[%bin_type_class: Market_card.t list Or_error.t]
+    ~include_in_error_count:Or_error
+;;
+
+let get_pairs =
+  Rpc.Rpc.create
+    ~name:"get-pairs"
+    ~version:0
+    ~bin_query:[%bin_type_class: Pair_status.t]
+    ~bin_response:[%bin_type_class: Pair_card.t list Or_error.t]
+    ~include_in_error_count:Or_error
+;;
+
+let decide_pair =
+  Rpc.Rpc.create
+    ~name:"decide-pair"
+    ~version:0
+    ~bin_query:[%bin_type_class: Decide_request.t]
+    ~bin_response:[%bin_type_class: Pair_card.t Or_error.t]
+    ~include_in_error_count:Or_error
+;;
+
+let run_sweep =
+  Rpc.Rpc.create
+    ~name:"run-sweep"
+    ~version:0
+    ~bin_query:[%bin_type_class: Sweep_request.t]
+    ~bin_response:[%bin_type_class: Sweep_summary.t Or_error.t]
+    ~include_in_error_count:Or_error
+;;
+
+let scan_edges =
+  Rpc.Rpc.create
+    ~name:"scan-edges"
+    ~version:0
+    ~bin_query:[%bin_type_class: unit]
+    ~bin_response:[%bin_type_class: Scan_report.t Or_error.t]
     ~include_in_error_count:Or_error
 ;;
 

@@ -1,17 +1,17 @@
 open! Core
 open! Types
 
-(** One record, six fields: what a market settles on, compiled from its
-    stub so matching compares typed claims instead of strings.
+(** One record, six fields: what a market settles on, compiled from its stub
+    so matching compares typed claims instead of strings.
 
     {!verdict} compares two claims field by field ({!Field_cmp}) and
-    aggregates: a hard disagreement on any identity field decides the
-    pair; an [Unknown] abstains — on that one pair, on that one field —
-    handing it to the string pipeline instead of silently passing or
-    failing a whole domain. Every false-positive class in the comparison
-    reports maps to one field here: wrong player = [subject], EPL-vs-UCL
-    = [arena], map 1 vs game 2 = [scope], 2026-vs-2027 = [period],
-    Winner-vs-O/U or #1-vs-#2 = [outcome]. *)
+    aggregates: a hard disagreement on any identity field decides the pair;
+    an [Unknown] abstains — on that one pair, on that one field — handing it
+    to the string pipeline instead of silently passing or failing a whole
+    domain. Every false-positive class in the comparison reports maps to one
+    field here: wrong player = [subject], EPL-vs-UCL = [arena], map 1 vs game
+    2 = [scope], 2026-vs-2027 = [period], Winner-vs-O/U or #1-vs-#2 =
+    [outcome]. *)
 
 module Field_cmp : sig
   type t =
@@ -48,9 +48,9 @@ module Entity : sig
   val of_raw : string -> t
 
   (** Identical keys agree regardless of resolution; different keys are a
-      confident [Disagree] only when both sides resolved through the
-      table, and [Unknown] otherwise — an unrecognized name must abstain,
-      never manufacture a verdict. *)
+      confident [Disagree] only when both sides resolved through the table,
+      and [Unknown] otherwise — an unrecognized name must abstain, never
+      manufacture a verdict. *)
   val cmp : t -> t -> Field_cmp.t
 
   (*_ Exposed so the rate parser can share the bank spellings. *)
@@ -60,9 +60,9 @@ module Entity : sig
 end
 
 module Bound : sig
-  (** A constraint on a number. Signed values make hike/cut arithmetic,
-      not lexical: a 25 bps hike is [Exactly 25.], a more-than-25 bps cut
-      is [Less_than (-25.)]. *)
+  (** A constraint on a number. Signed values make hike/cut arithmetic, not
+      lexical: a 25 bps hike is [Exactly 25.], a more-than-25 bps cut is
+      [Less_than (-25.)]. *)
   type t =
     | Exactly of float
     | At_least of float
@@ -85,8 +85,8 @@ module Bound : sig
 end
 
 module Style : sig
-  (** How a threshold resolves: value as of the deadline, or any time at
-      or before it. Different styles are different instruments. *)
+  (** How a threshold resolves: value as of the deadline, or any time at or
+      before it. Different styles are different instruments. *)
   type t =
     | Terminal
     | Touch
@@ -106,9 +106,9 @@ module Outcome : sig
 end
 
 module Scope : sig
-  (** Which part of the event settles the market: the whole thing, or one
-      leg ("map 1", "set 2"). A winner market and a map-1 market are
-      different instruments even with everything else equal. *)
+  (** Which part of the event settles the market: the whole thing, or one leg
+      ("map 1", "set 2"). A winner market and a map-1 market are different
+      instruments even with everything else equal. *)
   type t =
     | Whole_event
     | Leg of
@@ -154,8 +154,8 @@ module Relation : sig
     | Equivalent (** same event: arb is YES @ A + NO @ B *)
     | Complementary (** exact negation: arb is YES @ A + YES @ B *)
     | Implies
-    (** left YES entails right YES: a one-sided [P(A) <= P(B)]
-        constraint, not a two-leg arb *)
+    (** left YES entails right YES: a one-sided [P(A) <= P(B)] constraint,
+        not a two-leg arb *)
     | Implied_by (** the mirror of [Implies] *)
     | Disjoint (** mutually exclusive, not exhaustive: no 2-leg arb *)
     | Overlapping (** both can settle YES: unsafe, never trade *)
@@ -170,20 +170,20 @@ module Verdict : sig
     | Decided of
         { relation : Relation.t
         ; deciding : string
-        (** which field decided, e.g. ["arena disagrees"], so every
-            report row can say why *)
+        (** which field decided, e.g. ["arena disagrees"], so every report
+            row can say why *)
         }
     | Abstained of
         { field : string
-        (** the [Unknown] field: this pair goes back to the string
-            pipeline, and the coverage table counts the cause *)
+        (** the [Unknown] field: this pair goes back to the string pipeline,
+            and the coverage table counts the cause *)
         }
   [@@deriving sexp_of]
 end
 
 (** [verdict a b] compares field by field and aggregates. Disagreements
-    decide before Unknowns abstain, so a confident mismatch (Winner vs
-    O/U) kills a pair even when another field is unresolved. *)
+    decide before Unknowns abstain, so a confident mismatch (Winner vs O/U)
+    kills a pair even when another field is unresolved. *)
 val verdict : t -> t -> Verdict.t
 
 module Blocking_key : sig
@@ -202,9 +202,9 @@ end
 val blocking_key : t -> Blocking_key.t
 
 (** [of_stub stub] compiles a stub's title, or [None] when it can't — an
-    uncompiled market falls back to the string pipeline. Compound
-    outcomes ("Stays with Golden State or Retires") are a parse failure,
-    never a subject. Time windows come from title text where present;
-    close metadata is trusted only where venues keep it accurate (crypto
-    strike deadlines, fixture game days) — never for rate meetings. *)
+    uncompiled market falls back to the string pipeline. Compound outcomes
+    ("Stays with Golden State or Retires") are a parse failure, never a
+    subject. Time windows come from title text where present; close metadata
+    is trusted only where venues keep it accurate (crypto strike deadlines,
+    fixture game days) — never for rate meetings. *)
 val of_stub : Market_stub.t -> t option

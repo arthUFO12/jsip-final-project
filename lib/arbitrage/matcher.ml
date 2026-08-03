@@ -213,14 +213,13 @@ let text_features_by_id stubs =
    share one compilation. Only compiled markets appear. *)
 let claims_by_id stubs =
   List.filter_map stubs ~f:(fun (stub : Market_stub.t) ->
-    Option.map (Claim.of_stub stub) ~f:(fun claim ->
-      stub.market_id, claim))
+    Option.map (Claim.of_stub stub) ~f:(fun claim -> stub.market_id, claim))
   |> Market_id.Map.of_alist_reduce ~f:(fun first (_ : Claim.t) -> first)
 ;;
 
-(* Pairs whose compiled claims share a blocking key (subject, window
-   month, domain). This catches pairs whose titles share no words at all
-   — "FOMC" vs "Federal Reserve" — that tag blocking would miss. *)
+(* Pairs whose compiled claims share a blocking key (subject, window month,
+   domain). This catches pairs whose titles share no words at all — "FOMC" vs
+   "Federal Reserve" — that tag blocking would miss. *)
 let claim_block lefts rights ~left_claims ~right_claims =
   let key claims (stub : Market_stub.t) =
     Option.map (Map.find claims stub.market_id) ~f:Claim.blocking_key
@@ -306,9 +305,8 @@ let compare_pipelines ~threshold ~apply_veto lefts rights =
     in
     let left_claim = claim_of left_claims left in
     let right_claim = claim_of right_claims right in
-    (* [None] verdict: the claims have nothing to say (a side didn't
-       compile, or a field abstained) — the string pipeline referees this
-       pair. *)
+    (* [None] verdict: the claims have nothing to say (a side didn't compile,
+       or a field abstained) — the string pipeline referees this pair. *)
     let claim_verdict, deciding =
       match left_claim, right_claim with
       | Some left_claim, Some right_claim ->

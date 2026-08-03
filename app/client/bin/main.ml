@@ -219,6 +219,60 @@ let css =
   .fill-accepted { color: #4ade80; }
   .fill-rejected { color: #f87171; }
   .final-book { font-size: 15px; margin: 10px 0 20px; }
+  .arb-stages {
+    display: flex; align-items: center; gap: 14px;
+    margin: 4px 0 22px; flex-wrap: wrap;
+  }
+  .arb-stage {
+    display: flex; align-items: center; gap: 12px;
+    background: #141a26; border: 1px solid #2a3040; border-radius: 12px;
+    padding: 12px 18px;
+  }
+  .arb-stage-number {
+    width: 30px; height: 30px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    background: linear-gradient(90deg, #7dd3fc, #c084fc);
+    color: #0b0e14; font-weight: 800;
+  }
+  .arb-stage-label { font-weight: 700; }
+  .arb-stage-detail { font-size: 12px; color: #8b93a7; max-width: 220px; }
+  .arb-stage-arrow { color: #4a5268; font-size: 20px; }
+  .arb-panel {
+    background: #10151f; border: 1px solid #232a3a; border-radius: 12px;
+    padding: 16px 20px; margin-bottom: 18px;
+  }
+  .arb-panel-title { margin: 0 0 4px; font-size: 18px; }
+  .arb-panel-hint { font-size: 13px; color: #8b93a7; margin: 0 0 12px; }
+  .arb-controls { display: flex; align-items: center; gap: 12px; }
+  .arb-summary { font-size: 14px; color: #a5b4d0; margin-top: 10px; }
+  .arb-tabs { display: flex; gap: 8px; margin-bottom: 12px; }
+  .arb-pair {
+    border: 1px solid #232a3a; border-radius: 10px;
+    padding: 10px 14px; margin-bottom: 8px;
+  }
+  .arb-pair-titles { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .arb-venue {
+    font-size: 11px; padding: 2px 8px; border-radius: 999px;
+    border: 1px solid #2a3040; color: #8b93a7; white-space: nowrap;
+  }
+  .arb-score {
+    font-family: ui-monospace, monospace; font-size: 12px; color: #7dd3fc;
+    white-space: nowrap;
+  }
+  .arb-link { color: #4a5268; }
+  .arb-llm { font-size: 12px; color: #8b93a7; margin-top: 6px; }
+  .arb-pair-actions { display: flex; gap: 8px; margin-top: 8px; }
+  .arb-edge {
+    border: 1px solid #232a3a; border-radius: 10px;
+    padding: 12px 14px; margin-bottom: 8px;
+  }
+  .arb-edge-tradable { border-color: #4ade80; }
+  .arb-edge-legs { display: flex; gap: 18px; flex-wrap: wrap; }
+  .arb-edge-leg { font-size: 13px; }
+  .arb-outcome { font-weight: 700; color: #7dd3fc; margin-right: 6px; }
+  .arb-edge-math { margin-top: 8px; font-family: ui-monospace, monospace; font-size: 13px; }
+  .arb-edge-positive { color: #4ade80; }
+  .arb-edge-negative { color: #f87171; }
 |}
 ;;
 
@@ -226,9 +280,14 @@ module Page = struct
   type t =
     | Markets
     | Bots
+    | Arbitrage
   [@@deriving sexp_of, compare, equal, enumerate]
 
-  let name = function Markets -> "Markets" | Bots -> "Bots"
+  let name = function
+    | Markets -> "Markets"
+    | Bots -> "Bots"
+    | Arbitrage -> "Arbitrage"
+  ;;
 end
 
 let category_color : Category.t -> string = function
@@ -890,6 +949,383 @@ let bots_page markets_result (local_ graph) =
            ])
 ;;
 
+(* ---------- Arbitrage page ---------- *)
+
+module Sweep_state = struct
+  type t =
+    | Idle
+    | Running
+    | Done of Protocol.Sweep_summary.t
+  [@@deriving sexp_of]
+end
+
+module Scan_state = struct
+  type t =
+    | Idle
+    | Running
+    | Done of Protocol.Scan_report.t
+  [@@deriving sexp_of]
+end
+
+(* The page mirrors the pipeline: this banner names the three stages the
+   panels below drive, in the order the data flows. *)
+let arb_stage_banner =
+  let stage number label detail =
+    Vdom.Node.div
+      ~attrs:[ cls "arb-stage" ]
+      [ Vdom.Node.div
+          ~attrs:[ cls "arb-stage-number" ]
+          [ Vdom.Node.text number ]
+      ; Vdom.Node.div
+          [ Vdom.Node.div
+              ~attrs:[ cls "arb-stage-label" ]
+              [ Vdom.Node.text label ]
+          ; Vdom.Node.div
+              ~attrs:[ cls "arb-stage-detail" ]
+              [ Vdom.Node.text detail ]
+          ]
+      ]
+  in
+  let arrow =
+    Vdom.Node.div ~attrs:[ cls "arb-stage-arrow" ] [ Vdom.Node.text "→" ]
+  in
+  Vdom.Node.div
+    ~attrs:[ cls "arb-stages" ]
+    [ stage "1" "Sweep" "scrape both venues and text-match every title"
+    ; arrow
+    ; stage "2" "Review" "approve the pairs that settle on the same event"
+    ; arrow
+    ; stage "3" "Detect" "price approved pairs on live order books"
+    ]
+;;
+
+let arb_sweep_panel ~sweep_state ~threshold ~set_threshold ~run =
+  let running =
+    match (sweep_state : Sweep_state.t) with
+    | Running -> true
+    | Idle | Done (_ : Protocol.Sweep_summary.t) -> false
+  in
+  let status =
+    match (sweep_state : Sweep_state.t) with
+    | Idle -> Vdom.Node.div []
+    | Running ->
+      Vdom.Node.div
+        ~attrs:[ cls "arb-summary" ]
+        [ Vdom.Node.text
+            "sweeping both venues' full listings — this pages through every \
+             open market, give it a minute or two..."
+        ]
+    | Done { markets_swept; search_hits; proposed } ->
+      Vdom.Node.div
+        ~attrs:[ cls "arb-summary" ]
+        [ Vdom.Node.text
+            [%string
+              "read %{markets_swept#Int} Kalshi and %{search_hits#Int} \
+               Polymarket markets; filed %{proposed#Int} new pair(s) for \
+               review"]
+        ]
+  in
+  Vdom.Node.div
+    ~attrs:[ cls "arb-panel" ]
+    [ Vdom.Node.h2
+        ~attrs:[ cls "arb-panel-title" ]
+        [ Vdom.Node.text "1 · Sweep" ]
+    ; Vdom.Node.p
+        ~attrs:[ cls "arb-panel-hint" ]
+        [ Vdom.Node.text
+            "Compare every open market on both venues and keep title pairs \
+             scoring above the threshold. Pure text matching — no LLM \
+             credits are spent."
+        ]
+    ; Vdom.Node.div
+        ~attrs:[ cls "arb-controls" ]
+        [ Vdom.Node.label
+            ~attrs:[ cls "control-label" ]
+            [ Vdom.Node.text "threshold" ]
+        ; Vdom.Node.input
+            ~attrs:
+              [ cls "num-input"
+              ; Vdom.Attr.value threshold
+              ; Vdom.Attr.on_input (fun (_ : _ Js_of_ocaml.Js.t) text ->
+                  set_threshold text)
+              ]
+            ()
+        ; button
+            ~enabled:(not running)
+            ~class_:"btn-primary"
+            ~label:"Run sweep"
+            run
+        ]
+    ; status
+    ]
+;;
+
+let arb_pair_row ~tab ~decide (pair : Protocol.Pair_card.t) =
+  let side title venue =
+    [ Vdom.Node.span [ Vdom.Node.text title ]
+    ; Vdom.Node.span ~attrs:[ cls "arb-venue" ] [ Vdom.Node.text venue ]
+    ]
+  in
+  let explanation =
+    match pair.explanation with
+    | None -> []
+    | Some explanation ->
+      [ Vdom.Node.div
+          ~attrs:[ cls "arb-llm" ]
+          [ Vdom.Node.text [%string "llm: %{explanation}"] ]
+      ]
+  in
+  let actions =
+    match (tab : Protocol.Pair_status.t) with
+    | Approved | Rejected -> []
+    | Proposed ->
+      [ Vdom.Node.div
+          ~attrs:[ cls "arb-pair-actions" ]
+          [ button
+              ~class_:"btn-primary"
+              ~label:"Approve"
+              (decide ~index:pair.index ~approve:true)
+          ; button
+              ~class_:"btn-secondary"
+              ~label:"Reject"
+              (decide ~index:pair.index ~approve:false)
+          ]
+      ]
+  in
+  Vdom.Node.div
+    ~attrs:[ cls "arb-pair" ]
+    ([ Vdom.Node.div
+         ~attrs:[ cls "arb-pair-titles" ]
+         ([ Vdom.Node.span
+              ~attrs:[ cls "arb-score" ]
+              [ Vdom.Node.text (sprintf "%.2f" pair.score) ]
+          ]
+          @ side pair.left_title pair.left_venue
+          @ [ Vdom.Node.span ~attrs:[ cls "arb-link" ] [ Vdom.Node.text "↔" ]
+            ]
+          @ side pair.right_title pair.right_venue)
+     ]
+     @ explanation
+     @ actions)
+;;
+
+let arb_review_panel ~tab ~pairs ~select_tab ~decide =
+  let tab_button status =
+    let class_ =
+      match Protocol.Pair_status.equal status tab with
+      | true -> "btn-primary"
+      | false -> "btn-secondary"
+    in
+    button
+      ~class_
+      ~label:(Protocol.Pair_status.name status)
+      (select_tab status)
+  in
+  let body =
+    match (pairs : Protocol.Pair_card.t list Or_error.t option) with
+    | None ->
+      Vdom.Node.div ~attrs:[ cls "status" ] [ Vdom.Node.text "loading..." ]
+    | Some (Error error) ->
+      Vdom.Node.div
+        ~attrs:[ cls "status" ]
+        [ Vdom.Node.text (Error.to_string_hum error) ]
+    | Some (Ok []) ->
+      Vdom.Node.div
+        ~attrs:[ cls "status" ]
+        [ Vdom.Node.text
+            [%string "no %{Protocol.Pair_status.name tab} pairs"]
+        ]
+    | Some (Ok pairs) ->
+      Vdom.Node.div (List.map pairs ~f:(arb_pair_row ~tab ~decide))
+  in
+  Vdom.Node.div
+    ~attrs:[ cls "arb-panel" ]
+    [ Vdom.Node.h2
+        ~attrs:[ cls "arb-panel-title" ]
+        [ Vdom.Node.text "2 · Review" ]
+    ; Vdom.Node.p
+        ~attrs:[ cls "arb-panel-hint" ]
+        [ Vdom.Node.text
+            "The human gate: only approve a pair if both markets settle on \
+             exactly the same event — same threshold, same deadline. \
+             Correlated is not identical."
+        ]
+    ; Vdom.Node.div
+        ~attrs:[ cls "arb-tabs" ]
+        (List.map Protocol.Pair_status.all ~f:tab_button)
+    ; body
+    ]
+;;
+
+let arb_edge_view (edge : Protocol.Edge_card.t) =
+  let money value = sprintf "$%.2f" value in
+  let leg outcome (entry : Protocol.Edge_leg.t) =
+    Vdom.Node.div
+      ~attrs:[ cls "arb-edge-leg" ]
+      [ Vdom.Node.span
+          ~attrs:[ cls "arb-outcome" ]
+          [ Vdom.Node.text outcome ]
+      ; Vdom.Node.text
+          [%string "%{entry.title} — %{entry.venue} ask %{money entry.ask}"]
+      ]
+  in
+  let edge_class =
+    match Float.( >= ) edge.edge 0. with
+    | true -> "arb-edge-positive"
+    | false -> "arb-edge-negative"
+  in
+  let verdict =
+    match edge.tradable with
+    | true -> [%string "TRADABLE — %{edge.size#Int} contracts deep"]
+    | false -> "no trade: cost must stay under $1 after fees"
+  in
+  Vdom.Node.div
+    ~attrs:
+      [ Vdom.Attr.classes
+          ([ "arb-edge" ]
+           @ if edge.tradable then [ "arb-edge-tradable" ] else [])
+      ]
+    [ Vdom.Node.div
+        ~attrs:[ cls "arb-edge-legs" ]
+        [ leg "YES" edge.yes; leg "NO" edge.no ]
+    ; Vdom.Node.div
+        ~attrs:[ cls "arb-edge-math" ]
+        [ Vdom.Node.text
+            [%string "cost %{money edge.cost} (incl. fees) → edge "]
+        ; Vdom.Node.span
+            ~attrs:[ cls edge_class ]
+            [ Vdom.Node.text (money edge.edge) ]
+        ; Vdom.Node.text [%string " · %{verdict}"]
+        ]
+    ]
+;;
+
+let arb_detect_panel ~scan_state ~scan =
+  let running =
+    match (scan_state : Scan_state.t) with
+    | Running -> true
+    | Idle | Done (_ : Protocol.Scan_report.t) -> false
+  in
+  let body =
+    match (scan_state : Scan_state.t) with
+    | Idle -> Vdom.Node.div []
+    | Running ->
+      Vdom.Node.div
+        ~attrs:[ cls "arb-summary" ]
+        [ Vdom.Node.text "fetching live order books on both venues..." ]
+    | Done { pairs; legs_priced; edges; tradable } ->
+      Vdom.Node.div
+        ([ Vdom.Node.div
+             ~attrs:[ cls "arb-summary" ]
+             [ Vdom.Node.text
+                 [%string
+                   "%{pairs#Int} approved pair(s), %{legs_priced#Int} legs \
+                    priced from live books, %{tradable#Int} tradable"]
+             ]
+         ]
+         @ List.map edges ~f:arb_edge_view)
+  in
+  Vdom.Node.div
+    ~attrs:[ cls "arb-panel" ]
+    [ Vdom.Node.h2
+        ~attrs:[ cls "arb-panel-title" ]
+        [ Vdom.Node.text "3 · Detect" ]
+    ; Vdom.Node.p
+        ~attrs:[ cls "arb-panel-hint" ]
+        [ Vdom.Node.text
+            "One tick of the paper bot: fetch each approved pair's live \
+             books and price YES on one venue against NO on the other, fees \
+             included. An edge means buying both sides pays $1 for less \
+             than $1."
+        ]
+    ; button
+        ~enabled:(not running)
+        ~class_:"btn-primary"
+        ~label:"Scan approved pairs"
+        scan
+    ; body
+    ]
+;;
+
+let arbitrage_page (local_ graph) =
+  let tab, set_tab = Bonsai.state Protocol.Pair_status.Proposed graph in
+  let pairs, set_pairs = Bonsai.state_opt graph in
+  let sweep_state, set_sweep_state = Bonsai.state Sweep_state.Idle graph in
+  let scan_state, set_scan_state = Bonsai.state Scan_state.Idle graph in
+  let threshold, set_threshold = Bonsai.state "0.35" graph in
+  let dispatch_pairs = Rpc_effect.Rpc.dispatcher Protocol.get_pairs graph in
+  let dispatch_decide =
+    Rpc_effect.Rpc.dispatcher Protocol.decide_pair graph
+  in
+  let dispatch_sweep = Rpc_effect.Rpc.dispatcher Protocol.run_sweep graph in
+  let dispatch_scan = Rpc_effect.Rpc.dispatcher Protocol.scan_edges graph in
+  let on_activate =
+    let%map dispatch_pairs and set_pairs in
+    let%bind.Effect response =
+      dispatch_pairs Protocol.Pair_status.Proposed
+    in
+    set_pairs (Some (Or_error.join response))
+  in
+  Bonsai.Edge.lifecycle ~on_activate graph;
+  let%arr tab
+  and set_tab
+  and pairs
+  and set_pairs
+  and sweep_state
+  and set_sweep_state
+  and scan_state
+  and set_scan_state
+  and threshold
+  and set_threshold
+  and dispatch_pairs
+  and dispatch_decide
+  and dispatch_sweep
+  and dispatch_scan in
+  let load status =
+    let open Effect.Let_syntax in
+    let%bind response = dispatch_pairs status in
+    set_pairs (Some (Or_error.join response))
+  in
+  let select_tab status =
+    Effect.Many [ set_tab status; set_pairs None; load status ]
+  in
+  let decide ~index ~approve =
+    let open Effect.Let_syntax in
+    let%bind (_ : Protocol.Pair_card.t Or_error.t Or_error.t) =
+      dispatch_decide { Protocol.Decide_request.index; approve }
+    in
+    load tab
+  in
+  let run_sweep =
+    match Float.of_string_opt threshold with
+    | None -> Effect.Ignore
+    | Some threshold ->
+      let open Effect.Let_syntax in
+      let%bind () = set_sweep_state Running in
+      let%bind response =
+        dispatch_sweep { Protocol.Sweep_request.threshold }
+      in
+      (match Or_error.join response with
+       | Error (_ : Error.t) -> set_sweep_state Idle
+       | Ok summary ->
+         Effect.Many [ set_sweep_state (Done summary); load tab ])
+  in
+  let scan =
+    let open Effect.Let_syntax in
+    let%bind () = set_scan_state Running in
+    let%bind response = dispatch_scan () in
+    match Or_error.join response with
+    | Error (_ : Error.t) -> set_scan_state Idle
+    | Ok report -> set_scan_state (Done report)
+  in
+  Vdom.Node.div
+    [ arb_stage_banner
+    ; arb_sweep_panel ~sweep_state ~threshold ~set_threshold ~run:run_sweep
+    ; arb_review_panel ~tab ~pairs ~select_tab ~decide
+    ; arb_detect_panel ~scan_state ~scan
+    ]
+;;
+
 (* ---------- App shell ---------- *)
 
 let fetch_markets (local_ graph) =
@@ -920,11 +1356,13 @@ let app (local_ graph) =
   let page, set_page = Bonsai.state Page.Markets graph in
   let markets_result = fetch_markets graph in
   let bots = bots_page markets_result graph in
-  let%arr page and set_page and markets_result and bots in
+  let arbitrage = arbitrage_page graph in
+  let%arr page and set_page and markets_result and bots and arbitrage in
   let body =
     match page with
     | Markets -> markets_page_view markets_result
     | Bots -> bots
+    | Arbitrage -> arbitrage
   in
   Vdom.Node.div
     [ Vdom.Node.create "style" [ Vdom.Node.text css ]

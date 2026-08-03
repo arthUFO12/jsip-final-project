@@ -1,11 +1,11 @@
 open! Core
 open! Types
 
-(* One record, six fields. Verdicts come from comparing the two records
-   field by field — every false-positive class in the comparison report
-   was one missing field, so the fields carry what the old vetoes guessed
-   at. Abstention is per pair, per field: an [Unknown] on one field sends
-   that one pair back to the string pipeline, never a whole domain. *)
+(* One record, six fields. Verdicts come from comparing the two records field
+   by field — every false-positive class in the comparison report was one
+   missing field, so the fields carry what the old vetoes guessed at.
+   Abstention is per pair, per field: an [Unknown] on one field sends that
+   one pair back to the string pipeline, never a whole domain. *)
 
 module Field_cmp = struct
   type t =
@@ -27,9 +27,9 @@ module Domain = struct
 
   let to_string t = Sexp.to_string [%sexp (t : t)]
 
-  (* In these domains one subject takes the prize, so two different
-     subjects in the same arena are mutually exclusive (Disjoint). Rates
-     and statistics are not: the Fed and the BoC can both cut. *)
+  (* In these domains one subject takes the prize, so two different subjects
+     in the same arena are mutually exclusive (Disjoint). Rates and
+     statistics are not: the Fed and the BoC can both cut. *)
   let subjects_exclusive = function
     | Championship | Award | Fixture | Media_rank -> true
     | Rates | Statistic -> false
@@ -37,7 +37,7 @@ module Domain = struct
 end
 
 (* ------------------------------------------------------------------ *)
-(* Entities                                                            *)
+(* Entities *)
 (* ------------------------------------------------------------------ *)
 module Entity = struct
   module T = struct
@@ -53,12 +53,36 @@ module Entity = struct
   (* Common Latin diacritics folded to ASCII so Dembele/Dembélé and
      Hojgaard/Højgaard compare equal. *)
   let diacritics =
-    [ "á", "a"; "à", "a"; "â", "a"; "ä", "a"; "ã", "a"; "å", "a"
-    ; "é", "e"; "è", "e"; "ê", "e"; "ë", "e"
-    ; "í", "i"; "ì", "i"; "î", "i"; "ï", "i"
-    ; "ó", "o"; "ò", "o"; "ô", "o"; "ö", "o"; "õ", "o"; "ø", "o"
-    ; "ú", "u"; "ù", "u"; "û", "u"; "ü", "u"
-    ; "ñ", "n"; "ç", "c"; "ý", "y"; "æ", "ae"; "œ", "oe"; "ß", "ss"
+    [ "á", "a"
+    ; "à", "a"
+    ; "â", "a"
+    ; "ä", "a"
+    ; "ã", "a"
+    ; "å", "a"
+    ; "é", "e"
+    ; "è", "e"
+    ; "ê", "e"
+    ; "ë", "e"
+    ; "í", "i"
+    ; "ì", "i"
+    ; "î", "i"
+    ; "ï", "i"
+    ; "ó", "o"
+    ; "ò", "o"
+    ; "ô", "o"
+    ; "ö", "o"
+    ; "õ", "o"
+    ; "ø", "o"
+    ; "ú", "u"
+    ; "ù", "u"
+    ; "û", "u"
+    ; "ü", "u"
+    ; "ñ", "n"
+    ; "ç", "c"
+    ; "ý", "y"
+    ; "æ", "ae"
+    ; "œ", "oe"
+    ; "ß", "ss"
     ]
   ;;
 
@@ -68,9 +92,7 @@ module Entity = struct
   ;;
 
   (* Filler that never distinguishes one entity from another. *)
-  let noise_words =
-    [ "the"; "a"; "an"; "jr"; "sr"; "fc"; "ks"; "cf"; "sc" ]
-  ;;
+  let noise_words = [ "the"; "a"; "an"; "jr"; "sr"; "fc"; "ks"; "cf"; "sc" ]
 
   let normalize raw =
     String.lowercase raw
@@ -83,10 +105,10 @@ module Entity = struct
     |> String.concat ~sep:" "
   ;;
 
-  (* canonical key -> other spellings. Seeded from the collision classes
-     the comparison report surfaced; extend as new ones appear. Presence
-     here is what makes a name [resolved] — resolved-and-different is a
-     confident Disagree, unresolved-and-different is only Unknown. *)
+  (* canonical key -> other spellings. Seeded from the collision classes the
+     comparison report surfaced; extend as new ones appear. Presence here is
+     what makes a name [resolved] — resolved-and-different is a confident
+     Disagree, unresolved-and-different is only Unknown. *)
   let aliases =
     [ (* central banks *)
       "fed", [ "fomc"; "federal reserve"; "us federal reserve" ]
@@ -109,14 +131,25 @@ module Entity = struct
     ; "openai", [ "open ai" ]
     ; (* competitions (arena entities) *)
       "epl", [ "english premier league"; "premier league" ]
-    ; "ucl", [ "champions league"; "uefa champions league"; "uefa champions league championship" ]
+    ; ( "ucl"
+      , [ "champions league"
+        ; "uefa champions league"
+        ; "uefa champions league championship"
+        ] )
     ; "f1 drivers", [ "f1 drivers championship"; "f1 drivers champion" ]
-    ; "f1 constructors", [ "f1 constructors championship"; "f1 constructors champion" ]
+    ; ( "f1 constructors"
+      , [ "f1 constructors championship"; "f1 constructors champion" ] )
     ; "world chess championship", []
     ; "us open mens", [ "us open men s singles"; "men s us open" ]
     ; "us open womens", [ "us open women s singles"; "women s us open" ]
-    ; "nl championship", [ "pro baseball national league championship"; "national league championship series" ]
-    ; "al championship", [ "pro baseball american league championship"; "american league championship series" ]
+    ; ( "nl championship"
+      , [ "pro baseball national league championship"
+        ; "national league championship series"
+        ] )
+    ; ( "al championship"
+      , [ "pro baseball american league championship"
+        ; "american league championship series"
+        ] )
     ; "stanley cup", [ "stanley cup finals" ]
     ; "nba finals", []
     ; "super bowl", []
@@ -126,10 +159,17 @@ module Entity = struct
     ; (* awards *)
       "ballon d or", [ "ballon dor" ]
     ; "nobel peace prize", []
-    ; "best actress", [ "best actress oscars"; "best actress academy awards" ]
+    ; ( "best actress"
+      , [ "best actress oscars"; "best actress academy awards" ] )
     ; "best actor", [ "best actor oscars"; "best actor academy awards" ]
-    ; "best supporting actress", [ "best supporting actress oscars"; "best supporting actress academy awards" ]
-    ; "best supporting actor", [ "best supporting actor oscars"; "best supporting actor academy awards" ]
+    ; ( "best supporting actress"
+      , [ "best supporting actress oscars"
+        ; "best supporting actress academy awards"
+        ] )
+    ; ( "best supporting actor"
+      , [ "best supporting actor oscars"
+        ; "best supporting actor academy awards"
+        ] )
     ; (* charts *)
       "netflix global", [ "top global netflix show"; "global netflix show" ]
     ; "billboard hot 100", [ "billboard 100" ]
@@ -185,8 +225,8 @@ module Entity = struct
   ;;
 
   (* Identical strings agree regardless of resolution — two venues both
-     writing "guabira" mean the same thing even if we've never heard of
-     it. Confident disagreement needs both sides in the table. *)
+     writing "guabira" mean the same thing even if we've never heard of it.
+     Confident disagreement needs both sides in the table. *)
   let cmp a b : Field_cmp.t =
     if String.equal a.key b.key
     then Agree
@@ -305,7 +345,7 @@ module Scope = struct
 end
 
 (* ------------------------------------------------------------------ *)
-(* Half-open absolute time windows.                                    *)
+(* Half-open absolute time windows. *)
 (* ------------------------------------------------------------------ *)
 module Interval = struct
   type t =
@@ -325,15 +365,15 @@ module Interval = struct
     { lo = Some lo; hi = Date.add_months lo 1 }
   ;;
 
-  (* Venue timestamps for one event straddle midnight, so ends within a
-     day still agree. *)
+  (* Venue timestamps for one event straddle midnight, so ends within a day
+     still agree. *)
   let ends_close a b = Int.( <= ) (Int.abs (Date.diff a b)) 1
 
   let cmp a b : Field_cmp.t =
     let lo_close =
       match a.lo, b.lo with
-      (* An open start agrees with any start: "before 2027-01-01" is
-         "in 2026" for a market trading now. *)
+      (* An open start agrees with any start: "before 2027-01-01" is "in
+         2026" for a market trading now. *)
       | None, _ | _, None -> true
       | Some a, Some b -> ends_close a b
     in
@@ -413,8 +453,8 @@ let outcome_relation (a : Outcome.t) (b : Outcome.t) : Relation.t =
   | Win, Place p | Place p, Win -> if p = 1 then Equivalent else Disjoint
   | Rate_move a, Rate_move b -> bound_relation a b
   | Threshold a, Threshold b ->
-    (* Touch vs terminal at one strike: different instruments that can
-       both settle YES — a confident kill, never an abstention. *)
+    (* Touch vs terminal at one strike: different instruments that can both
+       settle YES — a confident kill, never an abstention. *)
     if not (Style.equal a.style b.style)
     then Overlapping
     else bound_relation a.bound b.bound
@@ -423,7 +463,8 @@ let outcome_relation (a : Outcome.t) (b : Outcome.t) : Relation.t =
   | Place _, (Rate_move _ | Threshold _)
   | (Rate_move _ | Threshold _), Place _
   | Rate_move _, Threshold _
-  | Threshold _, Rate_move _ -> Disjoint
+  | Threshold _, Rate_move _ ->
+    Disjoint
 ;;
 
 let entity_cmp_option a b : Field_cmp.t =
@@ -498,10 +539,12 @@ let verdict (a : t) (b : t) : Verdict.t =
                 , true
                 , (true | false) )
               | (Implies | Implied_by | Overlapping | Unrelated), false, true
-                -> Overlapping
+                ->
+                Overlapping
               | ( (Implies | Implied_by | Overlapping | Unrelated)
                 , false
-                , false ) -> if exclusive then Disjoint else Unrelated
+                , false ) ->
+                if exclusive then Disjoint else Unrelated
               | Disjoint, (true | false), (true | false)
               | Complementary, (true | false), (true | false) ->
                 (* unreachable: handled as "outcome disagrees" above *)
@@ -517,12 +560,11 @@ let verdict (a : t) (b : t) : Verdict.t =
             (match unknown with
              | Some (field, (_ : Field_cmp.t)) -> Abstained { field }
              | None ->
-               Decided
-                 { relation = outcome; deciding = "all fields agree" }))))
+               Decided { relation = outcome; deciding = "all fields agree" }))))
 ;;
 
 (* ------------------------------------------------------------------ *)
-(* Blocking                                                            *)
+(* Blocking *)
 (* ------------------------------------------------------------------ *)
 module Blocking_key = struct
   module T = struct
@@ -553,12 +595,12 @@ let blocking_key claim =
 
 (* ------------------------------------------------------------------ *)
 (* Title parsing. Conservative on purpose: anything ambiguous fails to
-   compile, which costs a string-pipeline referee; a guessed field costs
-   a bad trade. *)
+   compile, which costs a string-pipeline referee; a guessed field costs a
+   bad trade. *)
 (* ------------------------------------------------------------------ *)
 
-(* The trailing parenthetical is the folded outcome/subject subtitle
-   ("Who will win the Nobel Peace Prize? (Donald Trump)"). *)
+(* The trailing parenthetical is the folded outcome/subject subtitle ("Who
+   will win the Nobel Peace Prize? (Donald Trump)"). *)
 let parenthetical raw =
   let open Option.Let_syntax in
   let%bind start = String.rindex raw '(' in
@@ -630,8 +672,8 @@ let contains_phrase words phrase =
   loop words
 ;;
 
-(* "100k" -> 100_000., "1.5m" -> 1_500_000., "0.50" -> 0.5; None for
-   anything that isn't purely a number. *)
+(* "100k" -> 100_000., "1.5m" -> 1_500_000., "0.50" -> 0.5; None for anything
+   that isn't purely a number. *)
 let number_of_word word =
   let parse text =
     if String.is_empty text
@@ -651,8 +693,8 @@ let number_of_word word =
      | None -> parse word)
 ;;
 
-(* Bare day-of-month and year integers (and 0, which is never a price):
-   the numbers in "June 30" and "in 2026" must not become price levels. *)
+(* Bare day-of-month and year integers (and 0, which is never a price): the
+   numbers in "June 30" and "in 2026" must not become price levels. *)
 let looks_like_date_number level =
   Float.equal level 0.
   || (Float.equal (Float.round_nearest level) level
@@ -683,9 +725,8 @@ let month_of_word word : Month.t option =
   | _ -> None
 ;;
 
-(* The one month name in the title, if any. "may" is only believed next
-   to "meeting" or a year — otherwise it is almost always the modal
-   verb. *)
+(* The one month name in the title, if any. "may" is only believed next to
+   "meeting" or a year — otherwise it is almost always the modal verb. *)
 let title_month words =
   let months =
     List.filter_mapi words ~f:(fun position word ->
@@ -704,9 +745,7 @@ let title_month words =
       | Some month -> Some month)
     |> List.dedup_and_sort ~compare:Month.compare
   in
-  match months with
-  | [ month ] -> Some month
-  | [] | _ :: _ :: _ -> None
+  match months with [ month ] -> Some month | [] | _ :: _ :: _ -> None
 ;;
 
 let title_year words =
@@ -730,8 +769,7 @@ let season_range raw =
          Option.try_with (fun () ->
            Int.of_string first, Int.of_string second)
        with
-       | Some (year, tail) when year >= 2000 && year <= 2099 && tail < 100
-         ->
+       | Some (year, tail) when year >= 2000 && year <= 2099 && tail < 100 ->
          Some
            { Interval.lo = Some (Date.create_exn ~y:year ~m:Jan ~d:1)
            ; hi = Date.create_exn ~y:(2000 + tail + 1) ~m:Jan ~d:1
@@ -760,14 +798,12 @@ let full_date words ~default_year =
            |> Option.bind ~f:year_of_word
            |> Option.value ~default:default_year
          in
-         Option.try_with (fun () ->
-           Date.create_exn ~y:year ~m:month ~d:day)))
+         Option.try_with (fun () -> Date.create_exn ~y:year ~m:month ~d:day)))
 ;;
 
 (* The explicit time window a title names, if any. Half-open; "by" is
-   inclusive of the named day, "before" is not. Month-scoped windows win
-   over year-scoped ones: "the September 2026 meeting" is a month, not a
-   year. *)
+   inclusive of the named day, "before" is not. Month-scoped windows win over
+   year-scoped ones: "the September 2026 meeting" is a month, not a year. *)
 let title_period words ~close_date =
   let default_year = Date.year close_date in
   let bounded_by prefix =
@@ -811,8 +847,8 @@ let title_period words ~close_date =
         | None -> None))
 ;;
 
-(* Compound outcomes are a parse failure, never a subject: "Stays with
-   Golden State or Retires" cannot be one claim. *)
+(* Compound outcomes are a parse failure, never a subject: "Stays with Golden
+   State or Retires" cannot be one claim. *)
 let compound raw =
   let words = words_of_title raw in
   contains words "or" || contains words "any" || contains words "either"
@@ -847,9 +883,7 @@ let bank_of_words words =
       then Some canonical
       else None)
   in
-  match matched with
-  | [ bank ] -> Some bank
-  | [] | _ :: _ :: _ -> None
+  match matched with [ bank ] -> Some bank | [] | _ :: _ :: _ -> None
 ;;
 
 let cut_words = [ "cut"; "cuts"; "lower"; "lowers"; "decrease"; "decreases" ]
@@ -887,7 +921,8 @@ let bps_range raw =
        | Some (low, high)
          when Float.( > ) high low
               && Float.( <= ) high 200.
-              && Float.( >= ) low 1. -> Some (low, high)
+              && Float.( >= ) low 1. ->
+         Some (low, high)
        | Some _ | None -> None))
 ;;
 
@@ -913,8 +948,7 @@ let rate_claim raw words ~close_date =
       else None
     in
     (* The comparator defaults to =. Only an explicit marker widens it:
-       ">"/"more than" to strict, "+"/"or more"/"at least" to
-       inclusive. *)
+       ">"/"more than" to strict, "+"/"or more"/"at least" to inclusive. *)
     let strictly_more = contains_phrase words [ "more"; "than" ] in
     let or_more =
       List.exists words ~f:(String.is_suffix ~suffix:"+")
@@ -929,8 +963,8 @@ let rate_claim raw words ~close_date =
          | true, false -> Some (Bound.Between (-.high, -.low))
          | false, true -> Some (Bound.Between (low, high))
          | true, true | false, false -> None)
-      (* "Hike by 0 bps" is a hold: same claim as "no change", disjoint
-         from any nonzero move. *)
+      (* "Hike by 0 bps" is a hold: same claim as "no change", disjoint from
+         any nonzero move. *)
       | None, Some 0. ->
         if cut || hike || hold then Some (Bound.Exactly 0.) else None
       | None, Some m ->
@@ -956,9 +990,9 @@ let rate_claim raw words ~close_date =
          | false, true, false -> Some (Bound.Greater_than 0.)
          | false, false, true -> Some (Bound.Exactly 0.)
          | false, false, false -> None
-         | true, true, (true | false)
-         | true, false, true
-         | false, true, true -> None)
+         | true, true, (true | false) | true, false, true | false, true, true
+           ->
+           None)
     in
     let%map period = title_period words ~close_date in
     { domain = Domain.Rates
@@ -973,16 +1007,34 @@ let rate_claim raw words ~close_date =
 (* ---------- crypto price levels (Statistic) ---------- *)
 
 let touch_words =
-  [ "hit"; "hits"; "reach"; "reaches"; "touch"; "touches"; "tap"; "taps"
-  ; "cross"; "crosses"
+  [ "hit"
+  ; "hits"
+  ; "reach"
+  ; "reaches"
+  ; "touch"
+  ; "touches"
+  ; "tap"
+  ; "taps"
+  ; "cross"
+  ; "crosses"
   ]
 ;;
 
 let dip_words = [ "dip"; "dips"; "drop"; "drops"; "fall"; "falls" ]
 
 let terminal_words =
-  [ "close"; "closes"; "settle"; "settles"; "end"; "ends"; "finish"
-  ; "finishes"; "stay"; "stays"; "remain"; "remains"
+  [ "close"
+  ; "closes"
+  ; "settle"
+  ; "settles"
+  ; "end"
+  ; "ends"
+  ; "finish"
+  ; "finishes"
+  ; "stay"
+  ; "stays"
+  ; "remain"
+  ; "remains"
   ]
 ;;
 
@@ -1097,9 +1149,9 @@ let competition_arenas =
   ]
 ;;
 
-(* Arena text with years, ordinals, and dangling connectors stripped, so
-   "the 2026-27 UEFA Champions League Championship", "the Ballon d'Or in
-   2026", and "2 place in Big Brother Season 28" all resolve. *)
+(* Arena text with years, ordinals, and dangling connectors stripped, so "the
+   2026-27 UEFA Champions League Championship", "the Ballon d'Or in 2026",
+   and "2 place in Big Brother Season 28" all resolve. *)
 let arena_noise = [ "th"; "in"; "at"; "for"; "by"; "their"; "place" ]
 
 let arena_of_raw raw =
@@ -1210,8 +1262,8 @@ let fixture_claim raw words ~close_date =
   let open Option.Let_syntax in
   let stripped = strip_parenthetical raw in
   let lowered = String.lowercase stripped |> Entity.fold_diacritics in
-  (* "Will X win map 1 in the A vs. B match?": the fixture text starts
-     after "in the"; everything before it is the backed-side clause. *)
+  (* "Will X win map 1 in the A vs. B match?": the fixture text starts after
+     "in the"; everything before it is the backed-side clause. *)
   let fixture_text =
     match String.substr_index lowered ~pattern:" in the " with
     | Some position when String.is_substring lowered ~substring:" vs" ->
@@ -1228,8 +1280,8 @@ let fixture_claim raw words ~close_date =
     let raw =
       match String.rsplit2 raw ~on:':' with
       | Some (prefix, suffix) ->
-        (* "LoL: Team A" keeps the team; "Team B: O/U 2.5" keeps the
-           team. Keep whichever side reads as a name. *)
+        (* "LoL: Team A" keeps the team; "Team B: O/U 2.5" keeps the team.
+           Keep whichever side reads as a name. *)
         if String.exists suffix ~f:Char.is_alpha
            && (not (String.is_substring suffix ~substring:"o/u"))
            && String.length (String.strip suffix) > 3
@@ -1276,9 +1328,9 @@ let fixture_claim raw words ~close_date =
         , Outcome.Threshold
             { bound = Bound.Greater_than line; style = Style.Terminal } )
     | None ->
-      (* A winner market must name its backed side — from the folded
-         subtitle or a "Will X win" prefix — or we cannot know which team
-         this market is, and false equivalence would be catastrophic. *)
+      (* A winner market must name its backed side — from the folded subtitle
+         or a "Will X win" prefix — or we cannot know which team this market
+         is, and false equivalence would be catastrophic. *)
       let backed =
         match parenthetical raw with
         | Some subtitle -> subject_of_raw subtitle
@@ -1290,11 +1342,9 @@ let fixture_claim raw words ~close_date =
       in
       Option.map backed ~f:(fun team -> team, Outcome.Win)
   in
-  let scope =
-    Option.value (leg_of_words words) ~default:Scope.Whole_event
-  in
-  (* A fixture settles on game day; venue close dates are game-accurate
-     here, unlike season markets. *)
+  let scope = Option.value (leg_of_words words) ~default:Scope.Whole_event in
+  (* A fixture settles on game day; venue close dates are game-accurate here,
+     unlike season markets. *)
   let period =
     Some { Interval.lo = None; hi = Date.add_days close_date 1 }
   in

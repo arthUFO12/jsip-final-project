@@ -179,6 +179,7 @@ let compare_once ~threshold ~apply_veto ~markets_to_sweep () =
       ~venue:Kalshi
       ~closed:false
       ~limit:listing_limit
+      ()
   in
   let targets =
     List.sort

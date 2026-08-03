@@ -14,6 +14,7 @@ let stub ?(close_time = default_close_time) title =
   ; category = Category.Miscellaneous
   ; created_time = Time_ns.epoch
   ; close_time
+  ; volume = None
   }
 ;;
 
@@ -46,8 +47,8 @@ let%expect_test "of_stub compiles each domain; ambiguity fails to compile" =
     ; "KS Cracovia Krakow vs. Pogon Szczecin: O/U 2.5"
     ; "Orix Buffaloes vs. Tohoku Rakuten Golden Eagles"
     ; (* media ranks *)
-      "Will The Bombing of Pan Am 103: Limited Series be Top Global \
-       Netflix Show on Aug 3, 2026?"
+      "Will The Bombing of Pan Am 103: Limited Series be Top Global Netflix \
+       Show on Aug 3, 2026?"
     ; (* compound outcome: a parse failure, never a subject *)
       "Will Jimmy Butler stay with Golden State or retire? (Stays with \
        Golden State or Retires)"
@@ -55,7 +56,8 @@ let%expect_test "of_stub compiles each domain; ambiguity fails to compile" =
     ~f:(fun title ->
       print_s
         [%message title ~_:(Claim.of_stub (stub title) : Claim.t option)]);
-  [%expect {|
+  [%expect
+    {|
     ("Will the Fed cut rates by 25 bps at the March meeting?"
      (((domain Rates) (subject ((key fed) (resolved true))) (arena ())
        (outcome (Rate_move (Exactly -25))) (scope Whole_event)
@@ -146,7 +148,8 @@ let show_verdict left_title right_title =
   | Some left, Some right ->
     print_s
       [%message
-        "" ~_:(Claim.verdict left right : Claim.Verdict.t)
+        ""
+          ~_:(Claim.verdict left right : Claim.Verdict.t)
           left_title
           right_title]
   | None, (Some _ | None) | Some _, None ->
@@ -168,8 +171,8 @@ let%expect_test "verdicts: each false-positive class dies on its field" =
     "Will Manchester United win the English Premier League?"
     "Will Manchester United win the 2026-27 UEFA Champions League \
      Championship?";
-  (* Same fixture, winner vs total: outcome — decided even though the
-     team names are not in the alias table. *)
+  (* Same fixture, winner vs total: outcome — decided even though the team
+     names are not in the alias table. *)
   show_verdict
     "Cracovia Krakow vs Pogon Szczecin Winner? (Cracovia Krakow)"
     "KS Cracovia Krakow vs. Pogon Szczecin: O/U 2.5";
@@ -183,7 +186,8 @@ let%expect_test "verdicts: each false-positive class dies on its field" =
   show_verdict
     "Will Barrett Pfeiffer finish in 2 place in Big Brother Season 28?"
     "Will Barrett Pfeiffer win Big Brother season 28?";
-  [%expect {|
+  [%expect
+    {|
     ((Decided (relation Disjoint) (deciding "subject disagrees"))
      "Who will win the Ballon d'Or in 2026? (Rodri)"
      "Will Pedri win the 2026 Ballon d'Or?")
@@ -220,8 +224,8 @@ let%expect_test "verdicts: equivalences and implications" =
   show_verdict
     "Will the Federal Reserve Hike rates by 0bps at their September 2026 \
      meeting? (Fed maintains rate)"
-    "Will there be no change in Fed interest rates after the September \
-     2026 meeting?";
+    "Will there be no change in Fed interest rates after the September 2026 \
+     meeting?";
   (* BoK band vs exact: nested bounds, one-sided. *)
   show_verdict
     "Will the Bank of Korea cut rates by 1-25bps at their September 2026 \
@@ -236,7 +240,8 @@ let%expect_test "verdicts: equivalences and implications" =
   show_verdict
     "Will BTC hit $150k before Jan 1, 2027?"
     "Will BTC hit $150k in 2026?";
-  [%expect {|
+  [%expect
+    {|
     ((Decided (relation Equivalent) (deciding "all fields agree"))
      "Who will win the Ballon d'Or in 2026? (Ousmane Dembele)"
      "Will Ousmane Demb\195\169l\195\169 win the 2026 Ballon d'Or?")
@@ -257,19 +262,19 @@ let%expect_test "verdicts: equivalences and implications" =
 ;;
 
 let%expect_test "verdicts: abstention is per pair, per field" =
-  (* Same competition, one side names no season: period Unknown, so this
-     pair — and only this pair — goes back to the string pipeline. *)
+  (* Same competition, one side names no season: period Unknown, so this pair
+     — and only this pair — goes back to the string pipeline. *)
   show_verdict
     "Will Bayern Munich win the Champions League?"
-    "Will Bayern Munich win the 2026-27 UEFA Champions League \
-     Championship?";
+    "Will Bayern Munich win the 2026-27 UEFA Champions League Championship?";
   (* Unresolved names that differ: Unknown, not a guessed verdict. *)
   show_verdict
     "Will Philadelphia win the 2026 Pro Baseball National League \
      Championship?"
     "Will Philadelphia Phillies win the 2026 National League Championship \
      Series?";
-  [%expect {|
+  [%expect
+    {|
     ((Abstained (field period)) "Will Bayern Munich win the Champions League?"
      "Will Bayern Munich win the 2026-27 UEFA Champions League Championship?")
     ((Abstained (field subject))
@@ -289,7 +294,8 @@ let%expect_test "blocking key: subject + window month + domain" =
   key "Federal Reserve lowers interest rates by 25 bps in March?";
   key "Will Bitcoin hit $100k by March 31?";
   key "Who will win the Ballon d'Or in 2026? (Rodri)";
-  [%expect {|
+  [%expect
+    {|
     (((subject fed) (period 2026-04) (domain Rates)))
     (((subject fed) (period 2026-04) (domain Rates)))
     (((subject btc) (period 2026-04) (domain Statistic)))

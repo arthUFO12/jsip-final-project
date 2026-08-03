@@ -151,6 +151,14 @@ let implementations =
           Or_error.map stubs ~f:(List.map ~f:Protocol.Market_card.of_stub))
       ; Rpc.Rpc.implement Protocol.run_simulation (fun () request ->
           Sim_runner.run request)
+      ; Rpc.Rpc.implement Protocol.get_pairs (fun () status ->
+          Arb_runner.list_pairs status)
+      ; Rpc.Rpc.implement Protocol.decide_pair (fun () request ->
+          Arb_runner.decide request)
+      ; Rpc.Rpc.implement Protocol.run_sweep (fun () request ->
+          Arb_runner.sweep request)
+      ; Rpc.Rpc.implement Protocol.scan_edges (fun () () ->
+          Arb_runner.scan ())
       ]
     ~on_unknown_rpc:`Close_connection
     ~on_exception:Log_on_background_exn
@@ -175,6 +183,7 @@ let serve ~port ~db_name ~client_js =
   let open Deferred.Or_error.Let_syntax in
   let%bind () = Deferred.return (Database_exec.init_database db_name) in
   let%bind () = Database_exec.create_market_stub_table () in
+  let%bind () = Database_exec.create_pair_proposal_table () in
   let%bind () = seed_database () in
   let handler = http_handler ~client_js in
   let%bind.Deferred (_ : (Socket.Address.Inet.t, int) Cohttp_async.Server.t) =

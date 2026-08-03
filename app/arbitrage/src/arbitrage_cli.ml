@@ -162,9 +162,9 @@ let run_command =
 ;;
 
 (* One section of the comparison report: header with a count, then entries
-   best score first. Every row prints its deciding field, so review never
-   has to guess why a pair sits where it does; rejected rows also name
-   the veto the text gate read. *)
+   best score first. Every row prints its deciding field, so review never has
+   to guess why a pair sits where it does; rejected rows also name the veto
+   the text gate read. *)
 let print_section title entries =
   printf "\n== %s (%d) ==\n" title (List.length entries);
   List.sort
@@ -196,7 +196,8 @@ let print_section title entries =
            | (Claims_only | Neither), Some reason ->
              [%string " [veto: %{reason}]"]
            | (Claims_only | Neither), None
-           | (Both | Text_only | Conflict (_ : Claim.Relation.t)), _ -> ""
+           | (Both | Text_only | Conflict (_ : Claim.Relation.t)), _ ->
+             ""
          in
          printf
            "  %.2f%s [%s]%s  %s  <->  %s\n"
@@ -242,8 +243,7 @@ let print_coverage comparisons =
              String.compare
              ~f:(fun (c : Matcher.Comparison.t) -> c.deciding))
       |> List.map ~f:(fun cause ->
-        [%string
-          "%{List.length cause#Int}x %{(List.hd_exn cause).deciding}"])
+        [%string "%{List.length cause#Int}x %{(List.hd_exn cause).deciding}"])
       |> String.concat ~sep:", "
     in
     printf
@@ -285,8 +285,8 @@ module Golden = struct
     }
   ;;
 
-  (* Neither pairs are millions of junk collisions; the golden set holds
-     the pairs a human can hold labels for. *)
+  (* Neither pairs are millions of junk collisions; the golden set holds the
+     pairs a human can hold labels for. *)
   let worth_freezing (comparison : Matcher.Comparison.t) =
     match comparison.bucket with
     | Both | Claims_only | Text_only | Conflict (_ : Claim.Relation.t) ->
@@ -305,8 +305,8 @@ module Golden = struct
   ;;
 
   (* Regressions (verdict changed) and disappearances (pair gone) print
-     separately; pairs new since the freeze are already visible in the
-     report buckets above. *)
+     separately; pairs new since the freeze are already visible in the report
+     buckets above. *)
   let diff ~file comparisons =
     let%map.Deferred contents = Reader.file_contents file in
     let golden = t_of_sexp (Sexp.of_string contents) in
@@ -390,9 +390,26 @@ let compare_command =
          ~doc:
            " freeze this run's non-Neither pairs to the golden file (edit \
             the labels afterwards; they are this run's verdicts)"
+     and snapshot =
+       flag
+         "-snapshot"
+         (optional string)
+         ~doc:
+           "FILE with -full: read the fetched markets from FILE if it \
+            exists, else fetch and save them there — so matching can rerun \
+            in seconds while tuning parsers, without refetching"
      in
      fun () ->
        let open Deferred.Or_error.Let_syntax in
+       let stopwatch = ref (Time_ns.now ()) in
+       let lap label =
+         let now = Time_ns.now () in
+         eprintf
+           !"timing: %s took %{Time_ns.Span}\n"
+           label
+           (Time_ns.diff now !stopwatch);
+         stopwatch := now
+       in
        let%bind comparisons =
          if not full
          then
@@ -417,14 +434,52 @@ let compare_command =
                (List.length stubs);
              stubs
            in
-           let%bind kalshi = fetch Kalshi in
-           let%bind poly = fetch Polymarket in
-           return
-             (Matcher.compare_pipelines
-                ~threshold
-                ~apply_veto:true
-                kalshi
-                poly))
+           let%bind kalshi, poly =
+             let fetch_both () =
+               let%bind kalshi = fetch Kalshi in
+               let%bind poly = fetch Polymarket in
+               return (kalshi, poly)
+             in
+             match snapshot with
+             | None -> fetch_both ()
+             | Some file ->
+               (match%bind.Deferred Sys.file_exists file with
+                | `Yes ->
+                  let%bind.Deferred contents = Reader.file_contents file in
+                  let kalshi, poly =
+                    [%of_sexp: Market_stub.t list * Market_stub.t list]
+                      (Sexp.of_string contents)
+                  in
+                  printf
+                    "snapshot: %d Kalshi / %d Polymarket markets from %s\n"
+                    (List.length kalshi)
+                    (List.length poly)
+                    file;
+                  return (kalshi, poly)
+                | `No | `Unknown ->
+                  let%bind markets = fetch_both () in
+                  let%bind.Deferred () =
+                    Writer.save
+                      file
+                      ~contents:
+                        (Sexp.to_string
+                           [%sexp
+                             (markets
+                              : Market_stub.t list * Market_stub.t list)])
+                  in
+                  printf "snapshot: saved to %s\n" file;
+                  return markets)
+           in
+           lap "fetch/load";
+           let comparisons =
+             Matcher.compare_pipelines
+               ~threshold
+               ~apply_veto:true
+               kalshi
+               poly
+           in
+           lap "match";
+           return comparisons)
        in
        let both, claims_only, text_only, conflicts, neither =
          List.fold
@@ -477,8 +532,7 @@ let compare_command =
        then Deferred.ok (Golden.write ~file:golden_file comparisons)
        else (
          match%bind.Deferred Sys.file_exists golden_file with
-         | `Yes ->
-           Deferred.ok (Golden.diff ~file:golden_file comparisons)
+         | `Yes -> Deferred.ok (Golden.diff ~file:golden_file comparisons)
          | `No | `Unknown -> return ()))
 ;;
 

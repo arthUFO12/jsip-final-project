@@ -15,6 +15,7 @@
   pnl
   simulation
   bots
+  arbitrage
   protocol)
  (preprocess
   (pps ppx_jane)))
