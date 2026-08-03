@@ -181,6 +181,13 @@ let http_handler ~client_js =
 
 let serve ~port ~db_name ~client_js =
   let open Deferred.Or_error.Let_syntax in
+  (* Caqti's sqlite URI reads a relative path as a host component, so anchor
+     the file to the working directory first — same as the arbitrage CLI's
+     store setup. *)
+  let%bind cwd = Deferred.ok (Sys.getcwd ()) in
+  let db_name =
+    if Filename.is_absolute db_name then db_name else cwd ^/ db_name
+  in
   let%bind () = Deferred.return (Database_exec.init_database db_name) in
   let%bind () = Database_exec.create_market_stub_table () in
   let%bind () = Database_exec.create_pair_proposal_table () in
@@ -266,6 +273,68 @@ let check_rpc_command =
       fun () -> check_rpc ~port]
 ;;
 
+(* Dispatches the arbitrage RPCs the same way the Arbitrage page does, so the
+   pipeline surface is testable headlessly: list two statuses, then one live
+   edge scan of the approved pairs. *)
+let check_arb ~port =
+  let open Deferred.Or_error.Let_syntax in
+  let uri = Uri.of_string [%string "ws://localhost:%{port#Int}/"] in
+  let%bind connection = Rpc_websocket.Rpc.client uri in
+  let%bind () =
+    Deferred.Or_error.List.iter
+      ~how:`Sequential
+      Protocol.Pair_status.all
+      ~f:(fun status ->
+        let%bind pairs =
+          Rpc.Rpc.dispatch Protocol.get_pairs connection status
+          |> Deferred.map ~f:Or_error.join
+        in
+        printf
+          "get-pairs %s: %d\n"
+          (Protocol.Pair_status.name status)
+          (List.length pairs);
+        return ())
+  in
+  let%bind report =
+    Rpc.Rpc.dispatch Protocol.scan_edges connection ()
+    |> Deferred.map ~f:Or_error.join
+  in
+  printf
+    "scan-edges: %d pair(s), %d legs priced, %d tradable\n"
+    report.pairs
+    report.legs_priced
+    report.tradable;
+  List.iter report.edges ~f:(fun edge ->
+    printf
+      "  YES %s @ %s ask $%.2f  +  NO %s @ %s ask $%.2f  =  cost $%.2f, \
+       edge $%.2f%s\n"
+      edge.yes.title
+      edge.yes.venue
+      edge.yes.ask
+      edge.no.title
+      edge.no.venue
+      edge.no.ask
+      edge.cost
+      edge.edge
+      (if edge.tradable then "  TRADABLE" else ""));
+  return ()
+;;
+
+let check_arb_command =
+  Command.async_or_error
+    ~summary:
+      "Dispatch the arbitrage RPCs against a running server: pair counts by \
+       status, then one live edge scan"
+    [%map_open.Command
+      let port =
+        flag
+          "-port"
+          (optional_with_default 8080 int)
+          ~doc:"INT port the server listens on (default 8080)"
+      in
+      fun () -> check_arb ~port]
+;;
+
 (* Dispatches [run-simulation] the same way the bot builder does, so the
    whole parse -> fetch -> backtest pipeline is testable headlessly. *)
 let check_sim ~port ~slugs ~program ~lookback_days ~warmup_hours =
@@ -337,6 +406,7 @@ let command =
     ~summary:"The Arbiter web app server"
     [ "serve", serve_command
     ; "check-rpc", check_rpc_command
+    ; "check-arb", check_arb_command
     ; "check-sim", check_sim_command
     ]
 ;;
