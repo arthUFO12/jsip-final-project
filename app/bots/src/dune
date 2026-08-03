@@ -1,6 +1,6 @@
 (library
  (name bots)
  (public_name arbiter.bots)
- (libraries core async types market_data simulation)
+ (libraries core async types market_data simulation parser)
  (preprocess
   (pps ppx_jane)))

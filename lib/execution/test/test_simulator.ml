@@ -13,6 +13,7 @@ let stub ~venue ~id =
   ; category = Crypto
   ; created_time = Time_ns.epoch
   ; close_time = Time_ns.of_string "2030-01-01 00:00:00Z"
+  ; volume = None
   }
 ;;
 
@@ -124,7 +125,7 @@ let%expect_test "the simulator does not short: selling more than held is an \
          ((venue Kalshi) (market_id K1) (slug K1) (series_ticker ())
           (clob_token_id ()) (title "test market") (category Crypto)
           (created_time (1970-01-01 00:00:00.000000000Z))
-          (close_time (2030-01-01 00:00:00.000000000Z))))
+          (close_time (2030-01-01 00:00:00.000000000Z)) (volume ())))
         (contract No) (side Sell) (limit_price 30000000) (size 1)))))
     ((cash 1000000000) (yes 0) (no 0))
     |}];
@@ -158,7 +159,7 @@ let%expect_test "running out of simulated cash is an error, not a fill" =
          ((venue Kalshi) (market_id K1) (slug K1) (series_ticker ())
           (clob_token_id ()) (title "test market") (category Crypto)
           (created_time (1970-01-01 00:00:00.000000000Z))
-          (close_time (2030-01-01 00:00:00.000000000Z))))
+          (close_time (2030-01-01 00:00:00.000000000Z)) (volume ())))
         (contract Yes) (side Buy) (limit_price 45000000) (size 10)))))
     |}];
   return ()
@@ -261,7 +262,7 @@ let%expect_test "a limit below the ask rests in reality; the simulator only \
          ((venue Kalshi) (market_id K1) (slug K1) (series_ticker ())
           (clob_token_id ()) (title "test market") (category Crypto)
           (created_time (1970-01-01 00:00:00.000000000Z))
-          (close_time (2030-01-01 00:00:00.000000000Z))))
+          (close_time (2030-01-01 00:00:00.000000000Z)) (volume ())))
         (contract Yes) (side Buy) (limit_price 45000000) (size 10)))))
     |}];
   return ()
@@ -311,7 +312,7 @@ let%expect_test "no depth at the ask is a rejection, and so is any sell — \
          ((venue Kalshi) (market_id K1) (slug K1) (series_ticker ())
           (clob_token_id ()) (title "test market") (category Crypto)
           (created_time (1970-01-01 00:00:00.000000000Z))
-          (close_time (2030-01-01 00:00:00.000000000Z))))
+          (close_time (2030-01-01 00:00:00.000000000Z)) (volume ())))
         (contract Yes) (side Buy) (limit_price 52000000) (size 10)))))
     (rejected
      ("book-aware simulation cannot price sells: Binary_book carries ask depth only"
@@ -320,7 +321,7 @@ let%expect_test "no depth at the ask is a rejection, and so is any sell — \
          ((venue Kalshi) (market_id K1) (slug K1) (series_ticker ())
           (clob_token_id ()) (title "test market") (category Crypto)
           (created_time (1970-01-01 00:00:00.000000000Z))
-          (close_time (2030-01-01 00:00:00.000000000Z))))
+          (close_time (2030-01-01 00:00:00.000000000Z)) (volume ())))
         (contract Yes) (side Sell) (limit_price 52000000) (size 10)))))
     |}];
   return ()

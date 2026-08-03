@@ -29,3 +29,37 @@ val run
   :  Market_stub.t list
   -> packed_bot
   -> Action_summary.t Deferred.Or_error.t
+
+(** Everything a caller needs to replay a finished simulation: the book after
+    every tick (warmup included), every action response in fill order, and
+    where warmup ended. *)
+module Recording : sig
+  module Tick : sig
+    type t =
+      { time : Time_ns.t
+      ; cash : Price.t
+      ; realized_pnl : Price.t
+      ; unrealized_pnl : Price.t
+      ; yes_prices : Price.t Slug.Table.t
+      (** Marked Yes price per market on this tick. *)
+      }
+  end
+
+  type t =
+    { ticks : Tick.t list
+    ; responses : Action_response.t list
+    ; sim_start : Time_ns.t
+    (** First non-warmup tick; earlier ticks carry prices but no trading. *)
+    ; summary : Action_summary.t
+    }
+end
+
+(** [run] with the per-tick history kept instead of discarded — same
+    fetching, same error cases. *)
+val run_recorded
+  :  Market_stub.t list
+  -> packed_bot
+  -> Recording.t Deferred.Or_error.t
+
+(** The bot-facing snapshot of a pnl book, as passed to [on_response]. *)
+val summarize : Pnl.t -> Action_summary.t

@@ -30,3 +30,10 @@ val interpolate
   -> finish:Time_ns.t
   -> interval:Interval.t
   -> t Or_error.t
+
+(** The window where every fetched market has data: latest first entry to
+    earliest last entry. Errors when a series is empty or the windows do not
+    overlap. *)
+val shared_window
+  :  (Market_stub.t * t) list
+  -> (Time_ns.t * Time_ns.t) Or_error.t

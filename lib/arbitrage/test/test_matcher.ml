@@ -24,6 +24,7 @@ let stub
   ; category
   ; created_time = Time_ns.epoch
   ; close_time
+  ; volume = None
   }
 ;;
 

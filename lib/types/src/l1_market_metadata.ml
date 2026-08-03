@@ -37,5 +37,6 @@ let to_market_stub t : Market_stub.t =
   ; category = t.category
   ; created_time = t.created_time
   ; close_time = t.close_time
+  ; volume = t.volume
   }
 ;;

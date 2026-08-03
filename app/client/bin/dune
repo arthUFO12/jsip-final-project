@@ -1,0 +1,18 @@
+(executable
+ (name main)
+ (modes js)
+ (js_of_ocaml
+  (flags
+   (:standard --effects=cps)))
+ (libraries
+  core
+  bonsai
+  bonsai_web
+  virtual_dom
+  async_js
+  types
+  protocol
+  autocomplete
+  client_logic)
+ (preprocess
+  (pps ppx_jane bonsai.ppx_bonsai js_of_ocaml-ppx)))

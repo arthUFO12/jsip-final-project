@@ -125,12 +125,12 @@ let%expect_test "confirm_pairs in Text_only mode is pure matcher output" =
        ((venue Kalshi) (market_id K1) (slug K1) (series_ticker ())
         (clob_token_id ()) (title "Will BTC hit $100k?") (category Crypto)
         (created_time (1970-01-01 00:00:00.000000000Z))
-        (close_time (2030-01-01 00:00:00.000000000Z))))
+        (close_time (2030-01-01 00:00:00.000000000Z)) (volume ())))
       (right
        ((venue Polymarket) (market_id P1) (slug P1) (series_ticker ())
         (clob_token_id ()) (title "will btc hit 100k") (category Crypto)
         (created_time (1970-01-01 00:00:00.000000000Z))
-        (close_time (2030-01-01 00:00:00.000000000Z))))))
+        (close_time (2030-01-01 00:00:00.000000000Z)) (volume ())))))
     |}];
   return ()
 ;;
@@ -171,12 +171,12 @@ let%expect_test "confirm_pairs in Llm_assisted mode keeps only pairs the \
        ((venue Kalshi) (market_id K1) (slug K1) (series_ticker ())
         (clob_token_id ()) (title "Will BTC hit $100k?") (category Crypto)
         (created_time (1970-01-01 00:00:00.000000000Z))
-        (close_time (2030-01-01 00:00:00.000000000Z))))
+        (close_time (2030-01-01 00:00:00.000000000Z)) (volume ())))
       (right
        ((venue Polymarket) (market_id P1) (slug P1) (series_ticker ())
         (clob_token_id ()) (title "will btc hit 100k") (category Crypto)
         (created_time (1970-01-01 00:00:00.000000000Z))
-        (close_time (2030-01-01 00:00:00.000000000Z))))))
+        (close_time (2030-01-01 00:00:00.000000000Z)) (volume ())))))
     |}];
   return ()
 ;;

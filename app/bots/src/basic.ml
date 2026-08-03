@@ -87,6 +87,7 @@ module Config = struct
         ~venue:Kalshi
         ~closed:false
         ~limit:market_fetch_limit
+        ()
     in
     let%bind stubs = Deferred.return (choose_markets metadata) in
     let%bind () = Fetch_time_series.update_kalshi_historical_cutoff () in
@@ -172,7 +173,6 @@ module Bot : Bot_interface.Bot with type Config.t = Config.t = struct
       Some
         (Action.Generator.new_action
            state.generator
-           ~name:"do something"
            ~size:
              (Random.State.int_incl state.rng 1 config.max_size
               |> Size.of_int)
@@ -186,9 +186,7 @@ module Bot : Bot_interface.Bot with type Config.t = Config.t = struct
     List.filter_map (Hashtbl.keys data) ~f:(decide_trade config state)
   ;;
 
-  let action_string
-    ({ name = _; size; side; slug; contract_type; id } : Action.t)
-    =
+  let action_string ({ size; side; slug; contract_type; id } : Action.t) =
     let side = match side with Buy -> "buy" | Sell -> "sell" in
     let contract = match contract_type with Yes -> "yes" | No -> "no" in
     [%string "#%{id#Int} %{side} %{size#Size} %{contract} on %{slug#Slug}"]

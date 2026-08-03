@@ -48,12 +48,14 @@ let main () =
       ~venue:Kalshi
       ~closed:false
       ~limit:scan_limit
+      ()
   in
   let%bind poly =
     Market_data.Market_data_gateway.fetch_l1_market_data
       ~venue:Polymarket
       ~closed:false
       ~limit:scan_limit
+      ()
   in
   let stubs markets =
     List.map markets ~f:L1_market_metadata.to_market_stub

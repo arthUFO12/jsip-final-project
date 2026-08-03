@@ -16,6 +16,7 @@ let stub ~venue ~id ~title ~category =
   ; category
   ; created_time = Time_ns.epoch
   ; close_time = Time_ns.of_string "2030-01-01 00:00:00Z"
+  ; volume = None
   }
 ;;
 

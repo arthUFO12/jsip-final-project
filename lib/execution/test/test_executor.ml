@@ -13,6 +13,7 @@ let stub ~venue ~id =
   ; category = Crypto
   ; created_time = Time_ns.epoch
   ; close_time = Time_ns.of_string "2030-01-01 00:00:00Z"
+  ; volume = None
   }
 ;;
 
@@ -75,7 +76,7 @@ let%expect_test "a live executor refuses polymarket orders outright — no \
          ((venue Polymarket) (market_id P1) (slug P1) (series_ticker ())
           (clob_token_id ()) (title "test market") (category Crypto)
           (created_time (1970-01-01 00:00:00.000000000Z))
-          (close_time (2030-01-01 00:00:00.000000000Z))))
+          (close_time (2030-01-01 00:00:00.000000000Z)) (volume ())))
         (contract Yes) (side Buy) (limit_price 45000000) (size 10)))))
     |}];
   return ()
