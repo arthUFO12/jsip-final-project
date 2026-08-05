@@ -1,0 +1,43 @@
+<!-- @dsCard group="Forms" -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Buttons</title>
+<link rel="stylesheet" href="../tokens.css">
+<link rel="stylesheet" href="../kit.css">
+<!-- Class names are API — restyle, never rename. -->
+<style> body { padding: 24px; } .ds-label { color: var(--ink-faint); font-size: 11px; font-family: var(--font-mono); margin: 22px 0 8px; } .ds-label:first-child { margin-top: 0; } .ds-row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; } </style>
+</head>
+<body>
+  <p class="ds-label">.btn-primary — the one confirming action per view</p>
+  <div class="ds-row">
+    <button class="btn-primary">Run backtest</button>
+    <button class="btn-primary" disabled>Run backtest</button>
+    <button class="btn-primary">Fire Kalshi hedge (max 44c)</button>
+  </div>
+
+  <p class="ds-label">.btn-secondary — everything else</p>
+  <div class="ds-row">
+    <button class="btn-secondary">Back</button>
+    <button class="btn-secondary" disabled>Back</button>
+    <button class="btn-secondary">show all 42 trades</button>
+    <button class="btn-secondary">I traded this</button>
+  </div>
+
+  <p class="ds-label">.nav-button — page pills (also used as tab buttons via .btn-*)</p>
+  <div class="ds-row">
+    <button class="nav-button">Markets</button>
+    <button class="nav-button nav-button-active">Bots</button>
+  </div>
+
+  <p class="ds-label">.chip-remove / .rule-edit — glyph buttons (hover: red / sky)</p>
+  <div class="ds-row">
+    <div class="chip">KXFEDDECISION-26MAR <button class="chip-remove">✕</button></div>
+    <div class="rule-entry" style="min-width:280px"><span>every 2h buy 1 fed_mar yes</span>
+      <div class="entry-buttons"><button class="rule-edit">✎</button><button class="chip-remove">✕</button></div>
+    </div>
+  </div>
+</body>
+</html>

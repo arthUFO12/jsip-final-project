@@ -1,0 +1,43 @@
+<!-- @dsCard group="Feedback" -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Empty & loading states</title>
+<link rel="stylesheet" href="../tokens.css">
+<link rel="stylesheet" href="../kit.css">
+<!-- Where the personality lives. This app is half paper-money playground —
+     empty and loading states may be warm and encouraging. (Whimsy stops at
+     numbers, errors, and anything in the hedge/wallet real-money path.)
+     Current copy shown as-is; the design pass may restyle these moments.
+     Class names are API — restyle, never rename. -->
+<style> body { padding: 24px; max-width: 680px; } .ds-label { color: var(--ink-faint); font-size: 11px; font-family: var(--font-mono); margin: 22px 0 8px; } .ds-label:first-child { margin-top: 0; } </style>
+</head>
+<body>
+  <p class="ds-label">page loading</p>
+  <div class="status">loading markets...</div>
+
+  <p class="ds-label">wizard: nothing yet</p>
+  <p class="status">no rules yet</p>
+  <p class="status">nothing run yet</p>
+
+  <p class="ds-label">results: no trades</p>
+  <p class="status">the bot made no trades</p>
+
+  <p class="ds-label">review: empty tab</p>
+  <div class="status">no Approved pairs</div>
+
+  <p class="ds-label">markets: empty after a purge</p>
+  <div class="status">no category has enough markets to show</div>
+
+  <p class="ds-label">long-running jobs (sweep / LLM review / backtest)</p>
+  <div class="arb-summary">sweeping both venues' full listings — this pages through every open market, give it a minute or two...</div>
+  <div class="arb-summary">the analyst is reading the proposed queue — one pair per API call, so a long queue takes a few minutes...</div>
+
+  <p class="ds-label">wallet scoreboard hint — the "for fun" voice</p>
+  <div class="arb-wallet">
+    <p class="arb-wallet-hint">🏦 Every tradable edge a scan finds is booked here at edge × depth, as if you'd taken all of it. Use a card's "trade it" links to place the legs for real, then hit "I traded this" to move the money from make-believe to banked.</p>
+  </div>
+</body>
+</html>

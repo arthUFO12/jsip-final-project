@@ -1,0 +1,46 @@
+<!-- @dsCard group="Feedback" -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Status & errors</title>
+<link rel="stylesheet" href="../tokens.css">
+<link rel="stylesheet" href="../kit.css">
+<!-- Every request-status treatment: quiet .status, mono .error-box (parse and
+     server errors), and the NEW .error-banner with retry + dismiss (sweep /
+     scan / auto-review failures previously vanished silently).
+     Class names are API — restyle, never rename. -->
+<style> body { padding: 24px; max-width: 680px; } .ds-label { color: var(--ink-faint); font-size: 11px; font-family: var(--font-mono); margin: 22px 0 8px; } .ds-label:first-child { margin-top: 0; } </style>
+</head>
+<body>
+  <p class="ds-label">.status — quiet progress line</p>
+  <div class="status">running backtest — fetching live Kalshi history, this takes a few seconds...</div>
+
+  <p class="ds-label">.arb-summary — result line after a background job</p>
+  <div class="arb-summary">read 214 Kalshi and 187 Polymarket markets; filed 9 new pair(s) for review</div>
+
+  <p class="ds-label">.error-box — mono block for parse/server errors (Bots page)</p>
+  <div class="error-box">parse error at line 2: unknown ticker "fed_marc" — did you mean fed_mar?</div>
+
+  <p class="ds-label">NEW: .error-banner — dismissible failure with retry (background requests)</p>
+  <div class="error-banner">
+    <div class="error-banner-text">sweep failed: Kalshi returned 503 — the venue is rate-limiting; wait a moment and retry</div>
+    <button class="btn-secondary">Retry</button>
+    <button class="chip-remove">✕</button>
+  </div>
+
+  <p class="ds-label">.arb-disclaimer — amber warning ink inside explainers</p>
+  <div class="arb-explainer">
+    <p class="arb-disclaimer">⚠ Tokens aren't free: every adjudication bills your key, and that spend comes out of the same pocket your edge pays into.</p>
+  </div>
+
+  <p class="ds-label">.arb-onesided — the serious one: unhedged position</p>
+  <div class="arb-onesided">⚠ PARTIAL: you are still one-sided by 3 contract(s) — the book ran out of depth. Manage the remainder by hand.</div>
+
+  <p class="ds-label">.wallet-disclaimer — amber legal panel</p>
+  <div class="wallet-disclaimer">
+    <p>Connecting a key lets this app place real orders on your Kalshi account, spending real money, entirely at your own risk. Nothing here is financial advice.</p>
+  </div>
+</body>
+</html>

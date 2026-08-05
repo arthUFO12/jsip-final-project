@@ -34,3 +34,35 @@ let%expect_test "labels are compact" =
     120.00
     |}]
 ;;
+
+let%expect_test "unscale_x inverts scale_x" =
+  let range : Chart.Range.t = { lo = 10.; hi = 30. } in
+  List.iter [ 10.; 17.5; 30. ] ~f:(fun value ->
+    let pixel = Chart.scale_x range ~extent:640. value in
+    let round_trip = Chart.unscale_x range ~extent:640. pixel in
+    print_s [%message (value : float) (pixel : float) (round_trip : float)]);
+  [%expect
+    {|
+    ((value 10) (pixel 0) (round_trip 10))
+    ((value 17.5) (pixel 240) (round_trip 17.5))
+    ((value 30) (pixel 640) (round_trip 30))
+    |}]
+;;
+
+let%expect_test "nearest snaps to the closest x, ends included" =
+  let points = [| 0., 10.; 5., 20.; 10., 30. |] in
+  List.iter [ -3.; 2.4; 2.6; 5.; 9.; 40. ] ~f:(fun x ->
+    print_s
+      [%sexp (Chart.nearest points ~x : (float * float) option)]);
+  [%expect
+    {|
+    ((0 10))
+    ((0 10))
+    ((5 20))
+    ((5 20))
+    ((10 30))
+    ((10 30))
+    |}];
+  print_s [%sexp (Chart.nearest [||] ~x:1. : (float * float) option)];
+  [%expect {| () |}]
+;;

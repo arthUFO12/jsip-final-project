@@ -1,0 +1,46 @@
+<!-- @dsCard group="Data Display" -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Market detail modal</title>
+<link rel="stylesheet" href="../tokens.css">
+<link rel="stylesheet" href="../kit.css">
+<!-- Opens when a history-capable market card is clicked: backdrop scrim,
+     panel with title + Close, stat tiles, price/volume charts.
+     DOM byte-matches main.ml market_detail_modal. Class names are API. -->
+</head>
+<body>
+  <div class="modal-backdrop">
+    <div class="modal">
+      <div class="modal-header">
+        <h2 class="stage-title">Fed decision in March? 25bp cut</h2>
+        <button class="btn-secondary">Close</button>
+      </div>
+      <div>
+        <div class="stats-grid">
+          <div class="stat-tile"><div class="stat-label">current price</div><div class="stat-value">$0.42</div></div>
+          <div class="stat-tile"><div class="stat-label">volatility</div><div class="stat-value">$0.031</div></div>
+          <div class="stat-tile"><div class="stat-label">total volume</div><div class="stat-value">128,450 contracts</div></div>
+          <div class="stat-tile"><div class="stat-label">24h volume</div><div class="stat-value">2,140 contracts</div></div>
+        </div>
+        <div class="chart-box">
+          <h3 class="chart-title">yes price (dollars)</h3>
+          <svg class="chart-svg" viewBox="0 0 640 260" role="img" aria-label="yes price over time">
+            <line class="chart-gridline" x1="40" y1="8"   x2="632" y2="8"></line>
+            <line class="chart-gridline" x1="40" y1="120" x2="632" y2="120"></line>
+            <line class="chart-gridline" x1="40" y1="232" x2="632" y2="232"></line>
+            <text class="chart-tick" x="34" y="12"  text-anchor="end">$1.00</text>
+            <text class="chart-tick" x="34" y="124" text-anchor="end">$0.50</text>
+            <text class="chart-tick" x="34" y="236" text-anchor="end">$0.00</text>
+            <text class="chart-tick" x="60"  y="252" text-anchor="middle">Jul 1</text>
+            <text class="chart-tick" x="612" y="252" text-anchor="middle">Jul 15</text>
+            <g class="series-1"><polyline class="chart-line" points="40,150 120,142 200,148 280,132 360,120 440,128 520,108 600,100 632,96"></polyline></g>
+          </svg>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

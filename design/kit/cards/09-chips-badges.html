@@ -1,0 +1,45 @@
+<!-- @dsCard group="Data Display" -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chips & badges</title>
+<link rel="stylesheet" href="../tokens.css">
+<link rel="stylesheet" href="../kit.css">
+<!-- Class names are API — restyle, never rename. -->
+<style> body { padding: 24px; } .ds-label { color: var(--ink-faint); font-size: 11px; font-family: var(--font-mono); margin: 22px 0 8px; } .ds-label:first-child { margin-top: 0; } .ds-row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; } </style>
+</head>
+<body>
+  <p class="ds-label">.chips / .chip — selected markets (with and without remove)</p>
+  <div class="chips">
+    <div class="chip">KXFEDDECISION-26MAR <button class="chip-remove">✕</button></div>
+    <div class="chip">KXBTC-26DEC-100K <button class="chip-remove">✕</button></div>
+    <div class="chip">KXRECESSION-26</div>
+  </div>
+
+  <p class="ds-label">.volume-badge</p>
+  <div class="ds-row"><span class="volume-badge">128,450 contracts</span><span class="volume-badge">$2,431,220 traded</span><span class="volume-badge">volume unreported</span></div>
+
+  <p class="ds-label">.arb-venue — venue chips</p>
+  <div class="ds-row"><span class="arb-venue">Kalshi</span><span class="arb-venue">Polymarket</span></div>
+
+  <p class="ds-label">.arb-score — text-match score</p>
+  <div class="ds-row"><span class="arb-score">0.87</span><span class="arb-score">0.42</span></div>
+
+  <p class="ds-label">.arb-acted-badge</p>
+  <div class="ds-row"><span class="arb-acted-badge">✓ traded</span><span class="arb-acted-badge">✓ traded for real</span></div>
+
+  <p class="ds-label">.wallet-badge — key environment</p>
+  <div class="ds-row">
+    <span class="wallet-badge wallet-badge-demo">demo - pretend money</span>
+    <span class="wallet-badge wallet-badge-prod">production - real money</span>
+  </div>
+
+  <p class="ds-label">.fill-accepted / .fill-rejected — trade status ink</p>
+  <div class="ds-row"><span class="fill-accepted">accepted</span><span class="fill-rejected">REJECTED: insufficient cash</span></div>
+
+  <p class="ds-label">.arb-edge-positive / .arb-edge-negative — signed money ink</p>
+  <div class="ds-row"><span class="arb-edge-math"><span class="arb-edge-positive">$0.04</span></span><span class="arb-edge-math"><span class="arb-edge-negative">-$0.02</span></span></div>
+</body>
+</html>

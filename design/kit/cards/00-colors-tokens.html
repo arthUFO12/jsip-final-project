@@ -1,0 +1,110 @@
+<!-- @dsCard group="Foundations" -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Color tokens</title>
+<link rel="stylesheet" href="../tokens.css">
+<link rel="stylesheet" href="../kit.css">
+<!-- Edits belong in tokens.css / kit.css. ds-* classes are card-only demo chrome. -->
+<style>
+  body { padding: 24px; }
+  .ds-section { margin: 0 0 22px; }
+  .ds-heading { color: var(--ink-muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; margin: 0 0 10px; }
+  .ds-row { display: flex; flex-wrap: wrap; gap: 10px; }
+  .ds-swatch { width: 132px; border: 1px solid var(--border-soft); border-radius: 10px; overflow: hidden; background: var(--panel); }
+  .ds-chip { height: 44px; }
+  .ds-meta { padding: 6px 10px; font-size: 11px; }
+  .ds-name { color: var(--ink); }
+  .ds-var { color: var(--ink-faint); font-family: var(--font-mono); }
+  .ds-gradient-a { background: linear-gradient(90deg, var(--brand-a), var(--brand-b)); }
+  .ds-gradient-b { background: linear-gradient(90deg, var(--brand-strong-a), var(--brand-strong-b)); }
+</style>
+</head>
+<body>
+  <div class="ds-section">
+    <p class="ds-heading">Surfaces (back to front)</p>
+    <div class="ds-row">
+      <div class="ds-swatch"><div class="ds-chip" style="background:var(--bg-base)"></div><div class="ds-meta"><div class="ds-name">page base</div><div class="ds-var">--bg-base</div></div></div>
+      <div class="ds-swatch"><div class="ds-chip" style="background:var(--bg-glow)"></div><div class="ds-meta"><div class="ds-name">header glow</div><div class="ds-var">--bg-glow</div></div></div>
+      <div class="ds-swatch"><div class="ds-chip" style="background:var(--panel)"></div><div class="ds-meta"><div class="ds-name">panel</div><div class="ds-var">--panel</div></div></div>
+      <div class="ds-swatch"><div class="ds-chip" style="background:var(--panel-deep)"></div><div class="ds-meta"><div class="ds-name">panel deep</div><div class="ds-var">--panel-deep</div></div></div>
+      <div class="ds-swatch"><div class="ds-chip" style="background:var(--panel-raised)"></div><div class="ds-meta"><div class="ds-name">panel raised</div><div class="ds-var">--panel-raised</div></div></div>
+      <div class="ds-swatch"><div class="ds-chip" style="background:var(--chip-bg)"></div><div class="ds-meta"><div class="ds-name">chip</div><div class="ds-var">--chip-bg</div></div></div>
+    </div>
+  </div>
+
+  <div class="ds-section">
+    <p class="ds-heading">Ink</p>
+    <div class="ds-row">
+      <div class="ds-swatch"><div class="ds-chip" style="background:var(--ink)"></div><div class="ds-meta"><div class="ds-name">primary</div><div class="ds-var">--ink</div></div></div>
+      <div class="ds-swatch"><div class="ds-chip" style="background:var(--ink-body)"></div><div class="ds-meta"><div class="ds-name">body</div><div class="ds-var">--ink-body</div></div></div>
+      <div class="ds-swatch"><div class="ds-chip" style="background:var(--ink-soft)"></div><div class="ds-meta"><div class="ds-name">soft</div><div class="ds-var">--ink-soft</div></div></div>
+      <div class="ds-swatch"><div class="ds-chip" style="background:var(--ink-muted)"></div><div class="ds-meta"><div class="ds-name">muted</div><div class="ds-var">--ink-muted</div></div></div>
+      <div class="ds-swatch"><div class="ds-chip" style="background:var(--ink-faint)"></div><div class="ds-meta"><div class="ds-name">faint</div><div class="ds-var">--ink-faint</div></div></div>
+      <div class="ds-swatch"><div class="ds-chip" style="background:var(--ink-ghost)"></div><div class="ds-meta"><div class="ds-name">ghost</div><div class="ds-var">--ink-ghost</div></div></div>
+    </div>
+  </div>
+
+  <div class="ds-section">
+    <p class="ds-heading">Brand gradients &amp; accent</p>
+    <div class="ds-row">
+      <div class="ds-swatch" style="width:200px"><div class="ds-chip ds-gradient-a"></div><div class="ds-meta"><div class="ds-name">brand text / badges</div><div class="ds-var">--brand-a → --brand-b</div></div></div>
+      <div class="ds-swatch" style="width:200px"><div class="ds-chip ds-gradient-b"></div><div class="ds-meta"><div class="ds-name">filled buttons / active nav</div><div class="ds-var">--brand-strong-a → --brand-strong-b</div></div></div>
+      <div class="ds-swatch"><div class="ds-chip" style="background:var(--accent)"></div><div class="ds-meta"><div class="ds-name">accent / focus</div><div class="ds-var">--accent</div></div></div>
+      <div class="ds-swatch"><div class="ds-chip" style="background:var(--accent-alt)"></div><div class="ds-meta"><div class="ds-name">card hover</div><div class="ds-var">--accent-alt</div></div></div>
+    </div>
+  </div>
+
+  <div class="ds-section">
+    <p class="ds-heading">Status (UI state — never chart series)</p>
+    <div class="ds-row">
+      <div class="ds-swatch"><div class="ds-chip" style="background:var(--pos)"></div><div class="ds-meta"><div class="ds-name">positive</div><div class="ds-var">--pos</div></div></div>
+      <div class="ds-swatch"><div class="ds-chip" style="background:var(--neg)"></div><div class="ds-meta"><div class="ds-name">negative</div><div class="ds-var">--neg</div></div></div>
+      <div class="ds-swatch"><div class="ds-chip" style="background:var(--warn)"></div><div class="ds-meta"><div class="ds-name">warning</div><div class="ds-var">--warn</div></div></div>
+      <div class="ds-swatch"><div class="ds-chip" style="background:var(--neg-bg)"></div><div class="ds-meta"><div class="ds-name">negative bg</div><div class="ds-var">--neg-bg</div></div></div>
+      <div class="ds-swatch"><div class="ds-chip" style="background:var(--warn-bg)"></div><div class="ds-meta"><div class="ds-name">warning bg</div><div class="ds-var">--warn-bg</div></div></div>
+      <div class="ds-swatch"><div class="ds-chip" style="background:var(--pos-bg)"></div><div class="ds-meta"><div class="ds-name">positive bg</div><div class="ds-var">--pos-bg</div></div></div>
+    </div>
+  </div>
+
+  <div class="ds-section">
+    <p class="ds-heading">Chart series (validated palette — keep it passing, see chart card)</p>
+    <div class="ds-row">
+      <div class="ds-swatch"><div class="ds-chip" style="background:var(--series-1)"></div><div class="ds-meta"><div class="ds-name">series 1 · blue</div><div class="ds-var">--series-1</div></div></div>
+      <div class="ds-swatch"><div class="ds-chip" style="background:var(--series-2)"></div><div class="ds-meta"><div class="ds-name">series 2 · teal</div><div class="ds-var">--series-2</div></div></div>
+      <div class="ds-swatch"><div class="ds-chip" style="background:var(--series-3)"></div><div class="ds-meta"><div class="ds-name">series 3 · violet</div><div class="ds-var">--series-3</div></div></div>
+      <div class="ds-swatch"><div class="ds-chip" style="background:var(--series-4)"></div><div class="ds-meta"><div class="ds-name">series 4 · amber</div><div class="ds-var">--series-4</div></div></div>
+      <div class="ds-swatch"><div class="ds-chip" style="background:var(--series-5)"></div><div class="ds-meta"><div class="ds-name">series 5 · magenta</div><div class="ds-var">--series-5</div></div></div>
+    </div>
+  </div>
+
+  <div class="ds-section">
+    <p class="ds-heading">Category accents (12, fixed)</p>
+    <div class="ds-row">
+      <div class="ds-swatch"><div class="ds-chip cat-elections"></div><div class="ds-meta"><div class="ds-name">Elections</div><div class="ds-var">--cat-elections</div></div></div>
+      <div class="ds-swatch"><div class="ds-chip cat-politics"></div><div class="ds-meta"><div class="ds-name">Politics</div><div class="ds-var">--cat-politics</div></div></div>
+      <div class="ds-swatch"><div class="ds-chip cat-sports"></div><div class="ds-meta"><div class="ds-name">Sports</div><div class="ds-var">--cat-sports</div></div></div>
+      <div class="ds-swatch"><div class="ds-chip cat-culture"></div><div class="ds-meta"><div class="ds-name">Culture</div><div class="ds-var">--cat-culture</div></div></div>
+      <div class="ds-swatch"><div class="ds-chip cat-crypto"></div><div class="ds-meta"><div class="ds-name">Crypto</div><div class="ds-var">--cat-crypto</div></div></div>
+      <div class="ds-swatch"><div class="ds-chip cat-commodities"></div><div class="ds-meta"><div class="ds-name">Commodities</div><div class="ds-var">--cat-commodities</div></div></div>
+      <div class="ds-swatch"><div class="ds-chip cat-climate"></div><div class="ds-meta"><div class="ds-name">Climate</div><div class="ds-var">--cat-climate</div></div></div>
+      <div class="ds-swatch"><div class="ds-chip cat-economy"></div><div class="ds-meta"><div class="ds-name">Economy</div><div class="ds-var">--cat-economy</div></div></div>
+      <div class="ds-swatch"><div class="ds-chip cat-mentions"></div><div class="ds-meta"><div class="ds-name">Mentions</div><div class="ds-var">--cat-mentions</div></div></div>
+      <div class="ds-swatch"><div class="ds-chip cat-finance"></div><div class="ds-meta"><div class="ds-name">Finance</div><div class="ds-var">--cat-finance</div></div></div>
+      <div class="ds-swatch"><div class="ds-chip cat-tech"></div><div class="ds-meta"><div class="ds-name">Tech</div><div class="ds-var">--cat-tech</div></div></div>
+      <div class="ds-swatch"><div class="ds-chip cat-miscellaneous"></div><div class="ds-meta"><div class="ds-name">Miscellaneous</div><div class="ds-var">--cat-miscellaneous</div></div></div>
+    </div>
+  </div>
+
+  <div class="ds-section">
+    <p class="ds-heading">Borders</p>
+    <div class="ds-row">
+      <div class="ds-swatch"><div class="ds-chip" style="background:var(--border)"></div><div class="ds-meta"><div class="ds-name">control border</div><div class="ds-var">--border</div></div></div>
+      <div class="ds-swatch"><div class="ds-chip" style="background:var(--border-soft)"></div><div class="ds-meta"><div class="ds-name">panel border</div><div class="ds-var">--border-soft</div></div></div>
+      <div class="ds-swatch"><div class="ds-chip" style="background:var(--divider)"></div><div class="ds-meta"><div class="ds-name">divider</div><div class="ds-var">--divider</div></div></div>
+    </div>
+  </div>
+</body>
+</html>

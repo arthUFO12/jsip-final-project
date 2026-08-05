@@ -1,0 +1,72 @@
+<!-- @dsCard group="Forms" -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rule editor (4-column layout)</title>
+<link rel="stylesheet" href="../tokens.css">
+<link rel="stylesheet" href="../kit.css">
+<!-- The Bots wizard Rules stage: config / define / rules / variables columns.
+     DOM byte-matches main.ml rules_view. Collapses to one column under 720px.
+     Class names are API — restyle, never rename. -->
+</head>
+<body>
+  <div class="page" style="padding-top:24px">
+    <div class="chip-row">
+      <span class="chip-row-label">markets</span>
+      <div class="chips">
+        <div class="chip">KXFEDDECISION-26MAR</div>
+        <div class="chip">KXBTC-26DEC-100K</div>
+      </div>
+    </div>
+    <div class="rules-layout">
+      <div class="config-col">
+        <div class="list-heading">configuration</div>
+        <div><label class="control-label">interval</label>
+          <select class="interval-select"><option selected>Hour</option></select></div>
+        <div><label class="control-label">lookback (days)</label><input class="num-input" value="14"></div>
+        <div><label class="control-label">warmup (hours)</label><input class="num-input" value="12"></div>
+        <div><label class="control-label">starting cash ($)</label><input class="num-input" value="100"></div>
+        <div><label class="control-label">allow negative cash</label><input class="checkbox" type="checkbox"></div>
+        <div><label class="control-label">compare against dumb bots</label><input class="checkbox" type="checkbox" checked></div>
+        <div><label class="control-label">number of bots</label><input class="num-input" value="5"></div>
+        <div><label class="control-label">trade probability</label><input class="num-input" value="0.2"></div>
+        <div><label class="control-label">max trade size</label><input class="num-input" value="100"></div>
+      </div>
+      <div class="define-col">
+        <label class="control-label">type a rule or a variable; enter adds it</label>
+        <textarea class="define-input" rows="1" wrap="off" placeholder="every 2h buy 1 &lt;ticker&gt; yes">momentum = price(fed_mar) - price(fed_mar, 6h)</textarea>
+        <button class="btn-secondary">Add</button>
+        <div class="suggestions">
+          <button class="suggestion">$momentum</button>
+          <button class="suggestion">$cash</button>
+          <button class="suggestion">$realized</button>
+        </div>
+      </div>
+      <div class="rules-col">
+        <div class="list-heading">rules</div>
+        <div class="rule-entry"><span>every 2h buy 1 fed_mar yes</span>
+          <div class="entry-buttons"><button class="rule-edit">✎</button><button class="chip-remove">✕</button></div>
+        </div>
+        <div class="rule-entry"><span>when $momentum &gt; 0.05 sell 2 fed_mar yes</span>
+          <div class="entry-buttons"><button class="rule-edit">✎</button><button class="chip-remove">✕</button></div>
+        </div>
+      </div>
+      <div class="vars-col">
+        <div class="list-heading">variables</div>
+        <div class="var-entry">$cash</div>
+        <div class="var-entry">$realized</div>
+        <div class="var-entry">$unrealized</div>
+        <div class="var-entry">fed_mar
+          <div class="var-def-subtext">KXFEDDECISION-26MAR-C25</div>
+        </div>
+        <div class="var-entry">
+          <div class="var-entry-head">$momentum<button class="chip-remove">✕</button></div>
+          <div class="var-def-subtext">= price(fed_mar) - price(fed_mar, 6h)</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

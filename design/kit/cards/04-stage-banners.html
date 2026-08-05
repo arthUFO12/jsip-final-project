@@ -1,0 +1,54 @@
+<!-- @dsCard group="Shell & Navigation" -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Stage banners</title>
+<link rel="stylesheet" href="../tokens.css">
+<link rel="stylesheet" href="../kit.css">
+<!-- Arbitrage pipeline banner (clickable stages) + bot-wizard stage header.
+     Class names are API — restyle, never rename. -->
+<style> body { padding: 24px; } .ds-label { color: var(--ink-faint); font-size: 11px; font-family: var(--font-mono); margin: 22px 0 8px; } .ds-label:first-child { margin-top: 0; } </style>
+</head>
+<body>
+  <p class="ds-label">.arb-stages — pipeline overview and section switcher (stage 2 active)</p>
+  <div class="arb-stages">
+    <div class="arb-stage arb-stage-click">
+      <div class="arb-stage-number">1</div>
+      <div>
+        <div class="arb-stage-label">Sweep</div>
+        <div class="arb-stage-detail">scrape both venues and text-match every title</div>
+      </div>
+    </div>
+    <div class="arb-stage-arrow">→</div>
+    <div class="arb-stage arb-stage-click arb-stage-active">
+      <div class="arb-stage-number">2</div>
+      <div>
+        <div class="arb-stage-label">Review</div>
+        <div class="arb-stage-detail">LLM or human: approve pairs settling on the same event</div>
+      </div>
+    </div>
+    <div class="arb-stage-arrow">→</div>
+    <div class="arb-stage arb-stage-click">
+      <div class="arb-stage-number">3</div>
+      <div>
+        <div class="arb-stage-label">Arb Pairs</div>
+        <div class="arb-stage-detail">price approved pairs on live order books</div>
+      </div>
+    </div>
+  </div>
+
+  <p class="ds-label">.stage-header — bot wizard heading with action row</p>
+  <div class="stage-header">
+    <div>
+      <h2 class="stage-title">Write rules</h2>
+      <p class="stage-hint">type one rule or variable at a time; click a suggestion to complete the word you are typing</p>
+    </div>
+    <div class="button-row">
+      <button class="btn-secondary">Back</button>
+      <button class="btn-primary">Run backtest</button>
+    </div>
+  </div>
+</body>
+</html>

@@ -1,0 +1,59 @@
+<!-- @dsCard group="Feedback" -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Assisted hedge dialog</title>
+<link rel="stylesheet" href="../tokens.css">
+<link rel="stylesheet" href="../kit.css">
+<!-- REAL MONEY — no whimsy anywhere in this flow. Three states of the
+     two-step confirm. DOM byte-matches main.ml arb_hedge_dialog_view.
+     Class names are API — restyle, never rename. -->
+<style> body { padding: 24px; max-width: 720px; } .ds-label { color: var(--ink-faint); font-size: 11px; font-family: var(--font-mono); margin: 22px 0 8px; } .ds-label:first-child { margin-top: 0; } </style>
+</head>
+<body>
+  <p class="ds-label">step 1 — the user's manual leg + preflight readout</p>
+  <div class="arb-dialog">
+    <h2 class="arb-panel-title">Assisted hedge — step 1: your leg</h2>
+    <div class="arb-edge-row">
+      <span class="arb-venue">Polymarket</span>
+      <span>Will the Fed cut interest rates at the March meeting?</span>
+      <a class="arb-trade-link" href="#">open the venue ↗</a>
+      <span class="arb-ask">target: NO @ $0.54</span>
+    </div>
+    <div class="arb-summary">hedgeable right now: 20 contract(s) — Kalshi ask 42c on "Fed cuts rates in March 2026?", 120 deep, $250.00 of cap room. Size your manual trade to at most 20.</div>
+    <p class="arb-disclaimer">The app cannot place or verify this leg — only place it if you and your account may legally trade on that venue. Everything you enter in step 2 is on your say-so and will be marked self-reported.</p>
+    <div class="arb-pair-actions">
+      <button class="btn-primary">I placed it — continue</button>
+      <button class="btn-secondary">Cancel</button>
+    </div>
+  </div>
+
+  <p class="ds-label">step 2 — confirm the fill, fire the hedge</p>
+  <div class="arb-dialog">
+    <h2 class="arb-panel-title">Assisted hedge — step 2: confirm your fill</h2>
+    <div class="arb-controls">
+      <label class="control-label">your fill price (cents)</label>
+      <input class="num-input" value="54">
+      <label class="control-label">contracts filled</label>
+      <input class="num-input" value="20">
+    </div>
+    <p class="arb-panel-hint">The app will buy the opposite side on Kalshi ("Fed cuts rates in March 2026?"), sized to your confirmed count, paying at most 44c per contract — it refuses rather than pays more.</p>
+    <div class="arb-pair-actions">
+      <button class="btn-primary">Fire Kalshi hedge (max 44c)</button>
+      <button class="btn-secondary">I didn't trade — cancel</button>
+    </div>
+  </div>
+
+  <p class="ds-label">result — hedged with a partial remainder</p>
+  <div class="arb-dialog">
+    <h2 class="arb-panel-title">Assisted hedge — result</h2>
+    <div class="arb-summary">hedged: 17 contract(s) @ $0.43, fee $0.34 — banked into the wallet as self-reported</div>
+    <div class="arb-onesided">⚠ PARTIAL: you are still one-sided by 3 contract(s) — the book ran out of depth. Manage the remainder by hand.</div>
+    <div class="arb-pair-actions">
+      <button class="btn-secondary">Close</button>
+    </div>
+  </div>
+</body>
+</html>

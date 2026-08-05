@@ -1,0 +1,62 @@
+<!-- @dsCard group="Data Display" -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Arb edge cards</title>
+<link rel="stylesheet" href="../tokens.css">
+<link rel="stylesheet" href="../kit.css">
+<!-- Scan results: YES/NO legs with venue chips + trade links + asks, cost/edge
+     math line, TRADABLE border, wallet booking row with act/assist buttons.
+     DOM byte-matches main.ml arb_edge_view. Class names are API. -->
+</head>
+<body>
+  <div class="page" style="padding-top:24px">
+    <div class="arb-edge arb-edge-tradable">
+      <div>
+        <div class="arb-edge-row">
+          <span class="arb-outcome">YES</span>
+          <span class="arb-venue">Kalshi</span>
+          <span>Fed cuts rates in March 2026?</span>
+          <a class="arb-trade-link" href="#">trade it ↗</a>
+          <span class="arb-ask">ask $0.42</span>
+        </div>
+        <div class="arb-edge-row">
+          <span class="arb-outcome">NO</span>
+          <span class="arb-venue">Polymarket</span>
+          <span>Will the Fed cut interest rates at the March meeting?</span>
+          <a class="arb-trade-link" href="#">trade it ↗</a>
+          <span class="arb-ask">ask $0.54</span>
+        </div>
+      </div>
+      <div class="arb-edge-math">cost $0.96 (incl. fees) → edge <span class="arb-edge-positive">$0.04</span> · TRADABLE — 120 contracts deep</div>
+      <div class="arb-edge-take">
+        <span class="arb-summary">booked in the wallet: $4.80 if taken in full</span>
+        <button class="btn-secondary">I traded this</button>
+        <button class="btn-primary">Hedge assisted…</button>
+      </div>
+    </div>
+
+    <div class="arb-edge">
+      <div>
+        <div class="arb-edge-row">
+          <span class="arb-outcome">YES</span>
+          <span class="arb-venue">Kalshi</span>
+          <span>Bitcoin above $100k on Dec 31?</span>
+          <a class="arb-trade-link" href="#">trade it ↗</a>
+          <span class="arb-ask">ask $0.61</span>
+        </div>
+        <div class="arb-edge-row">
+          <span class="arb-outcome">NO</span>
+          <span class="arb-venue">Polymarket</span>
+          <span>BTC ends 2026 above $100k?</span>
+          <a class="arb-trade-link" href="#">trade it ↗</a>
+          <span class="arb-ask">ask $0.45</span>
+        </div>
+      </div>
+      <div class="arb-edge-math">cost $1.08 (incl. fees) → edge <span class="arb-edge-negative">-$0.08</span> · no trade: cost must stay under $1 after fees</div>
+    </div>
+  </div>
+</body>
+</html>
