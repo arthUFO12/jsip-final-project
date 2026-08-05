@@ -10,12 +10,12 @@ let paper simulator = Paper simulator
 let live credentials = Live credentials
 let is_live = function Paper (_ : Simulator.t) -> false | Live _ -> true
 
-let place_order t (order : Order.t) =
+let place_order ?client_order_id t (order : Order.t) =
   match t with
   | Paper simulator -> Simulator.place_order simulator order
   | Live credentials ->
     (match Order.venue order with
-     | Kalshi -> Kalshi_live.place_order credentials order
+     | Kalshi -> Kalshi_live.place_order ?client_order_id credentials order
      | Polymarket ->
        Deferred.Or_error.error_s
          [%message

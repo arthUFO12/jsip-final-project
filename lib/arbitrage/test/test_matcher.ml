@@ -279,30 +279,31 @@ let%expect_test "compare_pipelines labels each pair with both verdicts" =
          near-miss row for the report *)
     ]
   in
-  Matcher.compare_pipelines ~threshold:0.5 ~apply_veto:true lefts rights
-  |> List.iter
-       ~f:
-         (fun
-           { Matcher.Comparison.candidate = { left; right }
-           ; bucket
-           ; score
-           ; _
-           }
-         ->
-         printf
-           !"%-22s %.2f  %s  <->  %s\n"
-           (Sexp.to_string [%sexp (bucket : Matcher.Comparison.Bucket.t)])
-           score
-           left.title
-           right.title);
+  let report =
+    Matcher.compare_pipelines ~threshold:0.5 ~apply_veto:true lefts rights
+  in
+  let print_comparison
+    { Matcher.Comparison.candidate = { left; right }; bucket; score; _ }
+    =
+    printf
+      !"%-22s %.2f  %s  <->  %s\n"
+      (Sexp.to_string [%sexp (bucket : Matcher.Comparison.Bucket.t)])
+      score
+      left.title
+      right.title
+  in
+  List.iter report.judged ~f:print_comparison;
+  printf "-- near misses (of %d Neither) --\n" report.neither;
+  List.iter report.near_misses ~f:print_comparison;
   [%expect
     {|
     Both                   1.00  Will BTC hit $100k by June 30?  <->  Will BTC hit 100k by June 30?
     (Conflict Implied_by)  0.79  Will BTC hit $100k by June 30?  <->  Will BTC hit $200k by June 30?
     Text_only              1.00  Who will win Best Picture?  <->  Who will win Best Picture?
-    Neither                0.07  Who will win Best Picture?  <->  Best selling album of 2027?
     Claims_only            0.43  Will the Fed cut rates by 25 bps in March?  <->  Federal Reserve lowers interest rates by 25 bps in March?
     (Conflict Unrelated)   0.62  Will the Fed cut rates by 25 bps in March?  <->  Will the Bank of Canada cut rates by 25 bps in March?
+    -- near misses (of 1 Neither) --
+    Neither                0.07  Who will win Best Picture?  <->  Best selling album of 2027?
     |}]
 ;;
 

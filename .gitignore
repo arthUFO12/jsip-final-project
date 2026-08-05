@@ -41,3 +41,4 @@ _opam/
 
 test.dbarbiter.db
 test.db
+/client-release.bc.js

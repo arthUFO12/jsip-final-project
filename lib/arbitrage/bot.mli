@@ -78,6 +78,24 @@ val orders_of_opportunity
   -> Detect.opportunity
   -> Execution.Order.t list Or_error.t
 
+(** [execute executor ~execution ~stubs opportunity] acts on one hit: both
+    legs through [executor], sequentially, aborting at the first failure or
+    refusal — a failed first leg must never send the hedge. A failure
+    {e after} a fill leaves a one-sided position; that is legging risk,
+    reported loudly on stderr but not fatal. Fills print to stdout.
+
+    When [executor] is live, the rails run before every leg — the
+    {!Execution.Kill_switch}, [execution]'s [max_dollars_per_order], and its
+    [max_dollars_per_day] against the trade log's tally (failing closed if
+    the log is unreadable) — and every placement, refusal, and error is
+    appended to the audit log. Paper runs skip the rails and log nothing. *)
+val execute
+  :  Execution.Executor.t
+  -> execution:Config.Execution.t
+  -> stubs:Market_stub.t Market_id.Map.t
+  -> Detect.opportunity
+  -> unit Deferred.t
+
 (** [run ~config] validates [config], builds the executor its
     {!Config.Trading} names — this is the only paper-vs-live fork — and loops
     every [poll_interval]: scan, then place both legs of each hit, printing

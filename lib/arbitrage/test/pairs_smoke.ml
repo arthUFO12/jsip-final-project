@@ -43,6 +43,7 @@ let main () =
   ok_exn (Database.Database_exec.init_database db_path);
   let%bind () = Database.Database_exec.create_market_stub_table () in
   let%bind () = Database.Database_exec.create_pair_proposal_table () in
+  let%bind () = Database.Database_exec.create_pair_stub_table () in
   let%bind kalshi =
     Market_data.Market_data_gateway.fetch_l1_market_data
       ~venue:Kalshi

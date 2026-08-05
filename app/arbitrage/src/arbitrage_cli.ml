@@ -3,11 +3,13 @@ open! Async
 open! Types
 open Arbitrage
 
-(* The command-line face of the arbitrage pipeline. Four verbs: [sweep] files
-   pair proposals with the review gate, [review] lets a human approve or
-   reject them, [run] prices the approved set on a timer — those three share
-   one sqlite store — and [compare] prints the claim and text matchers'
-   verdicts side by side without touching the store. *)
+(* The command-line face of the arbitrage pipeline. [sweep] files pair
+   proposals with the review gate, [review] lets a human approve or reject
+   them, [run] prices the approved set on a timer (paper unless -live) —
+   those share one sqlite store — [compare] prints the claim and text
+   matchers' verdicts side by side without touching the store, and
+   [check-trade] round-trips one tiny order on Kalshi's demo environment to
+   prove the live plumbing. *)
 
 let init_store ~db =
   let open Deferred.Or_error.Let_syntax in
@@ -15,7 +17,12 @@ let init_store ~db =
   let db = if Filename.is_absolute db then db else cwd ^/ db in
   let%bind () = Deferred.return (Database.Database_exec.init_database db) in
   let%bind () = Database.Database_exec.create_market_stub_table () in
-  Database.Database_exec.create_pair_proposal_table ()
+  let%bind () = Database.Database_exec.create_pair_proposal_table () in
+  let%bind () = Database.Database_exec.create_pair_stub_table () in
+  let%bind () = Database.Database_exec.create_trade_log_table () in
+  (* Rescue pair legs still in the catalog into their snapshot table — the
+     web server's seed purges the catalog on every startup. *)
+  Database.Database_exec.backfill_pair_stubs ()
 ;;
 
 let db_flag =
@@ -110,7 +117,7 @@ let review_command =
        let open Deferred.Or_error.Let_syntax in
        let%bind () = init_store ~db in
        let decide index (status : Pair_proposal.Status.t) =
-         let%bind decided = Review.decide ~index ~status in
+         let%bind decided = Review.decide ~from:Proposed ~index ~status in
          printf !"%{sexp: Pair_proposal.Status.t}: " status;
          print_endline (Review.Listed.to_display_string decided);
          return ()
@@ -138,7 +145,9 @@ let review_command =
 
 let run_command =
   Command.async_or_error
-    ~summary:"price the approved pairs on a timer and report edges (paper)"
+    ~summary:
+      "price the approved pairs on a timer and report edges (paper unless \
+       -live)"
     (let%map_open.Command db = db_flag
      and reckless =
        flag
@@ -146,19 +155,185 @@ let run_command =
          no_arg
          ~doc:
            " ignore fees and depth when pricing (never tradable; see docs)"
+     and live =
+       flag
+         "-live"
+         no_arg
+         ~doc:
+           " send real Kalshi orders instead of paper fills. Needs \
+            KALSHI_API_KEY_ID and KALSHI_PRIVATE_KEY_FILE in the \
+            environment; every order runs inside the config's spending caps \
+            and behind the kill switch (TRADING_DISABLED env var or a \
+            trading.disabled file), and lands in the audit log"
      in
      fun () ->
        let open Deferred.Or_error.Let_syntax in
        let%bind () = init_store ~db in
        let config =
          { Config.default with
-           execution =
+           trading = (if live then Live else Paper)
+         ; execution =
              { Config.Execution.default with
                detect_mode = (if reckless then Reckless else Exact)
              }
          }
        in
        Bot.run ~config)
+;;
+
+(* Phase 1's definition of done, as a verb: one full order lifecycle against
+   Kalshi's demo environment — place a resting limit order, read its status,
+   cancel it, read it again — with every step in the audit log. Never touches
+   the production host. *)
+let check_trade_command =
+  Command.async_or_error
+    ~summary:
+      "place, poll, and cancel a tiny order on Kalshi's DEMO environment \
+       (demo credentials in KALSHI_* env vars; no real money unless -real)"
+    (let%map_open.Command db = db_flag
+     and ticker =
+       flag "-ticker" (required string) ~doc:"TICKER a market to probe"
+     and price_cents =
+       flag
+         "-price-cents"
+         (optional_with_default 1 int)
+         ~doc:"CENTS limit price (default 1, so the order rests unfilled)"
+     and count =
+       flag
+         "-count"
+         (optional_with_default 1 int)
+         ~doc:"N contracts (default 1)"
+     and real =
+       flag
+         "-real"
+         no_arg
+         ~doc:
+           " REAL MONEY: run the same lifecycle against production instead \
+            of demo. The KALSHI_* env vars must hold production \
+            credentials. Worst case is price-cents x count if the resting \
+            order fills before the cancel."
+     in
+     fun () ->
+       let open Deferred.Or_error.Let_syntax in
+       let%bind () = init_store ~db in
+       let%bind () =
+         match%bind.Deferred Execution.Kill_switch.engaged () with
+         | Some reason ->
+           Deferred.Or_error.error_s
+             [%message "kill switch engaged; refusing" (reason : string)]
+         | None -> return ()
+       in
+       let host, venue_label =
+         match real with
+         | true -> Execution.Kalshi_live.live_host, "Kalshi"
+         | false -> Execution.Kalshi_live.demo_host, "Kalshi(demo)"
+       in
+       (match real with
+        | true ->
+          printf
+            "REAL MONEY canary: %d contract(s) at %dc on %s — worst case \
+             $%.2f\n"
+            count
+            price_cents
+            ticker
+            (Float.of_int (price_cents * count) /. 100.)
+        | false -> ());
+       let%bind credentials =
+         Execution.Kalshi_live.Credentials.load_from_env ~host ()
+       in
+       let market_id = Market_id.of_string ticker in
+       let order =
+         { Execution.Order.market =
+             { venue = Kalshi
+             ; market_id
+             ; slug = Slug.of_string ticker
+             ; series_ticker = None
+             ; clob_token_id = None
+             ; title = "check-trade probe"
+             ; category = Miscellaneous
+             ; created_time = Time_ns.epoch
+             ; close_time = Time_ns.epoch
+             ; volume = None
+             }
+         ; contract = Yes
+         ; side = Buy
+         ; limit_price = Price.of_int_cents price_cents
+         ; size = Size.of_int count
+         }
+       in
+       let log ~action ~client_order_id ~outcome ~dollars =
+         Database.Database_exec.append_trade_log
+           { at = Time_ns.now ()
+           ; venue = venue_label
+           ; market_id
+           ; action
+           ; client_order_id
+           ; outcome
+           ; detail = [%string "check-trade %{ticker}"]
+           ; dollars
+           }
+       in
+       let now_ms =
+         Time_ns.to_int_ns_since_epoch (Time_ns.now ()) / 1_000_000
+       in
+       let client_order_id = [%string "check-trade-%{now_ms#Int}"] in
+       let%bind fill =
+         Execution.Kalshi_live.place_order ~client_order_id credentials order
+       in
+       printf !"placed: %{sexp: Execution.Fill.t}\n" fill;
+       let%bind () =
+         log
+           ~action:"place"
+           ~client_order_id:(Some client_order_id)
+           ~outcome:"accepted"
+           ~dollars:(Float.of_int (price_cents * count) /. 100.)
+       in
+       match fill.venue_order_id with
+       | None ->
+         Deferred.Or_error.error_string
+           "venue returned no order id; cannot poll or cancel"
+       | Some order_id ->
+         (* The venue's read side lags the matching engine by a second or two
+            — a just-placed order reads as not_found at first. *)
+         let rec poll_status ~attempts_left =
+           match%bind.Deferred
+             Execution.Kalshi_live.order_status credentials ~order_id
+           with
+           | Ok status -> return status
+           | Error error when attempts_left > 0 ->
+             Core.eprint_s
+               [%message
+                 "order not readable yet; retrying"
+                   (attempts_left : int)
+                   (error : Error.t)];
+             let%bind.Deferred () =
+               Clock_ns.after (Time_ns.Span.of_sec 2.)
+             in
+             poll_status ~attempts_left:(attempts_left - 1)
+           | Error _ as error -> Deferred.return error
+         in
+         let%bind status = poll_status ~attempts_left:5 in
+         printf "status after place: %s\n" status;
+         let%bind reduced_by =
+           Execution.Kalshi_live.cancel_order credentials ~order_id
+         in
+         printf "canceled, %d contract(s) removed from the book\n" reduced_by;
+         let%bind () =
+           log
+             ~action:"cancel"
+             ~client_order_id:None
+             ~outcome:[%string "canceled: reduced_by %{reduced_by#Int}"]
+             ~dollars:0.
+         in
+         let%bind status =
+           Execution.Kalshi_live.order_status credentials ~order_id
+         in
+         printf "status after cancel: %s\n" status;
+         let%bind entries = Database.Database_exec.list_trade_log 5 in
+         printf "audit log (newest first):\n";
+         List.iter entries ~f:(fun entry ->
+           printf !"  %{sexp: Trade_log_entry.t}\n" entry);
+         return ())
 ;;
 
 (* One section of the comparison report: header with a count, then entries
@@ -209,50 +384,35 @@ let print_section title entries =
            right.title)
 ;;
 
-(* Which domain a pair belongs to, for the coverage table. *)
-let comparison_domain (comparison : Matcher.Comparison.t) =
-  match comparison.left_claim, comparison.right_claim with
-  | Some claim, (Some _ | None) | None, Some claim ->
-    Claim.Domain.to_string claim.domain
-  | None, None -> "(unparsed)"
-;;
-
-(* Coverage table: for each domain, how many pairs the claims decided vs
-   abstained on, and which field caused each abstention — so "claims only
-   speak rates" is a table row, not an inference from reading 260 titles. *)
-let print_coverage comparisons =
+(* Coverage table straight from the matcher's per-domain accounting: how many
+   pairs the claims decided vs abstained on, and which field caused each
+   abstention. *)
+let print_coverage (coverage : Matcher.Comparison.Coverage.t) =
   printf "\n== claims coverage by domain ==\n";
-  List.sort_and_group
-    comparisons
-    ~compare:(Comparable.lift String.compare ~f:comparison_domain)
-  |> List.iter ~f:(fun group ->
-    let domain = comparison_domain (List.hd_exn group) in
-    let abstained, decided =
-      List.partition_tf group ~f:(fun (c : Matcher.Comparison.t) ->
-        String.is_prefix c.deciding ~prefix:"abstained")
-    in
-    let decided =
-      List.filter decided ~f:(fun (c : Matcher.Comparison.t) ->
-        not (String.equal c.deciding "unparsed"))
-    in
-    let abstention_causes =
-      List.sort_and_group
+  Map.iteri
+    coverage
+    ~f:
+      (fun
+        ~key:domain
+        ~data:{ Matcher.Comparison.Coverage.Row.pairs; decided; abstentions }
+      ->
+      let abstained =
+        Map.fold abstentions ~init:0 ~f:(fun ~key:_ ~data:count total ->
+          total + count)
+      in
+      let causes =
+        Map.to_alist abstentions
+        |> List.map ~f:(fun (cause, count) ->
+          [%string "%{count#Int}x %{cause}"])
+        |> String.concat ~sep:", "
+      in
+      printf
+        "  %-14s pairs %-8d decided %-8d abstained %-6d %s\n"
+        domain
+        pairs
+        decided
         abstained
-        ~compare:
-          (Comparable.lift
-             String.compare
-             ~f:(fun (c : Matcher.Comparison.t) -> c.deciding))
-      |> List.map ~f:(fun cause ->
-        [%string "%{List.length cause#Int}x %{(List.hd_exn cause).deciding}"])
-      |> String.concat ~sep:", "
-    in
-    printf
-      "  %-14s pairs %-8d decided %-8d abstained %-6d %s\n"
-      domain
-      (List.length group)
-      (List.length decided)
-      (List.length abstained)
-      abstention_causes)
+        causes)
 ;;
 
 (* The golden set: labeled pairs frozen to a file, so "did the next run
@@ -404,13 +564,16 @@ let compare_command =
        let stopwatch = ref (Time_ns.now ()) in
        let lap label =
          let now = Time_ns.now () in
-         eprintf
+         Core.eprintf
            !"timing: %s took %{Time_ns.Span}\n"
            label
            (Time_ns.diff now !stopwatch);
+         (* The matching phase blocks the scheduler for minutes; flush so
+            timings survive even a killed run. *)
+         Stdlib.flush Stdlib.stderr;
          stopwatch := now
        in
-       let%bind comparisons =
+       let%bind report =
          if not full
          then
            Sweep.compare_once
@@ -481,43 +644,31 @@ let compare_command =
            lap "match";
            return comparisons)
        in
-       let both, claims_only, text_only, conflicts, neither =
+       let both, claims_only, text_only, conflicts =
          List.fold
-           comparisons
-           ~init:([], [], [], [], [])
-           ~f:(fun (both, claims, text, conflicts, neither) comparison ->
+           report.Matcher.Comparison.Report.judged
+           ~init:([], [], [], [])
+           ~f:(fun (both, claims, text, conflicts) comparison ->
              match comparison.Matcher.Comparison.bucket with
-             | Both -> comparison :: both, claims, text, conflicts, neither
-             | Claims_only ->
-               both, comparison :: claims, text, conflicts, neither
-             | Text_only ->
-               both, claims, comparison :: text, conflicts, neither
+             | Both -> comparison :: both, claims, text, conflicts
+             | Claims_only -> both, comparison :: claims, text, conflicts
+             | Text_only -> both, claims, comparison :: text, conflicts
              | Conflict (_ : Claim.Relation.t) ->
-               both, claims, text, comparison :: conflicts, neither
-             | Neither ->
-               both, claims, text, conflicts, comparison :: neither)
+               both, claims, text, comparison :: conflicts
+             (* judged never holds Neither *)
+             | Neither -> both, claims, text, conflicts)
        in
        print_section "both systems agree" both;
        print_section "claims only — text pipeline missed these" claims_only;
        print_section "text only — claims abstained (Opaque)" text_only;
        print_section "conflicts — text would propose, claims veto" conflicts;
-       (* The near-misses can number in the thousands under -full; only the
-          best-scoring few are worth eyes. If a real twin hides here, one of
-          the gates (threshold, veto, claim parse) is too strict. *)
-       let near_miss_display_limit = 10 in
+       (* If a real twin hides among the near-misses, one of the gates
+          (threshold, veto, claim parse) is too strict. *)
        print_section
          [%string
-           "near misses — rejected by both systems, best \
-            %{near_miss_display_limit#Int} of %{List.length neither#Int}"]
-         (List.take
-            (List.sort
-               neither
-               ~compare:
-                 (Comparable.reverse
-                    (Comparable.lift
-                       Float.compare
-                       ~f:(fun (c : Matcher.Comparison.t) -> c.score))))
-            near_miss_display_limit);
+           "near misses — rejected by both systems, best %{List.length \
+            report.near_misses#Int} of %{report.neither#Int}"]
+         report.near_misses;
        printf
          "\n\
           summary: both %d / claims-only %d / text-only %d / conflict %d / \
@@ -526,13 +677,13 @@ let compare_command =
          (List.length claims_only)
          (List.length text_only)
          (List.length conflicts)
-         (List.length neither);
-       print_coverage comparisons;
+         report.neither;
+       print_coverage report.coverage;
        if write_golden
-       then Deferred.ok (Golden.write ~file:golden_file comparisons)
+       then Deferred.ok (Golden.write ~file:golden_file report.judged)
        else (
          match%bind.Deferred Sys.file_exists golden_file with
-         | `Yes -> Deferred.ok (Golden.diff ~file:golden_file comparisons)
+         | `Yes -> Deferred.ok (Golden.diff ~file:golden_file report.judged)
          | `No | `Unknown -> return ()))
 ;;
 
@@ -543,6 +694,7 @@ let () =
        [ "sweep", sweep_command
        ; "review", review_command
        ; "run", run_command
+       ; "check-trade", check_trade_command
        ; "compare", compare_command
        ])
 ;;

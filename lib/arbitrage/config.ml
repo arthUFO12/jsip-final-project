@@ -40,14 +40,20 @@ module Execution = struct
     ; stake_per_opportunity : Size.t
     ; min_edge : Price.t
     ; detect_mode : Detect.Mode.t
+    ; max_dollars_per_order : Price.t
+    ; max_dollars_per_day : Price.t
     }
   [@@deriving sexp_of]
 
+  (* The caps default small on purpose: a fresh live config can lose at most
+     pocket money until someone deliberately raises them. *)
   let default =
     { poll_interval = Time_ns.Span.of_sec 1.
     ; stake_per_opportunity = Size.of_int 10
     ; min_edge = Price.of_int_cents 1
     ; detect_mode = Exact
+    ; max_dollars_per_order = Price.of_int_cents 2_500
+    ; max_dollars_per_day = Price.of_int_cents 10_000
     }
   ;;
 end
@@ -70,12 +76,19 @@ let validate t =
   let { matching = _
       ; trading
       ; execution =
-          { poll_interval; stake_per_opportunity; min_edge; detect_mode }
+          { poll_interval
+          ; stake_per_opportunity
+          ; min_edge
+          ; detect_mode
+          ; max_dollars_per_order
+          ; max_dollars_per_day
+          }
       }
     =
     t
   in
   let check ok error = if ok then Ok () else Or_error.error_s error in
+  let live = match trading with Live -> true | Paper -> false in
   let checks =
     [ check
         (Time_ns.Span.( > ) poll_interval Time_ns.Span.zero)
@@ -95,6 +108,18 @@ let validate t =
          | (Paper | Live), (Exact | Reckless) -> true)
         [%message
           "Reckless detection may only feed Paper trading, never Live"]
+    ; (* Real money must run inside hard caps: a live config with a disabled
+         cap is invalid, not merely inadvisable. *)
+      check
+        ((not live) || Price.( > ) max_dollars_per_order Price.zero)
+        [%message
+          "Live trading requires a positive max_dollars_per_order"
+            (max_dollars_per_order : Price.t)]
+    ; check
+        ((not live) || Price.( > ) max_dollars_per_day Price.zero)
+        [%message
+          "Live trading requires a positive max_dollars_per_day"
+            (max_dollars_per_day : Price.t)]
     ]
   in
   Or_error.map (Or_error.combine_errors_unit checks) ~f:(fun () -> t)

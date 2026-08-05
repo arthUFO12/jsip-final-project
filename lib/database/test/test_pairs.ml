@@ -212,3 +212,68 @@ let%expect_test "pair store lifecycle on real markets" =
   [%expect
     {| Bitcoin above $120,000 on December 31?  <->  Will Bitcoin be above $120,000 on Dec 31? |}]
 ;;
+
+let%expect_test "pair legs survive the catalog purge via their snapshots" =
+  let db_path = "/tmp/arbiter-test-pair-stubs.db" in
+  let%bind () =
+    match%bind Sys.file_exists_exn db_path with
+    | true -> Unix.unlink db_path
+    | false -> return ()
+  in
+  ok_exn (Database.Database_exec.init_database db_path);
+  let%bind () =
+    Database.Database_exec.create_market_stub_table () >>| ok_exn
+  in
+  let%bind () =
+    Database.Database_exec.create_pair_proposal_table () >>| ok_exn
+  in
+  let%bind () =
+    Database.Database_exec.create_pair_stub_table () >>| ok_exn
+  in
+  (* An old store: the pair was proposed before snapshots existed, so its
+     legs live only in the rotating catalog. *)
+  let%bind () =
+    Deferred.List.iter
+      ~how:`Sequential
+      [ kalshi_btc; poly_btc ]
+      ~f:(fun stub ->
+        Database.Database_exec.insert_market_stub stub >>| ok_exn)
+  in
+  let%bind () =
+    Database.Database_exec.propose_pair
+      (Pair_proposal.create
+         ~left:kalshi_btc.market_id
+         ~right:poly_btc.market_id
+         ~score:0.62
+         ~explanation:None)
+    >>| ok_exn
+  in
+  let print_legs () =
+    let title market_id =
+      match%map
+        Database.Database_exec.find_pair_stub market_id >>| ok_exn
+      with
+      | Some (stub : Market_stub.t) -> stub.title
+      | None -> "<no stub>"
+    in
+    let%bind left_title = title kalshi_btc.market_id in
+    let%map right_title = title poly_btc.market_id in
+    print_endline [%string "%{left_title}  <->  %{right_title}"]
+  in
+  (* Before any rescue, the lookup falls back to the catalog. *)
+  let%bind () = print_legs () in
+  [%expect
+    {| Will Bitcoin be above $120,000 on Dec 31?  <->  Bitcoin above $120,000 on December 31? |}];
+  (* Startup order: backfill snapshots, then the seed purges the catalog. The
+     pair keeps its legs. *)
+  let%bind () = Database.Database_exec.backfill_pair_stubs () >>| ok_exn in
+  let%bind () =
+    Database.Database_exec.delete_market_stubs_by_ids
+      [ kalshi_btc.market_id; poly_btc.market_id ]
+    >>| ok_exn
+  in
+  let%bind () = print_legs () in
+  [%expect
+    {| Will Bitcoin be above $120,000 on Dec 31?  <->  Bitcoin above $120,000 on December 31? |}];
+  return ()
+;;

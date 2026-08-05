@@ -4,3 +4,4 @@ module Fees = Fees
 module Simulator = Simulator
 module Kalshi_live = Kalshi_live
 module Executor = Executor
+module Kill_switch = Kill_switch

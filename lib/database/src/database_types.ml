@@ -139,3 +139,65 @@ let pair_proposal_type =
   in
   T.custom ~encode ~decode representation
 ;;
+
+let wallet_entry_type =
+  let representation =
+    T.(t2 (t4 T.string T.string T.float T.int) (t3 T.float T.bool T.float))
+  in
+  let encode
+    ({ pair_key; summary; edge; size; dollars; acted; acted_dollars } :
+      Wallet_entry.t)
+    =
+    Ok ((pair_key, summary, edge, size), (dollars, acted, acted_dollars))
+  in
+  let decode
+    ((pair_key, summary, edge, size), (dollars, acted, acted_dollars))
+    =
+    Ok
+      ({ pair_key; summary; edge; size; dollars; acted; acted_dollars }
+       : Wallet_entry.t)
+  in
+  T.custom ~encode ~decode representation
+;;
+
+let trade_log_entry_type =
+  let representation =
+    T.(
+      t2
+        (t4 T.int64 T.string T.string T.string)
+        (t4 (T.option T.string) T.string T.string T.float))
+  in
+  let encode
+    ({ at
+     ; venue
+     ; market_id
+     ; action
+     ; client_order_id
+     ; outcome
+     ; detail
+     ; dollars
+     } :
+      Trade_log_entry.t)
+    =
+    Ok
+      ( (time_ns_to_int64 at, venue, Market_id.to_string market_id, action)
+      , (client_order_id, outcome, detail, dollars) )
+  in
+  let decode
+    ( (at_int, venue, market_id_str, action)
+    , (client_order_id, outcome, detail, dollars) )
+    =
+    Ok
+      ({ at = int64_to_time_ns at_int
+       ; venue
+       ; market_id = Market_id.of_string market_id_str
+       ; action
+       ; client_order_id
+       ; outcome
+       ; detail
+       ; dollars
+       }
+       : Trade_log_entry.t)
+  in
+  T.custom ~encode ~decode representation
+;;

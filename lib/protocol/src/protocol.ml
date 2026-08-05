@@ -125,8 +125,37 @@ end
 
 module Decide_request = struct
   type t =
-    { index : int
-    ; approve : bool
+    { tab : Pair_status.t
+    ; index : int
+    ; new_status : Pair_status.t
+    }
+  [@@deriving sexp_of, bin_io]
+end
+
+module Llm_review_request = struct
+  type t = { api_key : string option } [@@deriving sexp_of, bin_io]
+end
+
+module Auto_review_request = struct
+  type t = { threshold : float } [@@deriving sexp_of, bin_io]
+end
+
+module Auto_review_summary = struct
+  type t =
+    { reviewed : int
+    ; approved : int
+    ; left_proposed : int
+    }
+  [@@deriving sexp_of, bin_io]
+end
+
+module Llm_review_summary = struct
+  type t =
+    { reviewed : int
+    ; approved : int
+    ; rejected : int
+    ; errored : int
+    ; first_error : string option
     }
   [@@deriving sexp_of, bin_io]
 end
@@ -136,18 +165,111 @@ module Edge_leg = struct
     { venue : string
     ; title : string
     ; ask : float
+    ; url : string
     }
   [@@deriving sexp_of, bin_io]
 end
 
 module Edge_card = struct
   type t =
-    { yes : Edge_leg.t
+    { pair_key : string
+    ; yes : Edge_leg.t
     ; no : Edge_leg.t
     ; cost : float
     ; edge : float
     ; size : int
+    ; dollars : float
     ; tradable : bool
+    ; acted : bool
+    }
+  [@@deriving sexp_of, bin_io]
+end
+
+module Venue_error = struct
+  type t =
+    | Geo_blocked
+    | Insufficient_funds
+    | Market_closed_or_halted
+    | Rate_limited
+    | Other of string
+  [@@deriving sexp_of, bin_io, equal]
+end
+
+module Execution_capability = struct
+  type t =
+    { live : bool
+    ; reason : string option
+    }
+  [@@deriving sexp_of, bin_io]
+end
+
+module Preflight_request = struct
+  type t =
+    { pair_key : string
+    ; manual_is_yes : bool
+    }
+  [@@deriving sexp_of, bin_io]
+end
+
+module Preflight = struct
+  type t =
+    { kill_switch : string option
+    ; hedge_title : string
+    ; hedge_is_yes : bool
+    ; ask_cents : int
+    ; depth : int
+    ; caps_room_dollars : float
+    ; hedgeable : int
+    }
+  [@@deriving sexp_of, bin_io]
+end
+
+module Hedge_request = struct
+  type t =
+    { pair_key : string
+    ; nonce : string
+    ; manual_venue : string
+    ; manual_is_yes : bool
+    ; manual_price_cents : int
+    ; manual_count : int
+    ; max_hedge_price_cents : int
+    }
+  [@@deriving sexp_of, bin_io]
+end
+
+module Hedge_result = struct
+  type t =
+    | Hedged of
+        { price : float
+        ; count : int
+        ; fee : float
+        ; unhedged : int
+        }
+    | Refused of string
+    | Failed of
+        { error : Venue_error.t
+        ; detail : string
+        ; unhedged : int
+        }
+  [@@deriving sexp_of, bin_io]
+end
+
+module Wallet_card = struct
+  type t =
+    { pair_key : string
+    ; summary : string
+    ; dollars : float
+    ; acted : bool
+    ; acted_dollars : float
+    }
+  [@@deriving sexp_of, bin_io]
+end
+
+module Wallet = struct
+  type t =
+    { paper : float
+    ; acted : float
+    ; entries : Wallet_card.t list
     }
   [@@deriving sexp_of, bin_io]
 end
@@ -189,6 +311,24 @@ let decide_pair =
     ~include_in_error_count:Or_error
 ;;
 
+let llm_review_pairs =
+  Rpc.Rpc.create
+    ~name:"llm-review-pairs"
+    ~version:0
+    ~bin_query:[%bin_type_class: Llm_review_request.t]
+    ~bin_response:[%bin_type_class: Llm_review_summary.t Or_error.t]
+    ~include_in_error_count:Or_error
+;;
+
+let auto_review_pairs =
+  Rpc.Rpc.create
+    ~name:"auto-review-pairs"
+    ~version:0
+    ~bin_query:[%bin_type_class: Auto_review_request.t]
+    ~bin_response:[%bin_type_class: Auto_review_summary.t Or_error.t]
+    ~include_in_error_count:Or_error
+;;
+
 let run_sweep =
   Rpc.Rpc.create
     ~name:"run-sweep"
@@ -204,6 +344,51 @@ let scan_edges =
     ~version:0
     ~bin_query:[%bin_type_class: unit]
     ~bin_response:[%bin_type_class: Scan_report.t Or_error.t]
+    ~include_in_error_count:Or_error
+;;
+
+let get_execution_capability =
+  Rpc.Rpc.create
+    ~name:"get-execution-capability"
+    ~version:0
+    ~bin_query:[%bin_type_class: unit]
+    ~bin_response:[%bin_type_class: Execution_capability.t Or_error.t]
+    ~include_in_error_count:Or_error
+;;
+
+let preflight_hedge =
+  Rpc.Rpc.create
+    ~name:"preflight-hedge"
+    ~version:0
+    ~bin_query:[%bin_type_class: Preflight_request.t]
+    ~bin_response:[%bin_type_class: Preflight.t Or_error.t]
+    ~include_in_error_count:Or_error
+;;
+
+let execute_hedge =
+  Rpc.Rpc.create
+    ~name:"execute-hedge"
+    ~version:0
+    ~bin_query:[%bin_type_class: Hedge_request.t]
+    ~bin_response:[%bin_type_class: Hedge_result.t Or_error.t]
+    ~include_in_error_count:Or_error
+;;
+
+let get_wallet =
+  Rpc.Rpc.create
+    ~name:"get-wallet"
+    ~version:0
+    ~bin_query:[%bin_type_class: unit]
+    ~bin_response:[%bin_type_class: Wallet.t Or_error.t]
+    ~include_in_error_count:Or_error
+;;
+
+let mark_acted =
+  Rpc.Rpc.create
+    ~name:"mark-acted"
+    ~version:0
+    ~bin_query:[%bin_type_class: string]
+    ~bin_response:[%bin_type_class: Wallet.t Or_error.t]
     ~include_in_error_count:Or_error
 ;;
 

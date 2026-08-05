@@ -143,22 +143,67 @@ module Sweep_summary : sig
 end
 
 module Decide_request : sig
-  (** Approve or reject the [index]th pair of the current Proposed listing —
-      the same numbering {!get_pairs} just returned. *)
+  (** Move the [index]th pair of the [tab] listing — the same numbering
+      {!get_pairs} just returned for that status — to [new_status]. This is
+      also the undo path: a pair the LLM (or a hasty click) filed under
+      Approved or Rejected can be pulled back out from its tab. *)
   type t =
-    { index : int
-    ; approve : bool
+    { tab : Pair_status.t
+    ; index : int
+    ; new_status : Pair_status.t
+    }
+  [@@deriving sexp_of, bin_io]
+end
+
+module Llm_review_request : sig
+  (** [api_key] is the caller's own Anthropic key; [None] falls back to the
+      server's [ANTHROPIC_API_KEY], if set. The key is used for this batch
+      and never stored. *)
+  type t = { api_key : string option } [@@deriving sexp_of, bin_io]
+end
+
+module Auto_review_request : sig
+  (** The deterministic gate: approve every Proposed pair whose text-match
+      score is at least [threshold]. No model, no tokens — and no judgment:
+      it trusts the text matcher that filed the pairs completely. *)
+  type t = { threshold : float } [@@deriving sexp_of, bin_io]
+end
+
+module Auto_review_summary : sig
+  (** One deterministic pass: [reviewed] entries read, [approved] at or above
+      the threshold, [left_proposed] below it (untouched, for a human or the
+      LLM). *)
+  type t =
+    { reviewed : int
+    ; approved : int
+    ; left_proposed : int
+    }
+  [@@deriving sexp_of, bin_io]
+end
+
+module Llm_review_summary : sig
+  (** One LLM pass over the Proposed queue: how many pairs it read, where
+      they landed, and — when calls failed (bad key, network) — how many,
+      with the first error verbatim for display. *)
+  type t =
+    { reviewed : int
+    ; approved : int
+    ; rejected : int
+    ; errored : int
+    ; first_error : string option
     }
   [@@deriving sexp_of, bin_io]
 end
 
 module Edge_leg : sig
   (** One side of a priced split: buy this pair's YES (or NO) on [venue] at
-      [ask] dollars. *)
+      [ask] dollars. [url] is the venue's own page for the market — the
+      "actually go do it" link. *)
   type t =
     { venue : string
     ; title : string
     ; ask : float
+    ; url : string
     }
   [@@deriving sexp_of, bin_io]
 end
@@ -168,14 +213,137 @@ module Edge_card : sig
       legs, its combined [cost] (asks plus taker fees, dollars), the [edge]
       left under $1 (negative when the pair costs more than it pays), depth
       as [size] contracts, and whether the bot would act ([tradable] means
-      the edge clears its minimum and has size behind it). *)
+      the edge clears its minimum and has size behind it). [dollars] is
+      [edge * size] — what taking the whole opportunity would bank, fees
+      included; tradable cards are booked into the wallet under [pair_key],
+      and [acted] says the user already marked this pair really-traded. *)
   type t =
-    { yes : Edge_leg.t
+    { pair_key : string
+    ; yes : Edge_leg.t
     ; no : Edge_leg.t
     ; cost : float
     ; edge : float
     ; size : int
+    ; dollars : float
     ; tradable : bool
+    ; acted : bool
+    }
+  [@@deriving sexp_of, bin_io]
+end
+
+module Venue_error : sig
+  (** Execution failures as data, not strings — different failures demand
+      different UI (a geo-block is sticky; a rate limit is retryable). *)
+  type t =
+    | Geo_blocked
+    | Insufficient_funds
+    | Market_closed_or_halted
+    | Rate_limited
+    | Other of string
+  [@@deriving sexp_of, bin_io, equal]
+end
+
+module Execution_capability : sig
+  (** Whether this server can place real orders at all — and why not, when it
+      can't ([reason]: no [-allow-live], missing credentials, or the kill
+      switch). The UI hides every execution affordance unless [live]. *)
+  type t =
+    { live : bool
+    ; reason : string option
+    }
+  [@@deriving sexp_of, bin_io]
+end
+
+module Preflight_request : sig
+  (** [manual_is_yes] names the side the user intends to take manually (known
+      from the edge card's split), so the server can price the opposite
+      contract's hedge. *)
+  type t =
+    { pair_key : string
+    ; manual_is_yes : bool
+    }
+  [@@deriving sexp_of, bin_io]
+end
+
+module Preflight : sig
+  (** The advisory numbers assisted execution's step 1 shows before the user
+      commits money to their manual leg: the rails checked in advance.
+      [hedgeable] is the bottom line — contracts the app could hedge right
+      now given the kill switch, caps room, and book depth. Advisory only;
+      the authoritative check re-runs at execution. *)
+  type t =
+    { kill_switch : string option (** [Some reason] when tripped *)
+    ; hedge_title : string (** the Kalshi market that would be hedged *)
+    ; hedge_is_yes : bool (** which contract the hedge would buy *)
+    ; ask_cents : int (** current ask for that contract *)
+    ; depth : int (** contracts available at that ask *)
+    ; caps_room_dollars : float (** spend room left under the day cap *)
+    ; hedgeable : int
+    }
+  [@@deriving sexp_of, bin_io]
+end
+
+module Hedge_request : sig
+  (** Step 2's confirmation: what the user says they did on the manual venue,
+      and the ceiling the app may pay to hedge it. [nonce] is minted once at
+      dialog-confirm time and derives the venue [client_order_id], so
+      re-sending the same confirmation after a timeout cannot double-hedge.
+      [manual_is_yes] names the side the user took; the app hedges the
+      opposite contract on Kalshi. *)
+  type t =
+    { pair_key : string
+    ; nonce : string
+    ; manual_venue : string
+    ; manual_is_yes : bool
+    ; manual_price_cents : int
+    ; manual_count : int
+    ; max_hedge_price_cents : int
+    }
+  [@@deriving sexp_of, bin_io]
+end
+
+module Hedge_result : sig
+  (** Three-armed on purpose: money can move without success. [Hedged] with
+      [unhedged > 0] is a partial — the user is still one-sided by that many
+      contracts. [Refused] means nothing was sent (rails or slippage guard);
+      retry is safe. [Failed] means the venue was touched and the position is
+      one-sided by [unhedged]. *)
+  type t =
+    | Hedged of
+        { price : float
+        ; count : int
+        ; fee : float
+        ; unhedged : int
+        }
+    | Refused of string
+    | Failed of
+        { error : Venue_error.t
+        ; detail : string
+        ; unhedged : int
+        }
+  [@@deriving sexp_of, bin_io]
+end
+
+module Wallet_card : sig
+  (** One booked opportunity as the wallet panel renders it. *)
+  type t =
+    { pair_key : string
+    ; summary : string
+    ; dollars : float
+    ; acted : bool
+    ; acted_dollars : float
+    }
+  [@@deriving sexp_of, bin_io]
+end
+
+module Wallet : sig
+  (** The "for fun" score: [paper] sums every booked opportunity's
+      would-have-made dollars (fees included) as if the user had acted on all
+      of them; [acted] sums only the entries they marked as really traded. *)
+  type t =
+    { paper : float
+    ; acted : float
+    ; entries : Wallet_card.t list
     }
   [@@deriving sexp_of, bin_io]
 end
@@ -200,8 +368,22 @@ val get_markets : (unit, Market_card.t list Or_error.t) Rpc.Rpc.t
 (** The pairs currently in the given status, in review-listing order. *)
 val get_pairs : (Pair_status.t, Pair_card.t list Or_error.t) Rpc.Rpc.t
 
-(** Approve or reject one proposed pair; returns it as decided. *)
+(** Move one listed pair to a new status; returns it as decided. *)
 val decide_pair : (Decide_request.t, Pair_card.t Or_error.t) Rpc.Rpc.t
+
+(** Adjudicate every Proposed pair with the LLM: true twins land in Approved,
+    lookalikes in Rejected, each with the model's one-line rationale. The
+    human can overrule any verdict via {!decide_pair}. Costs real tokens —
+    the page says so out loud. *)
+val llm_review_pairs
+  : (Llm_review_request.t, Llm_review_summary.t Or_error.t) Rpc.Rpc.t
+
+(** Approve every Proposed pair scoring at least the threshold, leaving the
+    rest Proposed. Free and deterministic, but only as sound as the text
+    matcher whose scores it trusts — the page warns as much. Reversible per
+    pair via {!decide_pair}. *)
+val auto_review_pairs
+  : (Auto_review_request.t, Auto_review_summary.t Or_error.t) Rpc.Rpc.t
 
 (** Page through both venues' full open listings, text-match the cross
     product, and file the survivors for review. Slow — a minute or two of
@@ -209,8 +391,29 @@ val decide_pair : (Decide_request.t, Pair_card.t Or_error.t) Rpc.Rpc.t
 val run_sweep : (Sweep_request.t, Sweep_summary.t Or_error.t) Rpc.Rpc.t
 
 (** Price every approved pair against both venues' live order books once —
-    one tick of the paper bot's loop, without placing orders. *)
+    one tick of the paper bot's loop, without placing orders. Tradable edges
+    are booked into the wallet as a side effect. *)
 val scan_edges : (unit, Scan_report.t Or_error.t) Rpc.Rpc.t
+
+(** Can this server place real orders, and if not, why. *)
+val get_execution_capability
+  : (unit, Execution_capability.t Or_error.t) Rpc.Rpc.t
+
+(** Advisory rails check for one pair before the user commits money to a
+    manual leg. *)
+val preflight_hedge : (Preflight_request.t, Preflight.t Or_error.t) Rpc.Rpc.t
+
+(** Fire the Kalshi hedge for a user-confirmed manual leg — sized to the
+    confirmed count, slippage-guarded, inside the rails, idempotent per
+    nonce. *)
+val execute_hedge : (Hedge_request.t, Hedge_result.t Or_error.t) Rpc.Rpc.t
+
+(** The wallet as it stands. *)
+val get_wallet : (unit, Wallet.t Or_error.t) Rpc.Rpc.t
+
+(** Mark one booked pair (by [pair_key]) as really traded, freezing its
+    dollars into the acted column; returns the refreshed wallet. *)
+val mark_acted : (string, Wallet.t Or_error.t) Rpc.Rpc.t
 
 (** Parse and backtest a bot program against live Kalshi history for the
     requested markets. Errors carry parse locations / validation context

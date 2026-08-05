@@ -155,10 +155,24 @@ let implementations =
           Arb_runner.list_pairs status)
       ; Rpc.Rpc.implement Protocol.decide_pair (fun () request ->
           Arb_runner.decide request)
+      ; Rpc.Rpc.implement Protocol.llm_review_pairs (fun () request ->
+          Arb_runner.llm_review request)
+      ; Rpc.Rpc.implement Protocol.auto_review_pairs (fun () request ->
+          Arb_runner.auto_review request)
       ; Rpc.Rpc.implement Protocol.run_sweep (fun () request ->
           Arb_runner.sweep request)
       ; Rpc.Rpc.implement Protocol.scan_edges (fun () () ->
           Arb_runner.scan ())
+      ; Rpc.Rpc.implement Protocol.get_execution_capability (fun () () ->
+          Arb_runner.capability ())
+      ; Rpc.Rpc.implement Protocol.preflight_hedge (fun () request ->
+          Arb_runner.preflight request)
+      ; Rpc.Rpc.implement Protocol.execute_hedge (fun () request ->
+          Arb_runner.hedge request)
+      ; Rpc.Rpc.implement Protocol.get_wallet (fun () () ->
+          Arb_runner.wallet ())
+      ; Rpc.Rpc.implement Protocol.mark_acted (fun () pair_key ->
+          Arb_runner.mark_acted pair_key)
       ]
     ~on_unknown_rpc:`Close_connection
     ~on_exception:Log_on_background_exn
@@ -179,8 +193,25 @@ let http_handler ~client_js =
     ~on_unknown_url:`Not_found
 ;;
 
-let serve ~port ~db_name ~client_js =
+let serve ~port ~db_name ~client_js ~allow_live =
   let open Deferred.Or_error.Let_syntax in
+  (* The web server's only live path (assisted hedges) exists solely behind
+     this launch flag: a routine restart cannot go live by accident, and a
+     paper server hides every execution affordance. *)
+  let%bind () =
+    match allow_live with
+    | false -> return ()
+    | true ->
+      let%bind credentials =
+        Execution.Kalshi_live.Credentials.load_from_env ()
+      in
+      Arb_runner.enable_live credentials;
+      printf
+        "LIVE EXECUTION ENABLED (host %s) - assisted hedges will move real \
+         money\n"
+        (Execution.Kalshi_live.Credentials.host credentials);
+      return ()
+  in
   (* Caqti's sqlite URI reads a relative path as a host component, so anchor
      the file to the working directory first — same as the arbitrage CLI's
      store setup. *)
@@ -191,6 +222,12 @@ let serve ~port ~db_name ~client_js =
   let%bind () = Deferred.return (Database_exec.init_database db_name) in
   let%bind () = Database_exec.create_market_stub_table () in
   let%bind () = Database_exec.create_pair_proposal_table () in
+  let%bind () = Database_exec.create_pair_stub_table () in
+  let%bind () = Database_exec.create_arb_wallet_table () in
+  let%bind () = Database_exec.create_trade_log_table () in
+  (* Before the seed's purge: rescue any pair legs still in the catalog into
+     their snapshot table, or the rotation may evict them. *)
+  let%bind () = Database_exec.backfill_pair_stubs () in
   let%bind () = seed_database () in
   let handler = http_handler ~client_js in
   let%bind.Deferred (_ : (Socket.Address.Inet.t, int) Cohttp_async.Server.t) =
@@ -234,8 +271,17 @@ let serve_command =
              "_build/default/app/client/bin/main.bc.js"
              string)
           ~doc:"PATH compiled client bundle (default from dune's _build)"
+      and allow_live =
+        flag
+          "-allow-live"
+          no_arg
+          ~doc:
+            " enable real-money assisted hedges. Needs KALSHI_API_KEY_ID \
+             and KALSHI_PRIVATE_KEY_FILE (production credentials); every \
+             order runs inside the spending caps, behind the kill switch, \
+             and lands in the audit log"
       in
-      fun () -> serve ~port ~db_name ~client_js]
+      fun () -> serve ~port ~db_name ~client_js ~allow_live]
 ;;
 
 (* Dispatches [get-markets] against a running server the same way the browser
