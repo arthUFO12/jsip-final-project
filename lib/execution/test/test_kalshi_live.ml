@@ -245,3 +245,48 @@ let%expect_test "the venue's create-order response becomes a fill: order id \
     |}];
   return ()
 ;;
+
+let%expect_test "balance response parses from integer cents or fixed-point" =
+  List.iter
+    [ {|{"balance": 250075}|}; {|{"balance": "2500.75"}|}; {|{"nope": 1}|} ]
+    ~f:(fun body ->
+      print_s
+        [%sexp
+          (Kalshi_live.For_testing.parse_balance_response body
+           : float Or_error.t)]);
+  [%expect
+    {|
+    (Ok 2500.75)
+    (Ok 2500.75)
+    (Error
+     ("could not parse kalshi balance response"
+      ("no balance field in response" (body "{\"nope\": 1}"))))
+    |}];
+  return ()
+;;
+
+let%expect_test "positions response keeps open rows and drops flat ones" =
+  let body =
+    {|{"event_positions": [],
+       "market_positions":
+         [ {"ticker": "KXFED-A", "position": 12, "market_exposure": 480},
+           {"ticker": "KXBTC-B", "position": 0, "market_exposure": 0},
+           {"ticker": "KXCPI-C", "position": -3, "market_exposure": 150} ]}|}
+  in
+  print_s
+    [%sexp
+      (Kalshi_live.For_testing.parse_positions_response body
+       : Kalshi_live.Position.t list Or_error.t)];
+  [%expect
+    {|
+    (Ok
+     (((ticker KXFED-A) (position 12) (exposure_dollars 4.8))
+      ((ticker KXCPI-C) (position -3) (exposure_dollars 1.5))))
+    |}];
+  print_s
+    [%sexp
+      (Kalshi_live.For_testing.parse_positions_response {|{"other": 1}|}
+       : Kalshi_live.Position.t list Or_error.t)];
+  [%expect {| (Ok ()) |}];
+  return ()
+;;

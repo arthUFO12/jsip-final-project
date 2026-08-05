@@ -521,6 +521,98 @@ let log_manual_leg
     }
 ;;
 
+(* Remainder-cancel rows get their own audit action so the daily spend sum
+   (which filters on action='place') never counts them. *)
+let log_hedge_cancel ~(order : Execution.Order.t) ~client_order_id ~outcome =
+  let entry =
+    { Trade_log_entry.at = Time_ns.now ()
+    ; venue = Venue.to_string (Execution.Order.venue order)
+    ; market_id = order.market.market_id
+    ; action = "cancel"
+    ; client_order_id = Some client_order_id
+    ; outcome
+    ; detail = "remainder cleanup after a partial assisted hedge"
+    ; dollars = 0.
+    }
+  in
+  match%map.Deferred Database.Database_exec.append_trade_log entry with
+  | Ok () -> ()
+  | Error error ->
+    Core.eprint_s
+      [%message
+        "TRADE LOG WRITE FAILED - audit trail is incomplete"
+          (entry : Trade_log_entry.t)
+          (error : Error.t)]
+;;
+
+let status_poll_attempts = 3
+let status_poll_interval = Time_ns.Span.of_sec 1.
+
+(* The create response's synchronous fill count lags the venue's read side
+   by a beat, so a "partial" may already be fully executed. Give the order a
+   few polls to say so; otherwise cancel the remainder and take the cancel's
+   own [reduced_by] as the authoritative unfilled count. Never errors — the
+   fallback is the synchronous count, with the uncertainty logged. *)
+let reconcile_partial_fill
+  credentials
+  ~(order : Execution.Order.t)
+  ~client_order_id
+  ~order_id
+  ~size
+  ~synchronous_filled
+  =
+  let open Deferred.Let_syntax in
+  let rec poll attempt =
+    match%bind
+      Execution.Kalshi_live.order_status credentials ~order_id
+    with
+    | Ok "executed" -> return `Executed
+    | Ok status ->
+      (match attempt >= status_poll_attempts with
+       | true -> return (`Still status)
+       | false ->
+         let%bind () = Clock_ns.after status_poll_interval in
+         poll (attempt + 1))
+    | Error (_ : Error.t) ->
+      (* The read side 404s for a moment after creation; retry like a
+         resting order. *)
+      (match attempt >= status_poll_attempts with
+       | true -> return (`Still "unreadable")
+       | false ->
+         let%bind () = Clock_ns.after status_poll_interval in
+         poll (attempt + 1))
+  in
+  match%bind poll 1 with
+  | `Executed ->
+    (* The remainder filled while we watched — no cancel to send. *)
+    return size
+  | `Still status ->
+    (match%bind
+       Execution.Kalshi_live.cancel_order credentials ~order_id
+     with
+     | Ok reduced_by ->
+       let%bind () =
+         log_hedge_cancel
+           ~order
+           ~client_order_id
+           ~outcome:
+             [%string
+               "canceled remainder: removed %{reduced_by#Int} (order was                 %{status})"]
+       in
+       (* What the cancel could not remove had filled. *)
+       return (Int.max synchronous_filled (size - reduced_by))
+     | Error error ->
+       let%bind () =
+         log_hedge_cancel
+           ~order
+           ~client_order_id
+           ~outcome:
+             [%string
+               "CANCEL FAILED - remainder may still be resting:                 %{Error.to_string_hum error}"]
+       in
+       return synchronous_filled)
+;;
+
 let hedge
   ({ pair_key
    ; nonce
@@ -632,21 +724,34 @@ let hedge
                        ~outcome:[%string "accepted: filled %{filled#Int}"]
                        ~dollars:(Rails.order_dollars order))
                 in
-                (* A remainder resting on the book is not a hedge the user
-                   can count on; cancel it so [unhedged] is definitive. *)
-                let%bind () =
+                (* A remainder resting on the book is not a hedge the
+                   user can count on; reconcile against the venue (poll,
+                   then cancel) so [unhedged] is definitive. *)
+                let%bind filled =
                   match filled < size, fill.venue_order_id with
+                  | false, _ | true, None -> return filled
                   | true, Some order_id ->
-                    (match%map.Deferred
-                       Execution.Kalshi_live.cancel_order
+                    Deferred.ok
+                      (reconcile_partial_fill
                          credentials
+                         ~order
+                         ~client_order_id
                          ~order_id
-                     with
-                     | Ok (_ : int) | Error (_ : Error.t) -> Ok ())
-                  | false, _ | true, None -> return ()
+                         ~size
+                         ~synchronous_filled:filled)
                 in
                 let unhedged = manual_count - filled in
-                let fee = dollars fill.fee in
+                let fee =
+                  match filled = Size.to_int fill.filled_size with
+                  | true -> dollars fill.fee
+                  | false ->
+                    (* Reconciliation changed the count; re-estimate the
+                       fee at the fill price. *)
+                    dollars
+                      (Size.multiply_by_price
+                         (Size.of_int filled)
+                         (Execution.Fees.taker_fee Kalshi fill.price))
+                in
                 let hedge_price = dollars fill.price in
                 let%bind () =
                   match filled > 0 with

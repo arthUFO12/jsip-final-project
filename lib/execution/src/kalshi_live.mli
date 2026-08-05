@@ -88,6 +88,23 @@ val cancel_order
   -> order_id:string
   -> int Deferred.Or_error.t
 
+(** The account's available cash on this host, in dollars. Demo credentials
+    report demo dollars; the number is only as fresh as the venue's read
+    side. *)
+val balance : Credentials.t -> float Deferred.Or_error.t
+
+module Position : sig
+  type t =
+    { ticker : string
+    ; position : int (** Signed contracts: positive long YES, negative NO. *)
+    ; exposure_dollars : float (** The venue's marked exposure. *)
+    }
+  [@@deriving sexp_of]
+end
+
+(** Open (non-zero) per-market positions on this host. *)
+val positions : Credentials.t -> Position.t list Deferred.Or_error.t
+
 (** The pure pieces, exposed so tests can exercise signing and encoding
     without a network or a real account. Production code should only use
     {!place_order}. *)
@@ -127,4 +144,10 @@ module For_testing : sig
 
   (** Reads the venue's create-order response into a {!Fill.t}. *)
   val parse_order_response : Order.t -> body:string -> Fill.t Or_error.t
+
+  (** Reads the balance response into dollars. *)
+  val parse_balance_response : string -> float Or_error.t
+
+  (** Reads the positions response into open positions. *)
+  val parse_positions_response : string -> Position.t list Or_error.t
 end
