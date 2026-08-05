@@ -327,6 +327,7 @@ let serve
   let%bind () = Database_exec.create_pair_stub_table () in
   let%bind () = Database_exec.create_arb_wallet_table () in
   let%bind () = Database_exec.create_trade_log_table () in
+  let%bind () = Database_exec.create_arb_observation_table () in
   (* Before the seed's purge: rescue any pair legs still in the catalog into
      their snapshot table, or the rotation may evict them. *)
   let%bind () = Database_exec.backfill_pair_stubs () in
@@ -730,6 +731,7 @@ let check_hedge ~db ~pair_key ~count ~manual_price_cents ~real =
   let%bind () = Database_exec.create_pair_stub_table () in
   let%bind () = Database_exec.create_arb_wallet_table () in
   let%bind () = Database_exec.create_trade_log_table () in
+  let%bind () = Database_exec.create_arb_observation_table () in
   let host =
     match real with
     | true -> Execution.Kalshi_live.live_host

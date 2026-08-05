@@ -231,6 +231,19 @@ let edge_card ~legs ({ Matcher.Candidate.left; right } as candidate) =
    whole opportunity would have locked in. Frozen (acted) rows are left alone
    by the upsert. *)
 let book_edge (card : Protocol.Edge_card.t) =
+  let open Deferred.Or_error.Let_syntax in
+  (* The sighting goes into the append-only history first — the wallet
+     upsert below overwrites, so this row is the only durable record that
+     the edge existed at this moment. *)
+  let%bind () =
+    Database.Database_exec.append_arb_observation
+      { Arb_observation.at = Time_ns.now ()
+      ; pair_key = card.pair_key
+      ; edge = card.edge
+      ; size = card.size
+      ; dollars = card.dollars
+      }
+  in
   Database.Database_exec.upsert_wallet_entry
     { Wallet_entry.pair_key = card.pair_key
     ; summary =

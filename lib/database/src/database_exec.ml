@@ -332,6 +332,36 @@ let list_wallet_entries () : Wallet_entry.t list Deferred.Or_error.t =
   | Error e -> Deferred.Or_error.error_string (Caqti_error.show e)
 ;;
 
+let create_arb_observation_table () : unit Deferred.Or_error.t =
+  let%bind success_or_error =
+    with_pool (fun (module C : Caqti_async.CONNECTION) ->
+      C.exec Database_commands.create_arb_observation_table ())
+  in
+  match success_or_error with
+  | Ok () -> return (Ok ())
+  | Error e -> Deferred.Or_error.error_string (Caqti_error.show e)
+;;
+
+let append_arb_observation entry : unit Deferred.Or_error.t =
+  let%bind success_or_error =
+    with_pool (fun (module C : Caqti_async.CONNECTION) ->
+      C.exec Database_commands.append_arb_observation entry)
+  in
+  match success_or_error with
+  | Ok () -> return (Ok ())
+  | Error e -> Deferred.Or_error.error_string (Caqti_error.show e)
+;;
+
+let list_arb_observations () : Arb_observation.t list Deferred.Or_error.t =
+  let%bind entries_or_error =
+    with_pool (fun (module C : Caqti_async.CONNECTION) ->
+      C.collect_list Database_commands.list_arb_observations ())
+  in
+  match entries_or_error with
+  | Ok entries -> return (Ok entries)
+  | Error e -> Deferred.Or_error.error_string (Caqti_error.show e)
+;;
+
 let create_trade_log_table () : unit Deferred.Or_error.t =
   let%bind success_or_error =
     with_pool (fun (module C : Caqti_async.CONNECTION) ->
