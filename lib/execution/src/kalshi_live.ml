@@ -18,28 +18,6 @@ let legacy_order_path order_id =
   [%string "/trade-api/v2/portfolio/orders/%{order_id}"]
 ;;
 
-(* PSS salts are random, and there is no mirage-crypto-rng-unix in the switch
-   to plumb entropy automatically — so seed Fortuna from the kernel once, on
-   the first signature. *)
-let rng_seed_length = 32
-
-let initialize_rng =
-  lazy
-    (let seed =
-       In_channel.with_file "/dev/urandom" ~f:(fun channel ->
-         let buf = Bytes.create rng_seed_length in
-         match
-           In_channel.really_input channel ~buf ~pos:0 ~len:rng_seed_length
-         with
-         | Some () -> Bytes.to_string buf
-         | None -> raise_s [%message "unexpected end of /dev/urandom"])
-     in
-     Mirage_crypto_rng.set_default_generator
-       (Mirage_crypto_rng.create
-          ~seed:(Cstruct.of_string seed)
-          (module Mirage_crypto_rng.Fortuna)))
-;;
-
 module Pss_sha256 = Mirage_crypto_pk.Rsa.PSS (Mirage_crypto.Hash.SHA256)
 
 module Credentials = struct
@@ -119,7 +97,7 @@ let signing_input ~timestamp_ms ~verb ~path =
 ;;
 
 let sign ~(credentials : Credentials.t) ~timestamp_ms ~verb ~path =
-  force initialize_rng;
+  Entropy.ensure ();
   Pss_sha256.sign
     ~key:credentials.private_key
     (`Message (Cstruct.of_string (signing_input ~timestamp_ms ~verb ~path)))

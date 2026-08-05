@@ -13,6 +13,7 @@
   mirage-crypto
   mirage-crypto-pk
   mirage-crypto-rng
+  pbkdf
   x509)
  (preprocess
   (pps ppx_jane)))

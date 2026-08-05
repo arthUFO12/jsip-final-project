@@ -45,12 +45,43 @@ val sweep
 val scan : unit -> Protocol.Scan_report.t Deferred.Or_error.t
 
 (** Installs the server's one live executor. Called at startup by [server.ml]
-    iff [-allow-live] was passed and Kalshi credentials loaded; never called
-    on a paper server. *)
+    iff [-allow-live] was passed and Kalshi credentials loaded, and by the
+    trading-key unlock path under the same flag; never on a paper server. *)
 val enable_live : Execution.Kalshi_live.Credentials.t -> unit
+
+(** Records whether the operator launched with [-allow-live]. Called once at
+    startup by [server.ml]; {!unlock_trading_key} refuses without it, so a
+    browser can never talk a paper server into going live. *)
+val set_live_allowed : bool -> unit
 
 (** Backs {!Protocol.get_execution_capability}. *)
 val capability : unit -> Protocol.Execution_capability.t Deferred.Or_error.t
+
+(** Backs {!Protocol.get_trading_key}: what the encrypted wallet file and the
+    in-memory executor say right now. Never carries secrets. *)
+val trading_key_status : unit -> Protocol.Trading_key.Status.t Deferred.Or_error.t
+
+(** Backs {!Protocol.connect_trading_key}: validate the pasted key, encrypt
+    it at rest ({!Execution.Wallet_store.save}), and — on a [-allow-live]
+    server — unlock it immediately. *)
+val connect_trading_key
+  :  Protocol.Trading_key.Connect_request.t
+  -> Protocol.Trading_key.Status.t Deferred.Or_error.t
+
+(** Backs {!Protocol.unlock_trading_key}: decrypt with the passphrase and
+    install the live executor. Refuses without [-allow-live]. *)
+val unlock_trading_key
+  :  string
+  -> Protocol.Trading_key.Status.t Deferred.Or_error.t
+
+(** Backs {!Protocol.lock_trading_key}: drop the executor and decrypted
+    credentials from memory; the encrypted file stays. *)
+val lock_trading_key : unit -> Protocol.Trading_key.Status.t Deferred.Or_error.t
+
+(** Backs {!Protocol.forget_trading_key}: lock, then delete the file. *)
+val forget_trading_key
+  :  unit
+  -> Protocol.Trading_key.Status.t Deferred.Or_error.t
 
 (** Backs {!Protocol.preflight_hedge}: the advisory rails numbers for
     assisted execution's step 1. *)

@@ -122,12 +122,23 @@ the ssh model, honestly applied — not security theater:
   production pair commented out, so a routine restart cannot pick up the
   live key by accident; production requires editing `.env` *and* the
   `-live` flag *and* passing `validate`'s caps.
-- **Encryption at rest is deliberately deferred**: a passphrase-encrypted
-  PEM (or OS keychain) would demand interactive entry on every unattended
-  bot start, which fights the running-a-bot use case. If wanted later,
-  encrypted-PKCS#8 support in `Credentials.create` is the extension
-  point. On a single-user machine, 0600-enforced files match the posture
-  of `~/.ssh` and `~/.aws/credentials`.
+- **Encryption at rest — built 2026-08-05 as the web app's "connect your
+  wallet" flow** (the original deferral stands only for the unattended CLI
+  bot, which still reads raw `KALSHI_*` env credentials). The Wallet page
+  takes a pasted key id + PEM + passphrase once, with a disclaimer;
+  `Execution.Wallet_store` validates the PEM signs, encrypts it
+  (PBKDF2-HMAC-SHA256 600k iterations → AES-256-GCM, plain metadata bound
+  as GCM associated data) and writes `~/.kalshi/arbiter-wallet` 0600. Each
+  server session the user unlocks by passphrase — ssh-agent-like — which
+  installs the live executor; wrong passphrase fails the tag check
+  loudly. Lock drops it from memory; Forget deletes the file. One
+  deliberate relaxation of the "credentials never transit the browser"
+  principle: the connect request carries the key over the localhost
+  socket exactly once, browser → server only; every response is a status
+  with a masked hint (`cc2a..5e86`), never the key. `-allow-live` remains
+  the launch-flag gate — a browser cannot talk a paper server into going
+  live, and a `-allow-live` server without env credentials now starts
+  "allowed but locked" awaiting the UI unlock.
 - **Chat is not a channel**: any key that transits a conversation
   (including this project's own history) should be rotated once its
   testing purpose is served.

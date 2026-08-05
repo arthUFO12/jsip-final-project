@@ -280,6 +280,99 @@ let enable_live credentials =
   live_state := Some (Execution.Executor.live credentials, credentials)
 ;;
 
+(* Whether the operator launched with [-allow-live] — recorded at startup so
+   the wallet-unlock RPC honors the same gate as env-credential startup: a
+   browser can never talk a paper server into going live. *)
+let live_allowed = ref false
+let set_live_allowed allowed = live_allowed := allowed
+let wallet_path () = Execution.Wallet_store.default_path ()
+
+let trading_key_status () =
+  let%map status = Execution.Wallet_store.status ~path:(wallet_path ()) () in
+  let unlocked = Option.is_some !live_state in
+  match status with
+  | Execution.Wallet_store.Status.Not_connected ->
+    Ok
+      { Protocol.Trading_key.Status.connected = false
+      ; unlocked
+      ; key_hint = None
+      ; production = false
+      ; live_allowed = !live_allowed
+      }
+  | Execution.Wallet_store.Status.Connected { key_hint; production } ->
+    Ok
+      { Protocol.Trading_key.Status.connected = true
+      ; unlocked
+      ; key_hint = Some key_hint
+      ; production
+      ; live_allowed = !live_allowed
+      }
+;;
+
+let connect_trading_key
+  { Protocol.Trading_key.Connect_request.key_id
+  ; private_key_pem
+  ; passphrase
+  ; production
+  }
+  =
+  let open Deferred.Or_error.Let_syntax in
+  let path = wallet_path () in
+  let%bind () =
+    Execution.Wallet_store.save
+      ~path
+      ~key_id
+      ~private_key_pem
+      ~passphrase
+      ~production
+      ()
+  in
+  (* Connecting also unlocks when the launch flag allows it — the user just
+     typed the passphrase; asking again immediately would be pure friction.
+     On a paper server the key is stored but stays locked, and the status
+     tells the UI why. *)
+  let%bind () =
+    match !live_allowed with
+    | false -> return ()
+    | true ->
+      let%bind credentials =
+        Execution.Wallet_store.unlock ~path ~passphrase ()
+      in
+      enable_live credentials;
+      return ()
+  in
+  trading_key_status ()
+;;
+
+let unlock_trading_key passphrase =
+  let open Deferred.Or_error.Let_syntax in
+  let%bind () =
+    match !live_allowed with
+    | true -> return ()
+    | false ->
+      Deferred.Or_error.error_string
+        "this server was started without -allow-live, so it cannot trade; \
+         restart it with the flag to unlock"
+  in
+  let%bind credentials =
+    Execution.Wallet_store.unlock ~path:(wallet_path ()) ~passphrase ()
+  in
+  enable_live credentials;
+  trading_key_status ()
+;;
+
+let lock_trading_key () =
+  live_state := None;
+  trading_key_status ()
+;;
+
+let forget_trading_key () =
+  let open Deferred.Or_error.Let_syntax in
+  live_state := None;
+  let%bind () = Execution.Wallet_store.forget ~path:(wallet_path ()) () in
+  trading_key_status ()
+;;
+
 let capability () =
   match !live_state with
   | None ->
@@ -288,7 +381,8 @@ let capability () =
       ; reason =
           Some
             "server was not started with -allow-live (and Kalshi \
-             credentials)"
+             credentials); connect and unlock a trading key on the Wallet \
+             page of a -allow-live server"
       }
   | Some
       ((_ : Execution.Executor.t), (_ : Execution.Kalshi_live.Credentials.t))

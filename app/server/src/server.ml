@@ -223,6 +223,16 @@ let implementations =
           Arb_runner.wallet ())
       ; Rpc.Rpc.implement Protocol.mark_acted (fun () pair_key ->
           Arb_runner.mark_acted pair_key)
+      ; Rpc.Rpc.implement Protocol.get_trading_key (fun () () ->
+          Arb_runner.trading_key_status ())
+      ; Rpc.Rpc.implement Protocol.connect_trading_key (fun () request ->
+          Arb_runner.connect_trading_key request)
+      ; Rpc.Rpc.implement Protocol.unlock_trading_key (fun () passphrase ->
+          Arb_runner.unlock_trading_key passphrase)
+      ; Rpc.Rpc.implement Protocol.lock_trading_key (fun () () ->
+          Arb_runner.lock_trading_key ())
+      ; Rpc.Rpc.implement Protocol.forget_trading_key (fun () () ->
+          Arb_runner.forget_trading_key ())
       ]
     ~on_unknown_rpc:`Close_connection
     ~on_exception:Log_on_background_exn
@@ -247,20 +257,30 @@ let serve ~port ~db_name ~client_js ~allow_live =
   let open Deferred.Or_error.Let_syntax in
   (* The web server's only live path (assisted hedges) exists solely behind
      this launch flag: a routine restart cannot go live by accident, and a
-     paper server hides every execution affordance. *)
+     paper server hides every execution affordance. Credentials come from
+     either source — [KALSHI_*] env vars right now, or the Wallet page's
+     encrypted key unlocked later; env credentials are optional so a
+     [-allow-live] server can start clean and wait for the unlock. *)
+  Arb_runner.set_live_allowed allow_live;
   let%bind () =
     match allow_live with
     | false -> return ()
     | true ->
-      let%bind credentials =
-        Execution.Kalshi_live.Credentials.load_from_env ()
-      in
-      Arb_runner.enable_live credentials;
-      printf
-        "LIVE EXECUTION ENABLED (host %s) - assisted hedges will move real \
-         money\n"
-        (Execution.Kalshi_live.Credentials.host credentials);
-      return ()
+      (match%bind.Deferred
+         Execution.Kalshi_live.Credentials.load_from_env ()
+       with
+       | Ok credentials ->
+         Arb_runner.enable_live credentials;
+         printf
+           "LIVE EXECUTION ENABLED (host %s) - assisted hedges will move \
+            real money\n"
+           (Execution.Kalshi_live.Credentials.host credentials);
+         return ()
+       | Error (_ : Error.t) ->
+         printf
+           "live execution ALLOWED but locked - connect/unlock a trading \
+            key on the Wallet page (no KALSHI_* env credentials found)\n";
+         return ())
   in
   (* Caqti's sqlite URI reads a relative path as a host component, so anchor
      the file to the working directory first — same as the arbitrage CLI's
