@@ -8,12 +8,15 @@ open Parser
 
 let slug = Slug.of_string "save-act"
 
-let env ?(cash = 100.) ?(price = 0.40) ?(inventory = 0.) () : Eval_env.t =
+let env ?(cash = 100.) ?(price = 0.40) ?(inventory = 0.) ?(avg_cost = 0.) ()
+  : Eval_env.t
+  =
   { cash
   ; realized = 0.
   ; unrealized = 0.
   ; price_ago = (fun ~slug:_ ~contract:_ ~ago:_ -> Some price)
   ; inventory = (fun ~slug:_ -> inventory)
+  ; avg_cost = (fun ~slug:_ -> avg_cost)
   }
 ;;
 
@@ -82,11 +85,11 @@ let%expect_test "variables define in order, and sizes are expressions" =
   [%expect {| buy 1. yes save-act |}]
 ;;
 
-let%expect_test "market references: bare ticker, PRICE, and INVENTORY" =
+let%expect_test "market references: bare ticker, PRICE OF, and INVENTORY OF" =
   (* The env's price is 0.40 throughout. *)
   show "IF save-act < 0.50 THEN BUY 1 save-act YES";
   [%expect {| buy 1. yes save-act |}];
-  show "IF PRICE save-act == 0.40 THEN BUY 1 save-act YES";
+  show "IF PRICE OF save-act == 0.40 THEN BUY 1 save-act YES";
   [%expect {| buy 1. yes save-act |}];
   (* The NO price is written arithmetically. *)
   show "IF 1 - save-act > 0.55 THEN BUY 1 save-act NO";
@@ -94,23 +97,52 @@ let%expect_test "market references: bare ticker, PRICE, and INVENTORY" =
   (* Sizes can read the position: top the holding up to 10 contracts. *)
   show
     ~env:(env ~inventory:4. ())
-    "EVERY 1h BUY 10 - INVENTORY save-act save-act YES";
+    "EVERY 1h BUY 10 - INVENTORY OF save-act save-act YES";
   [%expect {| every 1h buy 6. yes save-act |}];
   show
     ~env:(env ~inventory:4. ())
-    "IF INVENTORY save-act < 3 THEN BUY 1 save-act YES";
+    "IF INVENTORY OF save-act < 3 THEN BUY 1 save-act YES";
   [%expect {| no action |}]
 ;;
 
+let%expect_test "AVGCOST OF reads the position's average entry price" =
+  (* Take profit: the price (0.40) sits above the 0.25 average entry. *)
+  show
+    ~env:(env ~avg_cost:0.25 ())
+    "IF PRICE OF save-act > AVGCOST OF save-act THEN SELL 1 save-act YES";
+  [%expect {| sell 1. yes save-act |}];
+  (* Sizes can read it too: spend $10 worth at the average entry price. *)
+  show
+    ~env:(env ~avg_cost:0.25 ())
+    "EVERY 1h BUY 10 * AVGCOST OF save-act save-act YES";
+  [%expect {| every 1h buy 2.5 yes save-act |}];
+  (* Unknown markets and bare (uncompared) uses fail like INVENTORY. *)
+  show "IF AVGCOST OF mystery > 0.5 THEN SELL 1 save-act YES";
+  [%expect
+    {|
+    ("parse error" (line 1)
+     (line "IF AVGCOST OF mystery > 0.5 THEN SELL 1 save-act YES")
+     "unknown market 'mystery'")
+    |}];
+  show "EVERY 1h IF AVGCOST OF save-act THEN SELL 1 save-act YES";
+  [%expect
+    {|
+    ("parse error" (line 1)
+     (line "EVERY 1h IF AVGCOST OF save-act THEN SELL 1 save-act YES")
+     "avgcost is a numeric value; compare it to something to form a condition")
+    |}]
+;;
+
 let%expect_test "signal statements parse both magnitudes and windows" =
-  (* Price is flat in this env, so only a 0-move threshold fires. *)
-  show "IF save-act YES UP BY 0 SINCE 2h AGO THEN BUY 1 save-act YES";
+  (* Price is flat in this env, so only a 0-move threshold fires. Signals
+     track the yes price; no contract word follows the ticker. *)
+  show "IF save-act UP BY 0 SINCE 2h AGO THEN BUY 1 save-act YES";
   [%expect {| buy 1. yes save-act |}];
-  show "IF save-act YES UP BY 5% SINCE 2h AGO THEN BUY 1 save-act YES";
+  show "IF save-act UP BY 5% SINCE 2h AGO THEN BUY 1 save-act YES";
   [%expect {| no action |}];
   show
-    "IF save-act NO DOWN BY 0.10 SINCE 1d AGO END 2h AGO THEN SELL 1 \
-     save-act NO";
+    "IF save-act DOWN BY 0.10 SINCE 1d AGO END 2h AGO THEN SELL 1 save-act \
+     NO";
   [%expect {| no action |}]
 ;;
 
@@ -163,17 +195,25 @@ let%expect_test "parse errors carry the line and reason" =
      ("variable used where a boolean value is required" (name cash)
       (defined_as numeric)))
     |}];
-  show "IF PRICE moon > 0 THEN BUY 1 save-act YES";
+  show "IF PRICE OF moon > 0 THEN BUY 1 save-act YES";
   [%expect
     {|
-    ("parse error" (line 1) (line "IF PRICE moon > 0 THEN BUY 1 save-act YES")
+    ("parse error" (line 1) (line "IF PRICE OF moon > 0 THEN BUY 1 save-act YES")
      "unknown market 'moon'")
     |}];
-  show "IF PRICE save-act THEN BUY 1 save-act YES";
+  show "IF PRICE OF save-act THEN BUY 1 save-act YES";
   [%expect
     {|
-    ("parse error" (line 1) (line "IF PRICE save-act THEN BUY 1 save-act YES")
+    ("parse error" (line 1) (line "IF PRICE OF save-act THEN BUY 1 save-act YES")
      "price is a numeric value; compare it to something to form a condition")
+    |}];
+  (* The old [price <ticker>] spelling reports the missing [of]. *)
+  show "IF PRICE save-act > 0.5 THEN BUY 1 save-act YES";
+  [%expect
+    {|
+    ("parse error" (line 1)
+     (line "IF PRICE save-act > 0.5 THEN BUY 1 save-act YES")
+     "expected of but found 'save-act'")
     |}];
   show "save-act = 5";
   [%expect
@@ -181,12 +221,20 @@ let%expect_test "parse errors carry the line and reason" =
     ("parse error" (line 1) (line "save-act = 5")
      "variable name 'save-act' collides with a market ticker")
     |}];
-  show "IF save-act YES SIDEWAYS BY 3% SINCE 1h AGO THEN BUY 1 save-act YES";
+  show "IF save-act SIDEWAYS BY 3% SINCE 1h AGO THEN BUY 1 save-act YES";
   [%expect
     {|
     ("parse error" (line 1)
-     (line "IF save-act YES SIDEWAYS BY 3% SINCE 1h AGO THEN BUY 1 save-act YES")
+     (line "IF save-act SIDEWAYS BY 3% SINCE 1h AGO THEN BUY 1 save-act YES")
      "expected up or down, found 'SIDEWAYS'")
+    |}];
+  (* The old signal syntax's contract word now reads as a bad direction. *)
+  show "IF save-act YES UP BY 3% SINCE 1h AGO THEN BUY 1 save-act YES";
+  [%expect
+    {|
+    ("parse error" (line 1)
+     (line "IF save-act YES UP BY 3% SINCE 1h AGO THEN BUY 1 save-act YES")
+     "expected up or down, found 'YES'")
     |}];
   (* Errors are collected across lines, not just the first. *)
   show {|EVERY 2h BUY $a save-act YES
@@ -198,6 +246,41 @@ let%expect_test "parse errors carry the line and reason" =
      ("parse error" (line 2) (line "EVERY 2h BUY $b save-act YES")
       ("unknown variable" (name b))))
     |}]
+;;
+
+let%expect_test "eval_justified reports the conditions that decided the rule"
+  =
+  (* Env: price 0.40 (flat history), cash 100, inventory 0. *)
+  let show ?(env = env ()) text =
+    match Parse.program text ~slugs:[ slug ] with
+    | Error error -> print_s [%sexp (error : Error.t)]
+    | Ok rules ->
+      let eval = Expr.Eval.create env in
+      List.iter rules ~f:(fun rule ->
+        match Rule.eval_justified rule eval with
+        | None -> print_endline "no action"
+        | Some ((_ : Rule.Action_spec.t), []) ->
+          print_endline "fired (no condition)"
+        | Some ((_ : Rule.Action_spec.t), atoms) ->
+          List.map atoms ~f:Expr.Atom.to_string
+          |> String.concat ~sep:"; "
+          |> print_endline)
+  in
+  (* A true conjunction needs both conjuncts, with live values shown. *)
+  show "IF save-act < 0.50 && $cash > 50 THEN BUY 1 save-act YES";
+  [%expect {| price of save_act (0.4) < 0.5; $cash (100) > 50 |}];
+  (* A true disjunction is explained by its first true side only. *)
+  show "IF $cash > 50 || save-act < 0.50 THEN BUY 1 save-act YES";
+  [%expect {| $cash (100) > 50 |}];
+  (* An ELSE fires because the condition was false. *)
+  show "IF $cash > 500 THEN BUY 1 save-act YES ELSE SELL 1 save-act YES";
+  [%expect {| not ($cash (100) > 500) |}];
+  (* Signals render in program syntax; a false one under ! is negated. *)
+  show "IF !(save-act UP BY 5% SINCE 1h AGO) THEN BUY 1 save-act YES";
+  [%expect {| not (save_act up by 5% since 1h ago) |}];
+  (* Bare actions have no condition; the qualifier is the whole story. *)
+  show "EVERY 2h BUY 1 save-act YES";
+  [%expect {| fired (no condition) |}]
 ;;
 
 let%expect_test "parsed spans and windows validate through Program.create" =
@@ -244,7 +327,8 @@ let%expect_test "lowercase keywords and normalized tickers resolve to the \
   in
   (* The venue slug is uppercase with a double hyphen; the program spells it
      lowercase with double underscores and gets the real slug back. *)
-  show "every 2h if price kxelonmars__99 > 0.5 then buy 1 kxelonmars__99 yes";
+  show
+    "every 2h if price of kxelonmars__99 > 0.5 then buy 1 kxelonmars__99 yes";
   [%expect {| fires on KXELONMARS--99 |}];
   (* Mixed casing of keywords is fine too. *)
   show "EVERY 2h Buy 1 kxelonmars__99 YES";

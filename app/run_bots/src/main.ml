@@ -4,7 +4,8 @@ open Types
 open Market_data
 
 let print_summary
-  ({ cash; realized_pnl; unrealized_pnl; inventory = _ } : Action_summary.t)
+  ({ cash; realized_pnl; unrealized_pnl; inventory = _; average_costs = _ } :
+    Action_summary.t)
   =
   let cash = Price.to_string_dollar cash in
   let realized = Price.to_string_dollar realized_pnl in
@@ -21,10 +22,20 @@ let run_basic ~id ~seed =
   print_endline "trading:";
   List.iter stubs ~f:(fun stub ->
     print_endline [%string "  %{stub#Market_stub}"]);
-  let%bind summary =
-    Simulation.Harness.run
+  let%bind series_by_stub =
+    Market_data_gateway.fetch_many_ticker_series
       stubs
-      (Simulation.Harness.P ((module Bots.Basic.Bot), config))
+      ~start:config.Bots.Basic.Config.start
+      ~finish:config.finish
+      ~interval:config.interval
+  in
+  let%bind summary =
+    Deferred.return
+      (Simulation.Harness.run
+         stubs
+         series_by_stub
+         (Simulation.Harness.P ((module Bots.Basic.Bot), config))
+         ~allow_negative_cash:true)
   in
   print_summary summary;
   return ()
@@ -129,8 +140,8 @@ let run_interactive ~id =
     print_endline [%string "  %{stub#Market_stub}"]);
   let slugs = List.map stubs ~f:(fun (stub : Market_stub.t) -> stub.slug) in
   print_endline
-    "tickers usable in your strategy (a bare ticker or price <ticker> is \
-     its current yes price; inventory <ticker> is your position):";
+    "tickers usable in your strategy (a bare ticker or price of <ticker> is \
+     its current yes price; inventory of <ticker> is your position):";
   List.iter slugs ~f:(fun slug ->
     let name = Parser.Ticker_name.normalize (Slug.to_string slug) in
     print_endline [%string "  %{name}"]);
@@ -148,9 +159,12 @@ let run_interactive ~id =
          ~rules)
   in
   let%bind summary =
-    Simulation.Harness.run
-      stubs
-      (Simulation.Harness.P ((module Bots.Configurable.Bot), config))
+    Deferred.return
+      (Simulation.Harness.run
+         stubs
+         series_by_stub
+         (Simulation.Harness.P ((module Bots.Configurable.Bot), config))
+         ~allow_negative_cash:true)
   in
   print_summary summary;
   return ()

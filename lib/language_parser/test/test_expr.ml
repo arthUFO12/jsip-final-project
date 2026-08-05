@@ -23,6 +23,7 @@ let counting_env ?(price = 0.40) () =
           incr calls;
           Some !price)
     ; inventory = (fun ~slug:_ -> 4.)
+    ; avg_cost = (fun ~slug:_ -> 0.25)
     }
   in
   env, calls, price
@@ -137,4 +138,19 @@ let%expect_test "inventory references intern and read the environment" =
         ~held:(Expr.Eval.num eval first : float)
         ~slugs:(Expr.Num.referenced_slugs first : Slug.t list)];
   [%expect {| ((same_node true) (held 4) (slugs (save-act))) |}]
+;;
+
+let%expect_test "avgcost references intern and read the environment" =
+  let ctx = Expr.Context.create () in
+  let first = Expr.Num.avgcost ctx ~slug in
+  let second = Expr.Num.avgcost ctx ~slug in
+  let env, _, _ = counting_env () in
+  let eval = Expr.Eval.create env in
+  print_s
+    [%message
+      ""
+        ~same_node:(Expr.Num.id first = Expr.Num.id second : bool)
+        ~avg_cost:(Expr.Eval.num eval first : float)
+        ~slugs:(Expr.Num.referenced_slugs first : Slug.t list)];
+  [%expect {| ((same_node true) (avg_cost 0.25) (slugs (save-act))) |}]
 ;;

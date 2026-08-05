@@ -87,6 +87,8 @@ let list_oldest_market_stubs_before =
   let open Caqti_request.Infix in
   (T.t2 T.int64 T.int ->* Database_types.market_stub_type)
     {| SELECT * FROM market_stubs WHERE close_time < ? ORDER BY close_time ASC LIMIT ? |}
+;;
+
 let create_pair_proposal_table =
   let open Caqti_request.Infix in
   (Caqti_type.unit ->. Caqti_type.unit)

@@ -36,13 +36,26 @@ module Interval = struct
   let name = function Minute -> "minute" | Hour -> "hour" | Day -> "day"
 end
 
+module Basic_bots = struct
+  type t =
+    { count : int
+    ; trade_probability : float
+    ; max_size : int
+    }
+  [@@deriving sexp_of, bin_io]
+end
+
 module Sim_request = struct
   type t =
     { slugs : Slug.t list
     ; program : string
+    ; variables : string list
     ; interval : Interval.t
     ; lookback_days : int
     ; warmup_hours : int
+    ; starting_cash_cents : int
+    ; allow_negative_cash : bool
+    ; basic_bots : Basic_bots.t option
     }
   [@@deriving sexp_of, bin_io]
 end
@@ -56,6 +69,8 @@ module Fill = struct
     ; size : int
     ; slug : Slug.t
     ; rejected : string option (** [None] means the fill was accepted. *)
+    ; reason : string option
+    (** Why the bot fired this action: qualifiers plus the true conditions. *)
     }
   [@@deriving sexp_of, bin_io]
 end
@@ -67,6 +82,18 @@ module Tick_point = struct
     ; realized : float
     ; unrealized : float
     ; yes_prices : (Slug.t * float) list
+    ; inventory : (Slug.t * int) list
+    }
+  [@@deriving sexp_of, bin_io]
+end
+
+module Baseline_point = struct
+  type t =
+    { time_s : float
+    ; cash : float
+    ; realized : float
+    ; unrealized : float
+    ; portfolio_value : float
     }
   [@@deriving sexp_of, bin_io]
 end
@@ -76,6 +103,8 @@ module Sim_result = struct
     { ticks : Tick_point.t list
     ; fills : Fill.t list
     ; sim_start_s : float
+    ; baseline_ticks : Baseline_point.t list
+    ; pnl_percentile : float option
     }
   [@@deriving sexp_of, bin_io]
 
@@ -94,7 +123,7 @@ let get_markets =
 let run_simulation =
   Rpc.Rpc.create
     ~name:"run-simulation"
-    ~version:0
+    ~version:4
     ~bin_query:[%bin_type_class: Sim_request.t]
     ~bin_response:[%bin_type_class: Sim_result.t Or_error.t]
     ~include_in_error_count:Or_error

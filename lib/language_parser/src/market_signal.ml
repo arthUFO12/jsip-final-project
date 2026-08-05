@@ -54,6 +54,35 @@ let slug = function
   | Moved { slug; _ } | Above { slug; _ } | Below { slug; _ } -> slug
 ;;
 
+(* %g keeps 0.05 as "0.05" and 5. as "5" — the spellings a program uses. *)
+let float_string value = sprintf "%g" value
+
+let to_string t =
+  let name slug = Ticker_name.normalize (Slug.to_string slug) in
+  match t with
+  | Above { slug; contract = _; threshold } ->
+    [%string "%{name slug} above %{float_string threshold}"]
+  | Below { slug; contract = _; threshold } ->
+    [%string "%{name slug} below %{float_string threshold}"]
+  | Moved { slug; contract = _; direction; window; by } ->
+    let direction =
+      match direction with Direction.Up -> "up" | Down -> "down"
+    in
+    let by =
+      match by with
+      | Magnitude.Amount amount -> float_string amount
+      | Percent pct -> [%string "%{float_string pct}%"]
+    in
+    let window_end =
+      match Time_ns.Span.equal window.end_ago Time_ns.Span.zero with
+      | true -> ""
+      | false -> [%string " end %{window.end_ago#Time_ns.Span} ago"]
+    in
+    [%string
+      "%{name slug} %{direction} by %{by} since \
+       %{window.start_ago#Time_ns.Span} ago%{window_end}"]
+;;
+
 let current_price (env : Eval_env.t) ~slug ~contract =
   env.price_ago ~slug ~contract ~ago:Time_ns.Span.zero
 ;;

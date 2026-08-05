@@ -178,7 +178,8 @@ module Bot : Bot_interface.Bot with type Config.t = Config.t = struct
               |> Size.of_int)
            ~side
            ~slug
-           ~contract_type))
+           ~contract_type
+           ()))
     else None
   ;;
 
@@ -186,38 +187,18 @@ module Bot : Bot_interface.Bot with type Config.t = Config.t = struct
     List.filter_map (Hashtbl.keys data) ~f:(decide_trade config state)
   ;;
 
-  let action_string ({ size; side; slug; contract_type; id } : Action.t) =
-    let side = match side with Buy -> "buy" | Sell -> "sell" in
-    let contract = match contract_type with Yes -> "yes" | No -> "no" in
-    [%string "#%{id#Int} %{side} %{size#Size} %{contract} on %{slug#Slug}"]
-  ;;
-
   let on_response
     (_ : Config.t)
     (_ : State.t)
-    (responses : Action_response.t list)
-    ({ cash; realized_pnl; unrealized_pnl; inventory } : Action_summary.t)
+    (_responses : Action_response.t list)
+    ({ cash = _
+     ; realized_pnl = _
+     ; unrealized_pnl = _
+     ; inventory = _
+     ; average_costs = _
+     } :
+      Action_summary.t)
     =
-    List.iter responses ~f:(fun response ->
-      match response with
-      | Action_accepted { action; time_stamp } ->
-        print_endline
-          [%string "%{time_stamp#Time_ns} accepted %{action_string action}"]
-      | Action_rejected { action; time_stamp; reason } ->
-        print_endline
-          [%string
-            "%{time_stamp#Time_ns} REJECTED %{action_string action}: \
-             %{reason}"]);
-    let cash = Price.to_string_dollar cash in
-    let realized = Price.to_string_dollar realized_pnl in
-    let unrealized = Price.to_string_dollar unrealized_pnl in
-    let inventory_str =
-      Hashtbl.fold inventory ~init:"" ~f:(fun ~key:slug ~data:size acc ->
-        acc ^ [%string " | %{slug#Slug} inventory: %{size#Size}"])
-    in
-    print_endline
-      ([%string
-         "  cash %{cash} | realized %{realized} | unrealized %{unrealized}"]
-       ^ inventory_str)
+    ()
   ;;
 end

@@ -59,6 +59,7 @@ and num_node =
   | Unrealized
   | Price_of of Slug.t
   | Inventory_of of Slug.t
+  | Avgcost_of of Slug.t
   | Num_binop of Num_op.t * num * num
   | Neg of num
 
@@ -86,6 +87,7 @@ module Num_key = struct
       | Unrealized
       | Price_of of Slug.t
       | Inventory_of of Slug.t
+      | Avgcost_of of Slug.t
       | Binop of Num_op.t * int * int
       | Neg of int
     [@@deriving sexp_of, compare, hash]
@@ -169,6 +171,11 @@ module Num = struct
       Inventory_of slug)
   ;;
 
+  let avgcost ctx ~slug =
+    Context.intern_num ctx (Avgcost_of slug) ~node:(fun () ->
+      Avgcost_of slug)
+  ;;
+
   let binop ctx op left right =
     Context.intern_num
       ctx
@@ -193,7 +200,7 @@ module Num = struct
         Hash_set.add visited t.num_id;
         (match t.num_node with
          | Const _ | Cash | Realized | Unrealized -> ()
-         | Price_of slug | Inventory_of slug -> f slug
+         | Price_of slug | Inventory_of slug | Avgcost_of slug -> f slug
          | Num_binop (_, left, right) ->
            walk left;
            walk right
@@ -318,6 +325,7 @@ module Eval = struct
         | Unrealized -> t.env.unrealized
         | Price_of slug -> current_yes_price t slug
         | Inventory_of slug -> t.env.inventory ~slug
+        | Avgcost_of slug -> t.env.avg_cost ~slug
         | Num_binop (op, left, right) ->
           Num_op.apply op (num t left) (num t right)
         | Neg operand -> -.num t operand
@@ -346,3 +354,127 @@ module Eval = struct
       value
   ;;
 end
+
+module Atom = struct
+  type t =
+    { negated : bool
+    ; description : string
+    }
+
+  let to_string { negated; description } =
+    match negated with
+    | false -> description
+    | true -> [%string "not (%{description})"]
+  ;;
+end
+
+(* %g keeps 0.05 as "0.05" and 50. as "50" — the spellings a program uses. *)
+let float_string value = sprintf "%g" value
+
+(* Program syntax for a numeric operand, with the live value of each state
+   reference in parentheses. Only called on subtrees the rule already
+   evaluated this tick, so [Eval.num] is a memo hit and cannot raise. *)
+let rec num_description eval (node : num) =
+  let live () = float_string (Eval.num eval node) in
+  match node.num_node with
+  | Const value -> float_string value
+  | Cash -> [%string "$cash (%{live ()})"]
+  | Realized -> [%string "$realized (%{live ()})"]
+  | Unrealized -> [%string "$unrealized (%{live ()})"]
+  | Price_of slug ->
+    let name = Ticker_name.normalize (Slug.to_string slug) in
+    [%string "price of %{name} (%{live ()})"]
+  | Inventory_of slug ->
+    let name = Ticker_name.normalize (Slug.to_string slug) in
+    [%string "inventory of %{name} (%{live ()})"]
+  | Avgcost_of slug ->
+    let name = Ticker_name.normalize (Slug.to_string slug) in
+    [%string "avgcost of %{name} (%{live ()})"]
+  | Num_binop (op, left, right) ->
+    let op =
+      match op with
+      | Num_op.Add -> "+"
+      | Sub -> "-"
+      | Mul -> "*"
+      | Div -> "/"
+    in
+    [%string
+      "(%{num_description eval left} %{op} %{num_description eval right})"]
+  | Neg operand -> [%string "-%{num_description eval operand}"]
+;;
+
+let cmp_description eval op left right =
+  let op =
+    match (op : Cmp.t) with
+    | Gt -> ">"
+    | Lt -> "<"
+    | Ge -> ">="
+    | Le -> "<="
+    | Eq -> "=="
+    | Ne -> "!="
+  in
+  [%string
+    "%{num_description eval left} %{op} %{num_description eval right}"]
+;;
+
+let justify bool_expr eval ~want : Atom.t list =
+  let atoms = ref [] in
+  let visited = Int.Hash_set.create () in
+  (* [want] always equals the node's actual value (the walk only descends
+     branches consistent with how the rule evaluated), so a leaf reached with
+     [want = false] is reported negated. *)
+  let emit (node : bool_) ~want =
+    match Hash_set.mem visited node.bool_id with
+    | true -> ()
+    | false ->
+      Hash_set.add visited node.bool_id;
+      (match node.bool_node with
+       (* A literal [true]/[false] is not an event worth reporting. *)
+       | Bool_const _ | Logic _ | Not _ -> ()
+       | Signal_leaf signal ->
+         atoms
+         := { Atom.negated = not want
+            ; description = Market_signal.to_string signal
+            }
+            :: !atoms
+       | Cmp_node (op, left, right) ->
+         atoms
+         := { Atom.negated = not want
+            ; description = cmp_description eval op left right
+            }
+            :: !atoms)
+  in
+  let rec walk (node : bool_) ~want =
+    match node.bool_node with
+    | Bool_const _ | Cmp_node _ | Signal_leaf _ -> emit node ~want
+    | Not operand -> walk operand ~want:(not want)
+    | Logic (And, left, right) ->
+      (match want with
+       | true ->
+         (* Both conjuncts were needed. *)
+         walk left ~want:true;
+         walk right ~want:true
+       | false ->
+         (* The first false conjunct explains it, mirroring the evaluator's
+            short-circuit order. *)
+         (match Eval.bool eval left with
+          | false -> walk left ~want:false
+          | true -> walk right ~want:false))
+    | Logic (Or, left, right) ->
+      (match want with
+       | true ->
+         (match Eval.bool eval left with
+          | true -> walk left ~want:true
+          | false -> walk right ~want:true)
+       | false ->
+         walk left ~want:false;
+         walk right ~want:false)
+    | Logic (Xor, left, right) ->
+      (* No short circuit: both sides always matter, each at its actual
+         value. *)
+      walk left ~want:(Eval.bool eval left);
+      walk right ~want:(Eval.bool eval right)
+  in
+  walk bool_expr ~want;
+  List.rev !atoms
+;;

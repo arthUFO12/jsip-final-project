@@ -13,5 +13,7 @@ type t =
   ; inventory : Size.t Slug.Table.t
   (** Signed contracts held per market: positive is long Yes, negative is
       long No, zero is flat. *)
+  ; average_costs : Price.t Slug.Table.t
+  (** Average price paid per contract of each open position; zero when flat. *)
   }
 [@@deriving sexp_of]

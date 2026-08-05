@@ -53,14 +53,18 @@ let create ~every ~when_i body =
      | Some _ | None -> Ok { every; when_i; body })
 ;;
 
-let eval t eval_ =
+let eval_justified t eval_ =
   match t.body with
-  | Always spec -> Some spec
+  | Always spec -> Some (spec, [])
   | Conditional { condition; then_; else_ } ->
     (match Expr.Eval.bool eval_ condition with
-     | true -> Some then_
-     | false -> else_)
+     | true -> Some (then_, Expr.justify condition eval_ ~want:true)
+     | false ->
+       Option.map else_ ~f:(fun spec ->
+         spec, Expr.justify condition eval_ ~want:false))
 ;;
+
+let eval t eval_ = Option.map (eval_justified t eval_) ~f:fst
 
 let action_specs t =
   match t.body with

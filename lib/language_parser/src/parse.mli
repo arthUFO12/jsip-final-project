@@ -11,7 +11,9 @@
 
     where an action is [(buy|sell) <numeric expr> ticker (yes|no)] and a
     signal statement is
-    [ticker (yes|no) (up|down) by <number or pct%> since n(m|h|d) [ago] [end n(m|h|d) [ago]]].
+    [ticker (up|down) by <number or pct%> since n(m|h|d) [ago] [end n(m|h|d) [ago]]].
+    Signals always track the market's yes price — a fall in the no price is
+    written as the equivalent [up] move.
 
     Conventions the grammar commits to:
     - Keywords ([if], [buy], [since], ...) are canonically lowercase and
@@ -37,11 +39,12 @@
     boolean, and [$name] resolves through {!Var_env} kind checks.
 
     Market references are numeric expressions: a bare ticker ([save_act]) or
-    [price save_act] is the market's current Yes price, and
-    [inventory save_act] is the signed contracts held (positive long Yes,
-    negative long No). The No price is written arithmetically:
-    [1 - save_act]. Ticker names are reserved — defining a variable with a
-    ticker's name is an error.
+    [price of save_act] is the market's current Yes price,
+    [inventory of save_act] is the signed contracts held (positive long Yes,
+    negative long No), and [avgcost of save_act] is the average price paid
+    per contract of the open position ([0] when flat). The No price is
+    written arithmetically: [1 - save_act]. Ticker names are reserved —
+    defining a variable with a ticker's name is an error.
 
     [slugs] decides which words are tickers and seeds nothing else; the
     parser resolves normalized names back to these original slugs, so

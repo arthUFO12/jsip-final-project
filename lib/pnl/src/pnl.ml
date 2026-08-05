@@ -60,6 +60,19 @@ let inventories t =
     | Some position -> position.inventory)
 ;;
 
+let average_cost_bases t =
+  Hashtbl.mapi t.data ~f:(fun ~key:slug ~data:_ ->
+    match Hashtbl.find t.positions slug with
+    (* Flat means [cost_basis] is zero too, so there is no 0/0 to take: flat
+       positions average to zero by convention. *)
+    | None -> Price.zero
+    | Some position ->
+      (match Size.(position.inventory = Size.zero) with
+       | true -> Price.zero
+       | false ->
+         Size.divide_price position.cost_basis (Size.abs position.inventory)))
+;;
+
 let convert_transaction_to_delta
   size
   (side : Side.t)
@@ -205,7 +218,9 @@ let apply_trade position ~quantity_change ~yes_price ~no_price =
        , Price.(proceeds - cost_basis_added) ))
 ;;
 
-let update_position
+(* Shared by {!update_position} and {!trade_effect} so the preview can never
+   drift from what applying the trade actually does. *)
+let compute_trade
   t
   ~slug
   ~(side : Side.t)
@@ -221,13 +236,34 @@ let update_position
     | Pos -> data.yes_ask_price, data.no_bid_price
     | _ -> data.yes_bid_price, data.no_ask_price
   in
-  let slug_position, cash_delta =
-    Hashtbl.find t.positions slug
-    |> Option.value ~default:flat_position
-    |> apply_trade ~quantity_change ~yes_price ~no_price
+  let position =
+    Hashtbl.find t.positions slug |> Option.value ~default:flat_position
+  in
+  position, apply_trade position ~quantity_change ~yes_price ~no_price
+;;
+
+let update_position t ~slug ~side ~contract_type ~size =
+  let (_ : position), (slug_position, cash_delta) =
+    compute_trade t ~slug ~side ~contract_type ~size
   in
   t.cash <- Price.( + ) t.cash cash_delta;
   Hashtbl.set t.positions ~key:slug ~data:slug_position
+;;
+
+module Trade_effect = struct
+  type t =
+    { cash_after : Price.t
+    ; enlarges_position : bool
+    }
+end
+
+let trade_effect t ~slug ~side ~contract_type ~size : Trade_effect.t =
+  let before, (after, cash_delta) =
+    compute_trade t ~slug ~side ~contract_type ~size
+  in
+  { cash_after = Price.(t.cash + cash_delta)
+  ; enlarges_position = Size.(abs after.inventory > abs before.inventory)
+  }
 ;;
 
 let apply_trade_report

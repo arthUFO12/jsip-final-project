@@ -10,8 +10,10 @@ There are 2 types of statements. A rule defining statement and a variable defini
 There are two types of variables. Numeric variables and boolean variables. 
 A boolean statement has a couple of types:
 ((NUMERIC VARIABLE|CONSTANT) (>|<|>=|<=|==|!=) (NUMERIC VARIABLE|CONSTANT))
-SLUG (yes | no) (up | down) by ABSOLUTE_NUMBER since (CONSTANT NUMBER)(m|h|d) ago <end (CONSTANT NUMBER)(m|h|d) ago>
-SLUG (yes | no) (up | down) by PERCENTAGE since (CONSTANT NUMBER)(m|h|d) <end (CONSTANT NUMBER)(m|h|d) ago>
+SLUG (up | down) by ABSOLUTE_NUMBER since (CONSTANT NUMBER)(m|h|d) ago <end (CONSTANT NUMBER)(m|h|d) ago>
+SLUG (up | down) by PERCENTAGE since (CONSTANT NUMBER)(m|h|d) <end (CONSTANT NUMBER)(m|h|d) ago>
+
+These signal statements always track the market's yes price. A move in the no price is written as the opposite move: what used to be `no down by 0.10` is `up by 0.10`. (For percentage moves the base is the yes price at the window start.)
 
 Variable defining statments look like this
 ```
@@ -53,7 +55,8 @@ There should be a couple numeric variables already available to the user: cash, 
 
 Markets are referenced by ticker directly in numeric expressions:
 
-- A bare ticker (e.g. `save-act`), or equivalently `price save-act`, is the market's current yes price. The no price is written arithmetically: `1 - save-act`.
-- `inventory save-act` is the signed number of contracts currently held in that market: positive long yes, negative long no, 0 when flat.
+- A bare ticker (e.g. `save-act`), or equivalently `price of save-act`, is the market's current yes price. The no price is written arithmetically: `1 - save-act`.
+- `inventory of save-act` is the signed number of contracts currently held in that market: positive long yes, negative long no, 0 when flat.
+- `avgcost of save-act` is the average price paid per contract of the open position in that market, 0 when flat.
 
 Ticker names are reserved — a variable definition may not reuse one.

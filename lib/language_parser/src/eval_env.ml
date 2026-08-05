@@ -11,4 +11,5 @@ type t =
       -> ago:Time_ns.Span.t
       -> float option
   ; inventory : slug:Slug.t -> float
+  ; avg_cost : slug:Slug.t -> float
   }

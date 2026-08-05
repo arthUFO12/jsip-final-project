@@ -7,6 +7,10 @@ type t =
   ; contract_type : Contract_type.t
   ; id : int
   (** Assigned by {!Generator.new_action}; unique per generator. *)
+  ; reason : string option
+  (** Why the bot fired this action — for display, not logic. The
+      configurable bot fills it with the rule's qualifiers and the true
+      conditions that triggered it. *)
   }
 
 module Generator : sig
@@ -16,10 +20,12 @@ module Generator : sig
 
   val new_action
     :  gen
+    -> ?reason:string
     -> size:Size.t
     -> side:Side.t
     -> slug:Slug.t
     -> contract_type:Contract_type.t
+    -> unit
     -> t
 
   type t = gen

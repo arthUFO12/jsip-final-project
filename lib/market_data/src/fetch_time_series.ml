@@ -64,6 +64,8 @@ let update_kalshi_historical_cutoff () : unit Deferred.Or_error.t =
   Deferred.Or_error.return ()
 ;;
 
+let kalshi_historical_cutoff () = !historical_cutoff
+
 let fetch_historical_kalshi_data
   (market_stub : Market_stub.t)
   ~start

@@ -64,6 +64,15 @@ val create
     condition is false and there is no [ELSE]. *)
 val eval : t -> Expr.Eval.t -> Action_spec.t option
 
+(** {!eval}, plus why: the leaf conditions that decided the branch (see
+    {!Expr.justify}). For a fired [ELSE] the atoms justify the condition's
+    falsity; [Always] bodies have no condition, so their list is empty — the
+    qualifier is the whole story. *)
+val eval_justified
+  :  t
+  -> Expr.Eval.t
+  -> (Action_spec.t * Expr.Atom.t list) option
+
 (** Every slug the rule touches (condition, size, action target, trigger),
     for {!Program} validation. *)
 val referenced_slugs : t -> Slug.t list

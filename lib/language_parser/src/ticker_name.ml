@@ -15,11 +15,13 @@ let keywords =
   ; "up"
   ; "down"
   ; "by"
+  ; "of"
   ; "since"
   ; "end"
   ; "ago"
   ; "price"
   ; "inventory"
+  ; "avgcost"
   ; "true"
   ; "false"
   ]

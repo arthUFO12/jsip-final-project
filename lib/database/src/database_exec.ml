@@ -8,10 +8,9 @@ let global_pool = ref None
 
 (* "sqlite3://" ^ an absolute path yields sqlite3:///path/to/file. The old
    version baked in a directory that doesn't exist on this checkout. *)
-let uri_scheme = "sqlite3://"
 
 let init_database db_path =
-  let db_uri = Uri.of_string (uri_scheme ^ db_path) in
+  let db_uri = Uri.make ~scheme:"sqlite3" ~path:db_path () in
   match Caqti_async.connect_pool db_uri with
   | Error err -> Or_error.error_string (Caqti_error.show err)
   | Ok pool ->

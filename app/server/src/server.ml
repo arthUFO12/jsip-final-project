@@ -176,6 +176,17 @@ let serve ~port ~db_name ~client_js =
   let%bind () = Deferred.return (Database_exec.init_database db_name) in
   let%bind () = Database_exec.create_market_stub_table () in
   let%bind () = seed_database () in
+  (* Fetched once, before the server accepts requests: concurrent simulations
+     read the cutoff, so it must never be re-written while serving. *)
+  let%bind () = Fetch_time_series.update_kalshi_historical_cutoff () in
+  let%bind () =
+    match Fetch_time_series.kalshi_historical_cutoff () with
+    | Some (_ : Time_ns.t) -> return ()
+    | None ->
+      Deferred.return
+        (Or_error.error_string
+           "kalshi historical cutoff was not set by the startup fetch")
+  in
   let handler = http_handler ~client_js in
   let%bind.Deferred (_ : (Socket.Address.Inet.t, int) Cohttp_async.Server.t) =
     Rpc_websocket.Rpc.serve
@@ -259,16 +270,37 @@ let check_rpc_command =
 
 (* Dispatches [run-simulation] the same way the bot builder does, so the
    whole parse -> fetch -> backtest pipeline is testable headlessly. *)
-let check_sim ~port ~slugs ~program ~lookback_days ~warmup_hours =
+let check_sim
+  ~port
+  ~slugs
+  ~program
+  ~variables
+  ~lookback_days
+  ~warmup_hours
+  ~starting_cash_dollars
+  ~allow_negative_cash
+  ~basic_bots
+  ~basic_trade_probability
+  ~basic_max_size
+  =
   let open Deferred.Or_error.Let_syntax in
   let uri = Uri.of_string [%string "ws://localhost:%{port#Int}/"] in
   let%bind connection = Rpc_websocket.Rpc.client uri in
   let request : Protocol.Sim_request.t =
     { slugs = List.map slugs ~f:Slug.of_string
     ; program
+    ; variables
     ; interval = Hour
     ; lookback_days
     ; warmup_hours
+    ; starting_cash_cents = starting_cash_dollars * 100
+    ; allow_negative_cash
+    ; basic_bots =
+        Option.map basic_bots ~f:(fun count : Protocol.Basic_bots.t ->
+          { count
+          ; trade_probability = basic_trade_probability
+          ; max_size = basic_max_size
+          })
     }
   in
   let%bind result =
@@ -279,16 +311,38 @@ let check_sim ~port ~slugs ~program ~lookback_days ~warmup_hours =
     "%d ticks, %d fills\n"
     (List.length result.ticks)
     (List.length result.fills);
+  (match List.last result.baseline_ticks with
+   | None -> ()
+   | Some { time_s = _; cash; realized; unrealized; portfolio_value } ->
+     printf
+       "baseline (%d ticks): cash $%.2f | realized $%.2f | unrealized $%.2f \
+        | portfolio $%.2f\n"
+       (List.length result.baseline_ticks)
+       cash
+       realized
+       unrealized
+       portfolio_value);
+  (match result.pnl_percentile with
+   | None -> ()
+   | Some percentile -> printf "pnl percentile: %.0f\n" percentile);
   List.iter result.fills ~f:(fun fill ->
     print_s (Protocol.Fill.sexp_of_t fill));
   (match Protocol.Sim_result.final result with
    | None -> print_endline "no ticks simulated"
-   | Some { time_s = _; cash; realized; unrealized; yes_prices = _ } ->
+   | Some
+       { time_s = _; cash; realized; unrealized; yes_prices = _; inventory }
+     ->
+     let inventory =
+       List.map inventory ~f:(fun (slug, count) ->
+         [%string " %{slug#Slug} %{count#Int}"])
+       |> String.concat
+     in
      printf
-       "final: cash $%.2f | realized $%.2f | unrealized $%.2f\n"
+       "final: cash $%.2f | realized $%.2f | unrealized $%.2f | inventory:%s\n"
        cash
        realized
-       unrealized);
+       unrealized
+       inventory);
   return ()
 ;;
 
@@ -309,6 +363,11 @@ let check_sim_command =
           ~doc:"SLUG market to trade (repeatable, 1-4)"
       and program =
         flag "-program" (required string) ~doc:"TEXT bot program source"
+      and variables =
+        flag
+          "-variable"
+          (listed string)
+          ~doc:"DEF variable definition like 'lot = 2' (repeatable)"
       and lookback_days =
         flag
           "-lookback-days"
@@ -319,8 +378,45 @@ let check_sim_command =
           "-warmup-hours"
           (optional_with_default 12 int)
           ~doc:"INT history-only prefix (default 12)"
+      and starting_cash_dollars =
+        flag
+          "-starting-cash-dollars"
+          (optional_with_default 100 int)
+          ~doc:"INT the bot's opening cash (default 100)"
+      and allow_negative_cash =
+        flag
+          "-allow-negative-cash"
+          no_arg
+          ~doc:" let trades overdraw cash (default: reject them)"
+      and basic_bots =
+        flag
+          "-basic-bots"
+          (optional int)
+          ~doc:"INT also run this many random baseline bots (default: off)"
+      and basic_trade_probability =
+        flag
+          "-basic-trade-probability"
+          (optional_with_default 0.2 float)
+          ~doc:"FLOAT baseline per-market trade chance (default 0.2)"
+      and basic_max_size =
+        flag
+          "-basic-max-size"
+          (optional_with_default 100 int)
+          ~doc:"INT baseline max trade size (default 100)"
       in
-      fun () -> check_sim ~port ~slugs ~program ~lookback_days ~warmup_hours]
+      fun () ->
+        check_sim
+          ~port
+          ~slugs
+          ~program
+          ~variables
+          ~lookback_days
+          ~warmup_hours
+          ~starting_cash_dollars
+          ~allow_negative_cash
+          ~basic_bots
+          ~basic_trade_probability
+          ~basic_max_size]
 ;;
 
 let command =

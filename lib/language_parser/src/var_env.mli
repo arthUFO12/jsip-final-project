@@ -9,8 +9,8 @@
     no names remain: evaluation never looks anything up here.
 
     {!create} seeds the spec's built-ins: [cash], [realized], and
-    [unrealized]. Market references (bare ticker, [PRICE], [INVENTORY]) are
-    grammar forms handled by {!Parse}, not variables. *)
+    [unrealized]. Market references (bare ticker, [PRICE], [INVENTORY],
+    [AVGCOST]) are grammar forms handled by {!Parse}, not variables. *)
 
 open! Core
 

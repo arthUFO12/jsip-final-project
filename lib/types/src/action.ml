@@ -6,6 +6,7 @@ type t =
   ; slug : Slug.t
   ; contract_type : Contract_type.t
   ; id : int
+  ; reason : string option
   }
 
 module Generator = struct
@@ -14,8 +15,8 @@ module Generator = struct
 
   let create () = ref 0
 
-  let new_action (t : t) ~size ~side ~slug ~contract_type =
+  let new_action (t : t) ?reason ~size ~side ~slug ~contract_type () =
     t := !t + 1;
-    { size; side; slug; contract_type; id = !t }
+    { size; side; slug; contract_type; id = !t; reason }
   ;;
 end

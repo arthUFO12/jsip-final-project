@@ -16,5 +16,7 @@
   simulation
   bots
   protocol)
+ (flags
+  (:standard -alert -do_not_spawn_domains -alert -unsafe_multidomain))
  (preprocess
   (pps ppx_jane)))

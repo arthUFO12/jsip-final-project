@@ -123,7 +123,8 @@ let parse_side state =
    there is an error; bare-ticker price references are recognized by
    membership alone in {!parse_num_factor}. *)
 let parse_known_slug state ~keyword =
-  let expecting = [%string "a market ticker after %{keyword}"] in
+  expect_word state "of";
+  let expecting = [%string "a market ticker after %{keyword} of"] in
   match next state ~expecting with
   | Word word ->
     (match find_slug state word with
@@ -192,6 +193,10 @@ and parse_num_factor state =
     Expr.Num.inventory
       state.ctx
       ~slug:(parse_known_slug state ~keyword:"inventory")
+  | Word word when String.Caseless.equal word "avgcost" ->
+    Expr.Num.avgcost
+      state.ctx
+      ~slug:(parse_known_slug state ~keyword:"avgcost")
   | Word word when Option.is_some (find_slug state word) ->
     Expr.Num.price state.ctx ~slug:(slug_or_raw state word)
   | Lparen ->
@@ -278,7 +283,8 @@ and parse_bool_atom state =
        Expr.Bool.const state.ctx false
      | Word word
        when String.Caseless.equal word "price"
-            || String.Caseless.equal word "inventory" ->
+            || String.Caseless.equal word "inventory"
+            || String.Caseless.equal word "avgcost" ->
        (* The comparison attempt above already failed, so either the
           reference itself is broken (unknown market — surface that error) or
           no comparison operator followed it. *)
@@ -318,8 +324,10 @@ and parse_comparison state =
   let rhs = parse_num_expr state in
   Expr.Bool.cmp state.ctx op lhs rhs
 
+(* Signals always track the yes price; a former [no down by X] is written
+   [up by X] (percent moves rebase onto the yes price). *)
 and parse_signal state ~slug =
-  let contract = parse_contract state in
+  let contract = Contract_type.Yes in
   let direction : Market_signal.Direction.t =
     match next state ~expecting:"up or down" with
     | Word word when String.Caseless.equal word "up" -> Up

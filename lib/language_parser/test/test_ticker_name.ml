@@ -44,6 +44,23 @@ let%expect_test "a ticker spelling a keyword is rejected" =
     (Error
      ("market ticker collides with a language keyword" (slug PRICE)
       (keyword price)))
+    |}];
+  (* [of] joined the keywords with the [price of]/[inventory of] syntax. *)
+  print_s
+    [%sexp (Ticker_name.build_map [ Slug.of_string "OF" ] : _ Or_error.t)];
+  [%expect
+    {|
+    (Error
+     ("market ticker collides with a language keyword" (slug OF) (keyword of)))
+    |}];
+  print_s
+    [%sexp
+      (Ticker_name.build_map [ Slug.of_string "AVGCOST" ] : _ Or_error.t)];
+  [%expect
+    {|
+    (Error
+     ("market ticker collides with a language keyword" (slug AVGCOST)
+      (keyword avgcost)))
     |}]
 ;;
 

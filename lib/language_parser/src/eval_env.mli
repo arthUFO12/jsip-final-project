@@ -26,4 +26,7 @@ type t =
   ; inventory : slug:Slug.t -> float
   (** Signed contracts currently held in [slug]: positive long Yes, negative
       long No, [0.] when flat (the {!Pnl.inventories} convention). *)
+  ; avg_cost : slug:Slug.t -> float
+  (** Average price paid per contract of the open position in [slug], in
+      dollars; [0.] when flat (the {!Pnl.average_cost_bases} convention). *)
   }

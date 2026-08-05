@@ -1,7 +1,9 @@
 (** Market signals — the leaves of a rule's boolean expression that look at
     price history rather than at variables. A signal corresponds to the
-    spec's [SLUG (YES|NO) (UP|DOWN) BY <amount|pct>] boolean statements, plus
-    simple threshold checks.
+    spec's [SLUG (UP|DOWN) BY <amount|pct>] boolean statements, plus simple
+    threshold checks. The surface syntax always tracks the yes price
+    ({!Parse} builds [Moved] with [contract = Yes]); the [contract] field
+    stays because threshold signals may still watch either side.
 
     Signals are pure data; {!evaluate} reads prices through
     {!Eval_env.price_ago}. When history is too short to answer (either window
@@ -68,5 +70,12 @@ include Hashable.S_plain with type t := t
 
 (** Every slug the signal reads, for {!Program} validation. *)
 val slug : t -> Slug.t
+
+(** The signal in the program syntax that would parse back to it, with the
+    ticker in its {!Ticker_name.normalize}d spelling — e.g.
+    [kxelonmars_99 up by 5% since 1d ago end 2h ago]. Used for the "why this
+    rule fired" reasons attached to simulated trades. The contract is not
+    printed: {!Parse} only builds yes-side signals. *)
+val to_string : t -> string
 
 val evaluate : t -> env:Eval_env.t -> bool

@@ -19,9 +19,32 @@ let point ~time ~yes : Time_series.Point.t =
   { time; yes_price; no_price = Price.( - ) Price.one yes_price }
 ;;
 
+(* Mirrors [Harness.insufficient_cash_reason], including its reason string. *)
+let insufficient_cash_reason pnl (action : Action.t) ~allow_negative_cash
+  : string option
+  =
+  let ({ cash_after; enlarges_position } : Pnl.Trade_effect.t) =
+    Pnl.trade_effect
+      pnl
+      ~slug:action.slug
+      ~side:action.side
+      ~contract_type:action.contract_type
+      ~size:action.size
+  in
+  match
+    enlarges_position, Price.(cash_after < zero), allow_negative_cash
+  with
+  | true, true, false -> Some "insufficient funds for trade"
+  | _ -> None
+;;
+
 (* Mirrors [Harness.apply_action], including its reason strings. *)
-let apply_action pnl (action : Action.t) ~time : Action_response.t =
-  let { Action.slug; size; side; contract_type; id = _ } = action in
+let apply_action pnl (action : Action.t) ~time ~allow_negative_cash
+  : Action_response.t
+  =
+  let { Action.slug; size; side; contract_type; id = _; reason = _ } =
+    action
+  in
   match Pnl.mem pnl slug, Size.sign size with
   | false, _ ->
     Action_rejected
@@ -36,15 +59,47 @@ let apply_action pnl (action : Action.t) ~time : Action_response.t =
       ; reason = "size must be non-negative; direction is carried by side"
       }
   | true, (Zero | Pos) ->
-    Pnl.update_position pnl ~slug ~side ~contract_type ~size;
-    Action_accepted { action; time_stamp = time }
+    (match insufficient_cash_reason pnl action ~allow_negative_cash with
+     | Some reason -> Action_rejected { action; time_stamp = time; reason }
+     | None ->
+       Pnl.update_position pnl ~slug ~side ~contract_type ~size;
+       Action_accepted { action; time_stamp = time })
 ;;
 
 let summarize = Simulation.Harness.summarize
 
+(* The bot itself no longer prints (it must stay silent so the harness can
+   run it off the main domain); the driver prints each response instead so
+   tests still assert on fills. *)
+let action_string
+  ({ size; side; slug; contract_type; id; reason = _ } : Action.t)
+  =
+  let side = match side with Buy -> "buy" | Sell -> "sell" in
+  let contract = match contract_type with Yes -> "yes" | No -> "no" in
+  [%string "#%{id#Int} %{side} %{size#Size} %{contract} on %{slug#Slug}"]
+;;
+
+let print_response (response : Action_response.t) =
+  match response with
+  | Action_accepted { action; time_stamp } ->
+    print_endline
+      [%string "%{time_stamp#Time_ns} accepted %{action_string action}"]
+  | Action_rejected { action; time_stamp; reason } ->
+    print_endline
+      [%string
+        "%{time_stamp#Time_ns} REJECTED %{action_string action}: %{reason}"]
+;;
+
 (* Run the bot over [yes_prices] (one per hourly tick, all for [slug]), with
    the first [warmup] ticks before the sim starts. *)
-let drive ~rules ~yes_prices ~warmup ~initial_cash_dollars =
+let drive
+  ?(allow_negative_cash = true)
+  ~rules
+  ~yes_prices
+  ~warmup
+  ~initial_cash_dollars
+  ()
+  =
   let n = List.length yes_prices in
   let config =
     Configurable.Config.create
@@ -89,7 +144,10 @@ let drive ~rules ~yes_prices ~warmup ~initial_cash_dollars =
     | false -> ()
     | true ->
       let actions = Configurable.Bot.on_tick config state !data in
-      let responses = List.map actions ~f:(apply_action pnl ~time) in
+      let responses =
+        List.map actions ~f:(apply_action pnl ~time ~allow_negative_cash)
+      in
+      List.iter responses ~f:print_response;
       Configurable.Bot.on_response config state responses (summarize pnl));
   let summary = summarize pnl in
   print_endline

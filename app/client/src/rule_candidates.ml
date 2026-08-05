@@ -10,29 +10,32 @@ let is_name_char c =
 (* A definition line is [name = ...] with a single '=' (not '=='); mirrors
    the parser's statement detection loosely — a misparse here only costs a
    suggestion, never correctness. *)
-let defined_variables program =
-  String.split_lines program
-  |> List.filter_map ~f:(fun line ->
-    match String.lsplit2 line ~on:'=' with
-    | None -> None
-    | Some (_, after) when String.is_prefix after ~prefix:"=" -> None
-    | Some (before, _) ->
-      let name = String.strip before in
-      (match
-         (not (String.is_empty name))
-         && String.for_all name ~f:is_name_char
-         && (Char.is_alpha name.[0] || Char.equal name.[0] '_')
-       with
-       | true -> Some [%string "$%{name}"]
-       | false -> None))
+let definition_name line =
+  match String.lsplit2 line ~on:'=' with
+  | None -> None
+  | Some (_, after) when String.is_prefix after ~prefix:"=" -> None
+  | Some (before, _) ->
+    let name = String.strip before in
+    (match
+       (not (String.is_empty name))
+       && String.for_all name ~f:is_name_char
+       && (Char.is_alpha name.[0] || Char.equal name.[0] '_')
+     with
+     | true -> Some [%string "$%{name}"]
+     | false -> None)
 ;;
 
-let env ~tickers ~program =
+let defined_variables program =
+  String.split_lines program |> List.filter_map ~f:definition_name
+;;
+
+let env ~tickers ~variables ~program =
   Autocomplete.of_list
     (Parser.Ticker_name.keywords
      @ builtins
      @ List.map tickers ~f:(fun ticker ->
        Parser.Ticker_name.normalize (Slug.to_string ticker))
+     @ List.filter_map variables ~f:definition_name
      @ defined_variables program)
 ;;
 

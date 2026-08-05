@@ -23,7 +23,8 @@ let%expect_test "EVERY 2h bare action fires on ticks 0, 2, 4" =
     ~rules:[ rule ]
     ~yes_prices:[ 0.40; 0.40; 0.40; 0.40; 0.40 ]
     ~warmup:0
-    ~initial_cash_dollars:100.;
+    ~initial_cash_dollars:100.
+    ();
   [%expect
     {|
     2026-01-01 00:00:00.000000000Z accepted #1 buy 5 yes on save-act
@@ -53,7 +54,8 @@ let%expect_test "WHEN I BUY fires on the tick after the accepted fill" =
     ~rules:[ seed; unwind ]
     ~yes_prices:[ 0.40; 0.40; 0.40; 0.40; 0.40; 0.40 ]
     ~warmup:0
-    ~initial_cash_dollars:100.;
+    ~initial_cash_dollars:100.
+    ();
   [%expect
     {|
     2026-01-01 00:00:00.000000000Z accepted #1 buy 2 yes on save-act
@@ -86,7 +88,8 @@ let%expect_test "builtin $cash gates a conditional rule" =
     ~rules:[ rule ]
     ~yes_prices:[ 0.40; 0.40; 0.40; 0.40 ]
     ~warmup:0
-    ~initial_cash_dollars:100.;
+    ~initial_cash_dollars:100.
+    ();
   [%expect
     {|
     2026-01-01 00:00:00.000000000Z accepted #1 buy 5 yes on save-act
@@ -114,7 +117,8 @@ let%expect_test "a price reference reacts to the moving market" =
     ~rules:[ rule ]
     ~yes_prices:[ 0.30; 0.40; 0.50; 0.60 ]
     ~warmup:0
-    ~initial_cash_dollars:100.;
+    ~initial_cash_dollars:100.
+    ();
   [%expect
     {|
     2026-01-01 02:00:00.000000000Z accepted #1 buy 1 yes on save-act
@@ -136,7 +140,8 @@ let%expect_test "a negative computed size is rejected and the sim continues" =
     ~rules:[ rule ]
     ~yes_prices:[ 0.40; 0.40; 0.40 ]
     ~warmup:0
-    ~initial_cash_dollars:100.;
+    ~initial_cash_dollars:100.
+    ();
   [%expect
     {|
     2026-01-01 00:00:00.000000000Z REJECTED #1 buy -3 yes on save-act: size must be non-negative; direction is carried by side

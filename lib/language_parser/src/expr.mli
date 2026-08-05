@@ -48,14 +48,18 @@ module Num : sig
       the slug's market (positive long Yes, negative long No). *)
   val inventory : Context.t -> slug:Slug.t -> t
 
+  (** The [AVGCOST ticker] reference: average price paid per contract of the
+      open position in the slug's market, in dollars; [0.] when flat. *)
+  val avgcost : Context.t -> slug:Slug.t -> t
+
   val add : Context.t -> t -> t -> t
   val sub : Context.t -> t -> t -> t
   val mul : Context.t -> t -> t -> t
   val div : Context.t -> t -> t -> t
   val neg : Context.t -> t -> t
 
-  (** Slugs read by [price] and [inventory] nodes anywhere in the DAG,
-      deduplicated. *)
+  (** Slugs read by [price], [inventory], and [avgcost] nodes anywhere in the
+      DAG, deduplicated. *)
   val referenced_slugs : t -> Slug.t list
 end
 
@@ -103,3 +107,27 @@ module Eval : sig
   val num : t -> Num.t -> float
   val bool : t -> Bool.t -> bool
 end
+
+module Atom : sig
+  (** One leaf condition from a rule's boolean expression, rendered in
+      program syntax with the live value of each state reference —
+      [$cash (120.50) > 50], [kxelonmars_99 up by 5% since 1d ago]. [negated]
+      marks a leaf that justified the outcome by being false ({!to_string}
+      wraps it in [not (...)]). Note a negated signal can also mean the
+      history was too short to answer — signals fail closed. *)
+  type t =
+    { negated : bool
+    ; description : string
+    }
+
+  val to_string : t -> string
+end
+
+(** Why the expression came out [want] under [eval]: the leaf conditions that
+    decided it, in evaluation order. Only the deciding branches are reported
+    — for [a || b] with [a] true, [b] was never consulted and does not
+    appear; the falsity of [a && b] is pinned on its first false conjunct.
+    Call only after evaluating the expression with the same [eval] and with
+    [want] equal to its value: the walk re-reads memoized nodes and never
+    evaluates anything the rule itself did not. *)
+val justify : Bool.t -> Eval.t -> want:bool -> Atom.t list

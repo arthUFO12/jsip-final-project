@@ -64,6 +64,9 @@ module Bot : Bot_interface.Bot with type Config.t = Config.t = struct
       ; mutable inventories : Size.t Slug.Table.t
       (** Positions as of the last [on_response]; empty (= flat) before the
           first fill report. *)
+      ; mutable average_costs : Price.t Slug.Table.t
+      (** Average price paid per contract of each open position as of the
+          last [on_response]; empty before the first fill report. *)
       ; generator : Action.Generator.t
       }
 
@@ -102,6 +105,7 @@ module Bot : Bot_interface.Bot with type Config.t = Config.t = struct
     ; unrealized = 0.
     ; pending_triggers = Parser.Rule.Trigger.Hash_set.create ()
     ; inventories = Slug.Table.create ()
+    ; average_costs = Slug.Table.create ()
     ; generator = Action.Generator.create ()
     }
   ;;
@@ -138,11 +142,17 @@ module Bot : Bot_interface.Bot with type Config.t = Config.t = struct
       | None -> 0.
       | Some size -> Float.of_int (Size.to_int size)
     in
+    let avg_cost ~slug =
+      match Hashtbl.find state.average_costs slug with
+      | None -> 0.
+      | Some price -> Price.to_dollar_float price
+    in
     { cash = state.cash
     ; realized = state.realized
     ; unrealized = state.unrealized
     ; price_ago
     ; inventory
+    ; avg_cost
     }
   ;;
 
@@ -163,17 +173,38 @@ module Bot : Bot_interface.Bot with type Config.t = Config.t = struct
     every_passes && when_i_passes
   ;;
 
+  (* The user-facing "why this fired": the rule's qualifiers first, then the
+     true conditions {!Parser.Rule.eval_justified} collected. *)
+  let reason_of_rule (rule : Parser.Rule.t) atoms =
+    let every =
+      match rule.every with
+      | None -> []
+      | Some span -> [ [%string "every %{span#Time_ns.Span}"] ]
+    in
+    let when_i =
+      match rule.when_i with
+      | None -> []
+      | Some { side; slug } ->
+        let side = match side with Side.Buy -> "buy" | Sell -> "sell" in
+        let name = Parser.Ticker_name.normalize (Slug.to_string slug) in
+        [ [%string "when i %{side} %{name}"] ]
+    in
+    let atoms = List.map atoms ~f:Parser.Expr.Atom.to_string in
+    match every @ when_i @ atoms with
+    | [] -> None
+    | phrases -> Some (String.concat phrases ~sep:"; ")
+  ;;
+
   let action_of_spec
     (state : State.t)
     eval
+    ?reason
     ({ side; size; slug; contract } : Parser.Rule.Action_spec.t)
     =
     let size = Parser.Expr.Eval.num eval size in
     match Float.iround_nearest size with
     | None ->
       (* nan or infinite size: nothing sensible to trade. *)
-      print_endline
-        [%string "skipping action on %{slug#Slug}: size is %{size#Float}"];
       None
     | Some size ->
       (* A negative size is emitted as-is; the harness rejects it and the
@@ -182,10 +213,12 @@ module Bot : Bot_interface.Bot with type Config.t = Config.t = struct
       Some
         (Action.Generator.new_action
            state.generator
+           ?reason
            ~size:(Size.of_int size)
            ~side
            ~slug
-           ~contract_type:contract)
+           ~contract_type:contract
+           ())
   ;;
 
   let on_tick (config : Config.t) (state : State.t) (data : Data.t) =
@@ -197,43 +230,38 @@ module Bot : Bot_interface.Bot with type Config.t = Config.t = struct
         match qualifiers_pass state compiled with
         | false -> None
         | true ->
-          Parser.Rule.eval compiled.rule eval
-          |> Option.bind ~f:(action_of_spec state eval))
+          Parser.Rule.eval_justified compiled.rule eval
+          |> Option.bind ~f:(fun (spec, atoms) ->
+            action_of_spec
+              state
+              eval
+              ?reason:(reason_of_rule compiled.rule atoms)
+              spec))
     in
     Hash_set.clear state.pending_triggers;
     actions
-  ;;
-
-  let action_string ({ size; side; slug; contract_type; id } : Action.t) =
-    let side = match side with Buy -> "buy" | Sell -> "sell" in
-    let contract = match contract_type with Yes -> "yes" | No -> "no" in
-    [%string "#%{id#Int} %{side} %{size#Size} %{contract} on %{slug#Slug}"]
   ;;
 
   let on_response
     (_ : Config.t)
     (state : State.t)
     (responses : Action_response.t list)
-    ({ cash; realized_pnl; unrealized_pnl; inventory } : Action_summary.t)
+    ({ cash; realized_pnl; unrealized_pnl; inventory; average_costs } :
+      Action_summary.t)
     =
     List.iter responses ~f:(fun response ->
       match response with
-      | Action_accepted { action; time_stamp } ->
+      | Action_accepted { action; _ } ->
         Hash_set.add
           state.pending_triggers
-          { side = action.side; slug = action.slug };
-        print_endline
-          [%string "%{time_stamp#Time_ns} accepted %{action_string action}"]
-      | Action_rejected { action; time_stamp; reason } ->
-        print_endline
-          [%string
-            "%{time_stamp#Time_ns} REJECTED %{action_string action}: \
-             %{reason}"]);
+          { side = action.side; slug = action.slug }
+      | Action_rejected { action = _; time_stamp = _; reason = _ } -> ());
     state.cash <- Price.to_dollar_float cash;
     state.realized <- Price.to_dollar_float realized_pnl;
     state.unrealized <- Price.to_dollar_float unrealized_pnl;
-    (* [Pnl.inventories] builds a fresh table per call, so keeping the
-       received one does not alias the harness's book. *)
-    state.inventories <- inventory
+    (* [Pnl.inventories] and [Pnl.average_cost_bases] build fresh tables per
+       call, so keeping the received ones does not alias the harness's book. *)
+    state.inventories <- inventory;
+    state.average_costs <- average_costs
   ;;
 end

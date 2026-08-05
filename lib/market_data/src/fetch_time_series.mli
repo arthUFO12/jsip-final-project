@@ -12,6 +12,13 @@ open Types
     which raises otherwise. *)
 val update_kalshi_historical_cutoff : unit -> unit Deferred.Or_error.t
 
+(** The cutoff stored by {!update_kalshi_historical_cutoff}, or [None] if the
+    fetch has never run or the response carried no cutoff. Callers that must
+    not race on the cutoff (e.g. a server handling concurrent requests)
+    should update once at startup, confirm this is [Some], and never update
+    again. *)
+val kalshi_historical_cutoff : unit -> Time_ns.t option
+
 (** Fetch candlesticks for a Kalshi market between [start] and [finish],
     routing to the live or historical endpoint by comparing the stub's close
     time against the cutoff. Raises if the stub lacks [series_ticker], or if
