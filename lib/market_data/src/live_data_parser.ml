@@ -109,28 +109,60 @@ let time_of_json_opt json key =
 
 (* Required timestamp: raise [Type_error] like the other required-field
    accessors, so a missing or malformed time skips the entry rather than
-   killing the whole parse. *)
+   killing the whole parse. The key goes in the message so a skipped batch
+   names its missing field. *)
 let time_of_json json key =
   match time_of_json_opt json key with
   | Some time -> time
   | None ->
-    raise (Type_error ("expected a timestamp string", member key json))
+    raise
+      (Type_error
+         ([%string "expected a timestamp string in %{key}"], member key json))
 ;;
 
 (** {1 Per-market parsers} *)
+
+(* One line naming what was wrong, with the offending fragment truncated so a
+   whole market object can't flood stderr. *)
+let skip_reason ~message ~json =
+  let fragment = Yojson.Safe.to_string json in
+  let fragment =
+    if String.length fragment > 60
+    then String.prefix fragment 60 ^ "..."
+    else fragment
+  in
+  [%string "%{message}: %{fragment}"]
+;;
+
+(* Multi-outcome events repeat one question across every nested market and
+   put the outcome in [yes_sub_title] ("Who will the next Pope be?" x N), so
+   the subtitle is folded in whenever the title doesn't already say it.
+   Without this, sibling markets are textually identical and matching cannot
+   tell them apart. *)
+let kalshi_title json =
+  let title = json |> member "title" |> to_string in
+  match member "yes_sub_title" json |> to_string_option with
+  | None | Some "" -> title
+  | Some subtitle ->
+    if String.is_substring
+         (String.lowercase title)
+         ~substring:(String.lowercase subtitle)
+    then title
+    else [%string "%{title} (%{subtitle})"]
+;;
 
 let parse_kalshi_market
   ~(category : string)
   ~(series_ticker : Slug.t option)
   (json : Yojson.Safe.t)
-  : L1_market_metadata.t option
+  : (L1_market_metadata.t, string) Result.t
   =
   try
-    Some
+    Ok
       { L1_market_metadata.venue = Venue.Kalshi
       ; market_id =
           json |> member "ticker" |> to_string |> Market_id.of_string
-      ; title = json |> member "title" |> to_string
+      ; title = kalshi_title json
       ; slug = json |> member "ticker" |> to_string |> Slug.of_string
       ; event_slug =
           json
@@ -150,18 +182,33 @@ let parse_kalshi_market
       ; close_time = time_of_json json "close_time"
       }
   with
-  | Type_error (_, _) -> None
+  | Type_error (message, json) -> Error (skip_reason ~message ~json)
+;;
+
+(* Polymarket's [question] is usually per-market, but grouped markets can
+   repeat one question; [groupItemTitle] then carries the distinguishing
+   outcome — the analogue of Kalshi's [yes_sub_title]. *)
+let polymarket_title json =
+  let question = json |> member "question" |> to_string in
+  match member "groupItemTitle" json |> to_string_option with
+  | None | Some "" -> question
+  | Some group ->
+    if String.is_substring
+         (String.lowercase question)
+         ~substring:(String.lowercase group)
+    then question
+    else [%string "%{question} (%{group})"]
 ;;
 
 let parse_polymarket_market (json : Yojson.Safe.t)
-  : L1_market_metadata.t option
+  : (L1_market_metadata.t, string) Result.t
   =
   try
-    Some
+    Ok
       { L1_market_metadata.venue = Venue.Polymarket
       ; market_id =
           json |> member "conditionId" |> to_string |> Market_id.of_string
-      ; title = json |> member "question" |> to_string
+      ; title = polymarket_title json
       ; slug = json |> member "slug" |> to_string |> Slug.of_string
       ; event_slug =
           Option.try_with (fun () ->
@@ -195,7 +242,7 @@ let parse_polymarket_market (json : Yojson.Safe.t)
       ; close_time = time_of_json json "endDate"
       }
   with
-  | Type_error (_, _) -> None
+  | Type_error (message, json) -> Error (skip_reason ~message ~json)
 ;;
 
 (** {1 Top-level structure} *)
@@ -226,16 +273,27 @@ let kalshi_event_context_and_markets (fields : (string * Yojson.Safe.t) list)
     |> List.map ~f:(fun market -> category, series_ticker, market))
 ;;
 
-(* Report skipped entries, drop them, apply the limit. *)
-let finalize ?limit parsed =
-  let skipped = List.count parsed ~f:Option.is_none in
-  if skipped > 0
-  then
-    eprintf
-      "parse_data: skipped %d/%d entries\n"
-      skipped
-      (List.length parsed);
-  let markets = List.filter_map parsed ~f:Fn.id in
+(* Report skipped entries with their reasons (most common first, top three —
+   a 100% skip rate should read as "everything hit the same missing field",
+   not as a bare count), drop them, apply the limit. *)
+let finalize ?limit ~venue parsed =
+  let reasons = List.filter_map parsed ~f:Result.error in
+  (match reasons with
+   | [] -> ()
+   | _ :: _ ->
+     eprintf
+       !"parse_data (%{Venue}): skipped %d/%d entries\n"
+       venue
+       (List.length reasons)
+       (List.length parsed);
+     List.sort_and_group reasons ~compare:String.compare
+     |> List.map ~f:(fun group -> List.length group, List.hd_exn group)
+     |> List.sort
+          ~compare:(Comparable.reverse (Comparable.lift Int.compare ~f:fst))
+     |> (fun counted -> List.take counted 3)
+     |> List.iter ~f:(fun (count, reason) ->
+       eprintf "  %dx %s\n" count reason));
+  let markets = List.filter_map parsed ~f:Result.ok in
   match limit with None -> markets | Some limit -> List.take markets limit
 ;;
 
@@ -259,7 +317,7 @@ let parse_data ?limit ~(venue : Venue.t) body =
          Or_error.error_s
            [%message "unexpected top-level structure" (venue : Venue.t)])
   in
-  finalize ?limit parsed
+  finalize ?limit ~venue parsed
 ;;
 
 (* public-search wraps markets one level down — {"events": [{"tags": ..,
@@ -296,7 +354,7 @@ let parse_polymarket_search ?limit body =
             | market -> market))
         |> List.map ~f:parse_polymarket_market)
   in
-  finalize ?limit parsed
+  finalize ?limit ~venue:Venue.Polymarket parsed
 ;;
 
 (* An exhausted listing answers with a missing or empty cursor. *)

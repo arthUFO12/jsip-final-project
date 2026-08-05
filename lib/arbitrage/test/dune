@@ -1,6 +1,12 @@
 (library
  (name arbitrage_test)
- (modules test_matcher test_llm_matcher test_detect test_config test_bot)
+ (modules
+  test_claim
+  test_matcher
+  test_llm_matcher
+  test_detect
+  test_config
+  test_bot)
  (libraries
   arbitrage
   database
@@ -34,6 +40,16 @@
  (name arb_smoke)
  (modules arb_smoke)
  (libraries arbitrage market_data types core async)
+ (preprocess
+  (pps ppx_jane)))
+
+; Temporary perf probe over a market snapshot. Manually run:
+; dune exec lib/arbitrage/test/perf_probe.exe <snapshot> [kalshi-prefix]
+
+(executable
+ (name perf_probe)
+ (modules perf_probe)
+ (libraries arbitrage types core async)
  (preprocess
   (pps ppx_jane)))
 

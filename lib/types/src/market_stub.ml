@@ -13,7 +13,7 @@ type t =
   ; volume : Volume.t option
   (** Lifetime traded volume; [None] when the venue did not report one. *)
   }
-[@@deriving sexp_of]
+[@@deriving sexp]
 
 let to_string t =
   [%string

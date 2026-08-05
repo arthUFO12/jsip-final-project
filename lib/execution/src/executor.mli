@@ -21,4 +21,10 @@ val live : Kalshi_live.Credentials.t -> t
     arbitrage bot rejects live execution under reckless detection. *)
 val is_live : t -> bool
 
-val place_order : t -> Order.t -> Fill.t Deferred.Or_error.t
+(** [client_order_id] is the live path's idempotency handle (see
+    {!Kalshi_live.place_order}); the simulator ignores it. *)
+val place_order
+  :  ?client_order_id:string
+  -> t
+  -> Order.t
+  -> Fill.t Deferred.Or_error.t

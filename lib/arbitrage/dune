@@ -1,7 +1,7 @@
 (library
  (name arbitrage)
  (public_name arbiter.arbitrage)
- (modules bot config matcher llm_matcher detect sweep)
+ (modules bot config claim matcher llm_matcher detect sweep review rails)
  (libraries
   core
   types

@@ -41,6 +41,7 @@ let credentials =
   Kalshi_live.Credentials.create
     ~key_id:"test-key-id"
     ~private_key_pem:test_key_pem
+    ()
   |> Or_error.ok_exn
 ;;
 
@@ -124,7 +125,7 @@ let%expect_test "a routable order becomes the venue's JSON shape" =
   [%expect
     {|
     (Ok
-     "{\"ticker\":\"KXBTC-25DEC31-B100000\",\"client_order_id\":\"arbiter-1700000000000-1\",\"action\":\"buy\",\"side\":\"yes\",\"count\":7,\"type\":\"limit\",\"yes_price\":49}")
+     "{\"ticker\":\"KXBTC-25DEC31-B100000\",\"client_order_id\":\"arbiter-1700000000000-1\",\"side\":\"bid\",\"count\":\"7.00\",\"price\":\"0.4900\",\"time_in_force\":\"good_till_canceled\",\"self_trade_prevention_type\":\"taker_at_cross\"}")
     |}];
   return ()
 ;;
@@ -183,11 +184,12 @@ let%expect_test "orders kalshi cannot price are rejected before any network \
 ;;
 
 let%expect_test "the venue's create-order response becomes a fill: order id \
-                 kept, taker count trusted, fee computed at the limit"
+                 kept, fixed-point fill count and venue-reported average \
+                 price and fee trusted"
   =
   let order = order ~limit_price:(Price.of_int_cents 49) ~size:10 in
   let body =
-    {|{"order":{"order_id":"abc-123","status":"executed","taker_fill_count":7}}|}
+    {|{"order_id":"abc-123","client_order_id":"arbiter-1","fill_count":"7.00","remaining_count":"3.00","average_fill_price":"0.4900","average_fee_paid":"0.0200","ts_ms":1700000000000}|}
   in
   print_s
     [%sexp
@@ -206,8 +208,11 @@ let%expect_test "the venue's create-order response becomes a fill: order id \
         (contract Yes) (side Buy) (limit_price 49000000) (size 10)))
       (filled_size 7) (price 49000000) (fee 14000000) (venue_order_id (abc-123))))
     |}];
-  (* A resting order has no taker fills yet. *)
-  let body = {|{"order":{"order_id":"abc-124","status":"resting"}}|} in
+  (* A resting order has no fills yet, and the venue omits the fill-dependent
+     fields. *)
+  let body =
+    {|{"order_id":"abc-124","fill_count":"0.00","remaining_count":"10.00","ts_ms":1700000000001}|}
+  in
   print_s
     [%sexp
       (Kalshi_live.For_testing.parse_order_response order ~body

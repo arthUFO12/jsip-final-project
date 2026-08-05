@@ -197,6 +197,9 @@ let%expect_test "candidates_of_approved: the tick prices exactly the pairs \
   let%bind () =
     Database.Database_exec.create_pair_proposal_table () >>| ok_exn
   in
+  let%bind () =
+    Database.Database_exec.create_pair_stub_table () >>| ok_exn
+  in
   let stub (l1 : L1_market_metadata.t) =
     L1_market_metadata.to_market_stub l1
   in
@@ -294,6 +297,88 @@ let%expect_test "orders_of_opportunity turns a hit into its two limit \
     ("no orders"
      ("opportunity references a market with no stub"
       (entry ((venue Polymarket) (market_id P1) (price 50000000)))))
+    |}];
+  return ()
+;;
+
+let%expect_test "execute aborts after a failed leg: the hedge is never \
+                 bought when the first leg cannot fill"
+  =
+  (* Regression guard: [execute] once swallowed each leg's error and carried
+     on, so a failed YES leg still bought the NO leg — paying for a hedge
+     with nothing to hedge. The legs are priced so that only the second is
+     affordable: if the abort regresses, the simulator's state betrays it
+     (cash spent, NO position held). *)
+  let kalshi_stub = L1_market_metadata.to_market_stub kalshi_l1 in
+  let poly_stub = L1_market_metadata.to_market_stub poly_l1 in
+  let stubs =
+    Market_id.Map.of_alist_exn
+      [ kalshi_stub.market_id, kalshi_stub; poly_stub.market_id, poly_stub ]
+  in
+  let opportunity =
+    { Detect.yes =
+        { venue = Kalshi
+        ; market_id = kalshi_stub.market_id
+        ; price = Price.of_int_cents 60 (* leg 1 costs $6.00 *)
+        }
+    ; no =
+        { venue = Polymarket
+        ; market_id = poly_stub.market_id
+        ; price = Price.of_int_cents 30 (* leg 2 alone costs $3.00 *)
+        }
+    ; cost = Price.of_int_cents 90
+    ; edge = Price.of_int_cents 10
+    ; size = Size.of_int 10
+    }
+  in
+  (* $4: not enough for the $6 first leg, plenty for the $3 second. *)
+  let simulator =
+    Execution.Simulator.create
+      ~fill_model:At_limit
+      ~starting_cash:(Price.of_int_cents 400)
+  in
+  let%bind () =
+    Bot.execute
+      (Execution.Executor.paper simulator)
+      ~execution:Config.Execution.default
+      ~stubs
+      opportunity
+  in
+  print_s
+    [%message
+      ""
+        ~cash:(Execution.Simulator.cash simulator : Price.t)
+        ~no_position:
+          (Execution.Simulator.position
+             simulator
+             ~market_id:poly_stub.market_id
+             ~contract:Contract_type.No
+           : Size.t)];
+  [%expect
+    {|
+    ("order failed; aborting remaining legs - position may be one-sided"
+     (order
+      ((market
+        ((venue Kalshi) (market_id K1) (slug K1) (series_ticker ())
+         (clob_token_id ()) (title "Will BTC hit $100k?") (category Crypto)
+         (created_time (1970-01-01 00:00:00.000000000Z))
+         (close_time (2030-01-01 00:00:00.000000000Z)) (volume ())))
+       (contract Yes) (side Buy) (limit_price 60000000) (size 10)))
+     (error
+      ("insufficient simulated cash" (cost 600000000) (cash 400000000)
+       (fill.order
+        ((market
+          ((venue Kalshi) (market_id K1) (slug K1) (series_ticker ())
+           (clob_token_id ()) (title "Will BTC hit $100k?") (category Crypto)
+           (created_time (1970-01-01 00:00:00.000000000Z))
+           (close_time (2030-01-01 00:00:00.000000000Z)) (volume ())))
+         (contract Yes) (side Buy) (limit_price 60000000) (size 10)))))
+     (legs_not_sent 1))
+    ("arbitrage opportunity"
+     ((yes ((venue Kalshi) (market_id K1) (price 60000000)))
+      (no ((venue Polymarket) (market_id P1) (price 30000000))) (cost 90000000)
+      (edge 10000000) (size 10)))
+    ((cash 400000000) (no_position 0))
     |}];
   return ()
 ;;

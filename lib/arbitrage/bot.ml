@@ -108,8 +108,8 @@ let candidates_of_approved () =
     ~how:`Sequential
     approved
     ~f:(fun { left; right; score = _; explanation = _; status = _ } ->
-      let%map left = Database.Database_exec.find_market_stub left
-      and right = Database.Database_exec.find_market_stub right in
+      let%map left = Database.Database_exec.find_pair_stub left
+      and right = Database.Database_exec.find_pair_stub right in
       match left, right with
       | Some left, Some right -> Some { Matcher.Candidate.left; right }
       | (None, Some _ | Some _, None | None, None) as stubs ->
@@ -181,7 +181,7 @@ let executor_of_trading (trading : Config.Trading.t) =
     Or_error.map credentials ~f:Execution.Executor.live
 ;;
 
-let execute executor ~stubs opportunity =
+let execute executor ~(execution : Config.Execution.t) ~stubs opportunity =
   report opportunity;
   match orders_of_opportunity ~stubs opportunity with
   | Error error ->
@@ -189,18 +189,79 @@ let execute executor ~stubs opportunity =
       [%message "cannot build orders; skipping hit" (error : Error.t)];
     return ()
   | Ok orders ->
-    (* Sequential on purpose: if the first leg fails there is nothing to
-       hedge, so don't send the second. A failed second leg leaves us
-       one-sided — that is legging risk, and it must be loud. *)
-    Deferred.List.iter ~how:`Sequential orders ~f:(fun order ->
-      match%map Execution.Executor.place_order executor order with
-      | Ok fill -> print_s [%message "filled" ~_:(fill : Execution.Fill.t)]
-      | Error error ->
-        Core.eprint_s
-          [%message
-            "order failed; position may be one-sided"
-              (order : Execution.Order.t)
-              (error : Error.t)])
+    let live = Execution.Executor.is_live executor in
+    (* Stable per attempt: a future retry of the same leg must re-send the
+       same id, so the venue can deduplicate. *)
+    let batch_ms =
+      Time_ns.to_int_ns_since_epoch (Time_ns.now ()) / 1_000_000
+    in
+    let client_order_id ~leg =
+      [%string "arbiter-%{batch_ms#Int}-%{leg#Int}"]
+    in
+    (* Sequential, aborting on the first failure or refusal: if the first leg
+       doesn't fill there is nothing to hedge, so the second must not be
+       sent. A failure after a fill leaves us one-sided — that is legging
+       risk, and it must be loud. *)
+    let rec place ~leg = function
+      | [] -> return ()
+      | order :: rest ->
+        let client_order_id = client_order_id ~leg in
+        let refusal =
+          match live with
+          | false -> return None
+          | true -> Rails.live_refusal ~execution order
+        in
+        (match%bind refusal with
+         | Some reason ->
+           Core.eprint_s
+             [%message
+               "live order refused; aborting remaining legs"
+                 (reason : string)
+                 (order : Execution.Order.t)
+                 ~legs_not_sent:(List.length rest : int)];
+           (match live with
+            | true ->
+              Rails.log_live_order
+                order
+                ~client_order_id
+                ~outcome:[%string "refused: %{reason}"]
+                ~dollars:0.
+            | false -> return ())
+         | None ->
+           (match%bind
+              Execution.Executor.place_order ~client_order_id executor order
+            with
+            | Ok fill ->
+              print_s [%message "filled" ~_:(fill : Execution.Fill.t)];
+              let%bind () =
+                match live with
+                | true ->
+                  Rails.log_live_order
+                    order
+                    ~client_order_id
+                    ~outcome:"accepted"
+                    ~dollars:(Rails.order_dollars order)
+                | false -> return ()
+              in
+              place ~leg:(leg + 1) rest
+            | Error error ->
+              Core.eprint_s
+                [%message
+                  "order failed; aborting remaining legs - position may be \
+                   one-sided"
+                    (order : Execution.Order.t)
+                    (error : Error.t)
+                    ~legs_not_sent:(List.length rest : int)];
+              (match live with
+               | true ->
+                 Rails.log_live_order
+                   order
+                   ~client_order_id
+                   ~outcome:[%string "error: %{Error.to_string_hum error}"]
+                   ~dollars:0.
+               | false -> return ())))
+    in
+    place ~leg:0 orders
 ;;
 
 (* The stubs behind the candidates, keyed by market id, so an opportunity
@@ -214,16 +275,57 @@ let stub_map candidates =
     first)
 ;;
 
+(* A quiet market must still show a pulse: when nothing clears [min_edge],
+   re-price with a zero floor (pure — the books are already fetched) and say
+   how close the best pair came. *)
+let heartbeat ~(config : Config.t) ~legs candidates =
+  let thin =
+    scan
+      ~execution:{ config.execution with min_edge = Price.zero }
+      ~legs
+      candidates
+  in
+  let best =
+    List.max_elt
+      thin
+      ~compare:
+        (Comparable.lift Price.compare ~f:(fun (o : Detect.opportunity) ->
+           o.edge))
+  in
+  match best with
+  | None ->
+    print_s
+      [%message
+        "tick: no positive edge"
+          ~pairs:(List.length candidates : int)
+          ~legs_priced:(List.length legs : int)]
+  | Some { edge; size; _ } ->
+    print_s
+      [%message
+        "tick: best edge is below min_edge"
+          ~edge:(Price.to_string_dollar edge : string)
+          ~size:(size : Size.t)
+          ~min_edge:
+            (Price.to_string_dollar config.execution.min_edge : string)]
+;;
+
 let tick ~(config : Config.t) ~executor =
   let open Deferred.Or_error.Let_syntax in
   let%bind candidates = candidates_of_approved () in
   let%bind legs = Deferred.ok (fetch_legs candidates) in
   let opportunities = scan ~execution:config.execution ~legs candidates in
+  (match opportunities with
+   | [] -> heartbeat ~config ~legs candidates
+   | _ :: _ -> ());
   Deferred.ok
     (Deferred.List.iter
        ~how:`Sequential
        opportunities
-       ~f:(execute executor ~stubs:(stub_map candidates)))
+       ~f:
+         (execute
+            executor
+            ~execution:config.execution
+            ~stubs:(stub_map candidates)))
 ;;
 
 let run ~config =

@@ -16,11 +16,16 @@ type verdict =
   }
 [@@deriving sexp_of]
 
-(** [adjudicate candidate] returns the cached verdict for this pair if one
-    exists, otherwise asks the model and caches the answer. Errors (missing
-    API key, network failure, malformed response) are returned, never raised,
-    so one bad pair can't take down a matching sweep. *)
-val adjudicate : Matcher.Candidate.t -> verdict Or_error.t Deferred.t
+(** [adjudicate ?api_key candidate] returns the cached verdict for this pair
+    if one exists, otherwise asks the model and caches the answer. [api_key]
+    overrides the [ANTHROPIC_API_KEY] environment variable — how a web user
+    brings their own key; it is used for the call and never stored. Errors
+    (missing API key, network failure, malformed response) are returned,
+    never raised, so one bad pair can't take down a matching sweep. *)
+val adjudicate
+  :  ?api_key:string
+  -> Matcher.Candidate.t
+  -> verdict Or_error.t Deferred.t
 
 (** The pure pieces of the pipeline, exposed so tests can exercise them
     without touching the network. *)

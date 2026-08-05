@@ -61,10 +61,18 @@ module Execution : sig
     ; detect_mode : Detect.Mode.t
     (** [Exact] or [Reckless]; see {!Detect.Mode} for why [Reckless] must
         never drive real orders *)
+    ; max_dollars_per_order : Price.t
+    (** hard cap on one live order's notional (limit x size); checked before
+        every live placement *)
+    ; max_dollars_per_day : Price.t
+    (** hard cap on live notional per UTC day, summed from the trade log; an
+        order that would cross it is refused *)
     }
   [@@deriving sexp_of]
 
-  (** 1s polls, 10 contracts, 1c minimum edge, [Exact] pricing. *)
+  (** 1s polls, 10 contracts, 1c minimum edge, [Exact] pricing, $25 per order
+      and $100 per day — deliberately small; raising the caps is an explicit
+      act. *)
   val default : t
 end
 
@@ -82,8 +90,9 @@ val default : t
 
 (** [validate t] returns [t] unchanged if every knob is sane, or one error
     naming all the offending knobs at once: non-positive [poll_interval],
-    zero [stake_per_opportunity], negative [min_edge], and — the invariant
-    that matters most — [Live] trading combined with [Reckless] detection,
-    which is rejected because reckless pricing may only ever feed paper
-    trading. Call it once at startup, before anything reads the config. *)
+    zero [stake_per_opportunity], negative [min_edge], [Live] trading
+    combined with [Reckless] detection (reckless pricing may only ever feed
+    paper trading), and [Live] trading with a non-positive spending cap —
+    real money must run inside hard caps. Call it once at startup, before
+    anything reads the config. *)
 val validate : t -> t Or_error.t

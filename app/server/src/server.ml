@@ -151,6 +151,28 @@ let implementations =
           Or_error.map stubs ~f:(List.map ~f:Protocol.Market_card.of_stub))
       ; Rpc.Rpc.implement Protocol.run_simulation (fun () request ->
           Sim_runner.run request)
+      ; Rpc.Rpc.implement Protocol.get_pairs (fun () status ->
+          Arb_runner.list_pairs status)
+      ; Rpc.Rpc.implement Protocol.decide_pair (fun () request ->
+          Arb_runner.decide request)
+      ; Rpc.Rpc.implement Protocol.llm_review_pairs (fun () request ->
+          Arb_runner.llm_review request)
+      ; Rpc.Rpc.implement Protocol.auto_review_pairs (fun () request ->
+          Arb_runner.auto_review request)
+      ; Rpc.Rpc.implement Protocol.run_sweep (fun () request ->
+          Arb_runner.sweep request)
+      ; Rpc.Rpc.implement Protocol.scan_edges (fun () () ->
+          Arb_runner.scan ())
+      ; Rpc.Rpc.implement Protocol.get_execution_capability (fun () () ->
+          Arb_runner.capability ())
+      ; Rpc.Rpc.implement Protocol.preflight_hedge (fun () request ->
+          Arb_runner.preflight request)
+      ; Rpc.Rpc.implement Protocol.execute_hedge (fun () request ->
+          Arb_runner.hedge request)
+      ; Rpc.Rpc.implement Protocol.get_wallet (fun () () ->
+          Arb_runner.wallet ())
+      ; Rpc.Rpc.implement Protocol.mark_acted (fun () pair_key ->
+          Arb_runner.mark_acted pair_key)
       ]
     ~on_unknown_rpc:`Close_connection
     ~on_exception:Log_on_background_exn
@@ -171,10 +193,41 @@ let http_handler ~client_js =
     ~on_unknown_url:`Not_found
 ;;
 
-let serve ~port ~db_name ~client_js =
+let serve ~port ~db_name ~client_js ~allow_live =
   let open Deferred.Or_error.Let_syntax in
+  (* The web server's only live path (assisted hedges) exists solely behind
+     this launch flag: a routine restart cannot go live by accident, and a
+     paper server hides every execution affordance. *)
+  let%bind () =
+    match allow_live with
+    | false -> return ()
+    | true ->
+      let%bind credentials =
+        Execution.Kalshi_live.Credentials.load_from_env ()
+      in
+      Arb_runner.enable_live credentials;
+      printf
+        "LIVE EXECUTION ENABLED (host %s) - assisted hedges will move real \
+         money\n"
+        (Execution.Kalshi_live.Credentials.host credentials);
+      return ()
+  in
+  (* Caqti's sqlite URI reads a relative path as a host component, so anchor
+     the file to the working directory first — same as the arbitrage CLI's
+     store setup. *)
+  let%bind cwd = Deferred.ok (Sys.getcwd ()) in
+  let db_name =
+    if Filename.is_absolute db_name then db_name else cwd ^/ db_name
+  in
   let%bind () = Deferred.return (Database_exec.init_database db_name) in
   let%bind () = Database_exec.create_market_stub_table () in
+  let%bind () = Database_exec.create_pair_proposal_table () in
+  let%bind () = Database_exec.create_pair_stub_table () in
+  let%bind () = Database_exec.create_arb_wallet_table () in
+  let%bind () = Database_exec.create_trade_log_table () in
+  (* Before the seed's purge: rescue any pair legs still in the catalog into
+     their snapshot table, or the rotation may evict them. *)
+  let%bind () = Database_exec.backfill_pair_stubs () in
   let%bind () = seed_database () in
   (* Fetched once, before the server accepts requests: concurrent simulations
      read the cutoff, so it must never be re-written while serving. *)
@@ -229,8 +282,17 @@ let serve_command =
              "_build/default/app/client/bin/main.bc.js"
              string)
           ~doc:"PATH compiled client bundle (default from dune's _build)"
+      and allow_live =
+        flag
+          "-allow-live"
+          no_arg
+          ~doc:
+            " enable real-money assisted hedges. Needs KALSHI_API_KEY_ID \
+             and KALSHI_PRIVATE_KEY_FILE (production credentials); every \
+             order runs inside the spending caps, behind the kill switch, \
+             and lands in the audit log"
       in
-      fun () -> serve ~port ~db_name ~client_js]
+      fun () -> serve ~port ~db_name ~client_js ~allow_live]
 ;;
 
 (* Dispatches [get-markets] against a running server the same way the browser
@@ -266,6 +328,68 @@ let check_rpc_command =
           ~doc:"INT port the server listens on (default 8080)"
       in
       fun () -> check_rpc ~port]
+;;
+
+(* Dispatches the arbitrage RPCs the same way the Arbitrage page does, so the
+   pipeline surface is testable headlessly: list two statuses, then one live
+   edge scan of the approved pairs. *)
+let check_arb ~port =
+  let open Deferred.Or_error.Let_syntax in
+  let uri = Uri.of_string [%string "ws://localhost:%{port#Int}/"] in
+  let%bind connection = Rpc_websocket.Rpc.client uri in
+  let%bind () =
+    Deferred.Or_error.List.iter
+      ~how:`Sequential
+      Protocol.Pair_status.all
+      ~f:(fun status ->
+        let%bind pairs =
+          Rpc.Rpc.dispatch Protocol.get_pairs connection status
+          |> Deferred.map ~f:Or_error.join
+        in
+        printf
+          "get-pairs %s: %d\n"
+          (Protocol.Pair_status.name status)
+          (List.length pairs);
+        return ())
+  in
+  let%bind report =
+    Rpc.Rpc.dispatch Protocol.scan_edges connection ()
+    |> Deferred.map ~f:Or_error.join
+  in
+  printf
+    "scan-edges: %d pair(s), %d legs priced, %d tradable\n"
+    report.pairs
+    report.legs_priced
+    report.tradable;
+  List.iter report.edges ~f:(fun edge ->
+    printf
+      "  YES %s @ %s ask $%.2f  +  NO %s @ %s ask $%.2f  =  cost $%.2f, \
+       edge $%.2f%s\n"
+      edge.yes.title
+      edge.yes.venue
+      edge.yes.ask
+      edge.no.title
+      edge.no.venue
+      edge.no.ask
+      edge.cost
+      edge.edge
+      (if edge.tradable then "  TRADABLE" else ""));
+  return ()
+;;
+
+let check_arb_command =
+  Command.async_or_error
+    ~summary:
+      "Dispatch the arbitrage RPCs against a running server: pair counts by \
+       status, then one live edge scan"
+    [%map_open.Command
+      let port =
+        flag
+          "-port"
+          (optional_with_default 8080 int)
+          ~doc:"INT port the server listens on (default 8080)"
+      in
+      fun () -> check_arb ~port]
 ;;
 
 (* Dispatches [run-simulation] the same way the bot builder does, so the
@@ -424,6 +548,7 @@ let command =
     ~summary:"The Arbiter web app server"
     [ "serve", serve_command
     ; "check-rpc", check_rpc_command
+    ; "check-arb", check_arb_command
     ; "check-sim", check_sim_command
     ]
 ;;

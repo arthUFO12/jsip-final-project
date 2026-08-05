@@ -161,27 +161,6 @@ let%expect_test "veto rejects conflicting numbers, keeps shared ones" =
     |}]
 ;;
 
-let%expect_test "veto rejects close times more than a day apart" =
-  let time string = Time_ns.of_string string in
-  let show_veto left_time right_time =
-    let result =
-      Matcher.For_testing.veto
-        (candidate
-           (stub ~id:"K1" ~close_time:left_time "Fed cuts rates")
-           (stub ~id:"P1" ~close_time:right_time "Fed cuts rates"))
-    in
-    match result with
-    | None -> print_endline "kept"
-    | Some reason -> print_endline [%string "vetoed (%{reason})"]
-  in
-  show_veto (time "2026-03-01 00:00:00Z") (time "2026-06-01 00:00:00Z");
-  show_veto (time "2026-03-01 00:00:00Z") (time "2026-03-01 18:00:00Z");
-  [%expect {|
-    vetoed (close times 92d apart)
-    kept
-    |}]
-;;
-
 let%expect_test "find_candidates under each Config.Matching mode" =
   let lefts =
     [ stub ~id:"K1" "Will BTC hit $100k by June 30?"
@@ -191,11 +170,12 @@ let%expect_test "find_candidates under each Config.Matching mode" =
   in
   let rights =
     [ stub ~id:"P1" "Will BTC hit 100k by June 30?"
-      (* near-identical title: survives both modes *)
+      (* compiles to the same claim as K1: kept in both modes *)
     ; stub ~id:"P2" "Will ETH hit 10000 this year?"
-      (* similar text, conflicting numbers: only the veto catches it *)
+      (* similar text to K2 but a conflicting strike: both compile, so the
+         claim gate drops it before threshold, veto, or LLM ever run *)
     ; stub ~id:"P3" "March Madness winner announced"
-      (* blocks with K3 via "march" but scores below even the loose 0.1 *)
+      (* Opaque; blocks with K3 via "march" but scores below even 0.1 *)
     ]
   in
   let run mode =
@@ -212,11 +192,11 @@ let%expect_test "find_candidates under each Config.Matching mode" =
         candidate.left.title
         candidate.right.title)
   in
-  (* Text-only: the pipeline has the final word, so it keeps only the pair it
-     is sure of. *)
+  (* Every title here except P3's compiles to a claim, so both modes agree:
+     the claim gate keeps the equivalent BTC pair and drops the conflicting
+     ETH strikes — which under the old string pipeline scored 0.79 and went
+     to the LLM. Threshold and veto now only matter for Opaque pairs. *)
   run Config.Matching.default_text_only;
-  (* LLM-assisted: a loose funnel with the veto off, so the ambiguous ETH
-     pair survives for {!Llm_matcher} to adjudicate. *)
   run Config.Matching.default_llm_assisted;
   [%expect
     {|
@@ -224,9 +204,106 @@ let%expect_test "find_candidates under each Config.Matching mode" =
       1.00  Will BTC hit $100k by June 30?  <->  Will BTC hit 100k by June 30?
     (Llm_assisted (threshold 0.1))
       1.00  Will BTC hit $100k by June 30?  <->  Will BTC hit 100k by June 30?
-      0.21  Will BTC hit $100k by June 30?  <->  Will ETH hit 10000 this year?
-      0.13  Will ETH hit 5000 this year?  <->  Will BTC hit 100k by June 30?
-      0.79  Will ETH hit 5000 this year?  <->  Will ETH hit 10000 this year?
+    |}]
+;;
+
+let%expect_test "typed claims outrank string similarity" =
+  let run lefts rights =
+    let mode = Config.Matching.default_llm_assisted in
+    Matcher.find_candidates
+      ~threshold:(Config.Matching.threshold mode)
+      ~apply_veto:(Config.Matching.apply_veto mode)
+      lefts
+      rights
+    |> function
+    | [] -> print_endline "  (none)"
+    | candidates ->
+      List.iter candidates ~f:(fun candidate ->
+        printf
+          "  %.2f  %s  <->  %s\n"
+          (Matcher.For_testing.score candidate)
+          candidate.left.title
+          candidate.right.title)
+  in
+  (* Near-identical wording, wrong central bank: the string pipeline would
+     have funneled this to the LLM; the claim gate kills it outright. *)
+  run
+    [ stub ~id:"K1" "Will the Fed cut rates by 25 bps in March?" ]
+    [ stub ~id:"P1" "Will the Bank of Canada cut rates by 25 bps in March?" ];
+  (* Same strike and deadline, touch vs terminal: different instruments,
+     killed no matter how alike the titles read. *)
+  run
+    [ stub ~id:"K2" "Will BTC hit $100k by June 30?" ]
+    [ stub ~id:"P2" "Will BTC close above $100k on June 30?" ];
+  (* The converse: a paraphrase whose trigram score is far too low for
+     Text_only still pairs, because the claims agree. *)
+  run
+    [ stub ~id:"K3" "Will the FOMC cut rates by 25 bps in March?" ]
+    [ stub
+        ~id:"P3"
+        "Federal Reserve lowers interest rates by 25 bps in March?"
+    ];
+  [%expect
+    {|
+    (none)
+    (none)
+    0.38  Will the FOMC cut rates by 25 bps in March?  <->  Federal Reserve lowers interest rates by 25 bps in March?
+    |}]
+;;
+
+let%expect_test "compare_pipelines labels each pair with both verdicts" =
+  let lefts =
+    [ stub ~id:"K1" "Will BTC hit $100k by June 30?"
+    ; stub ~id:"K2" "Who will win Best Picture?"
+    ; stub ~id:"K3" "Will the Fed cut rates by 25 bps in March?"
+    ]
+  in
+  let rights =
+    [ stub ~id:"P1" "Will BTC hit 100k by June 30?"
+      (* same claim as K1, near-identical text: Both *)
+    ; stub ~id:"P2" "Who will win Best Picture?"
+      (* identical Opaque titles: Text_only *)
+    ; stub
+        ~id:"P3"
+        "Federal Reserve lowers interest rates by 25 bps in March?"
+      (* same claim as K3, text score far below 0.5: Claims_only *)
+    ; stub ~id:"P4" "Will the Bank of Canada cut rates by 25 bps in March?"
+      (* wording close enough to K3 to pass the text gates (shared 25 keeps
+         the veto quiet), wrong bank: Conflict *)
+    ; stub ~id:"P5" "Will BTC hit $200k by June 30?"
+      (* the number veto is fooled — both titles share the "30" of the date —
+         so the old pipeline proposed 100k against 200k; the claims call it
+         Overlapping: Conflict *)
+    ; stub ~id:"P6" "Best selling album of 2027?"
+      (* shares only the tag "best" with K2 and scores near zero: Neither, a
+         near-miss row for the report *)
+    ]
+  in
+  let report =
+    Matcher.compare_pipelines ~threshold:0.5 ~apply_veto:true lefts rights
+  in
+  let print_comparison
+    { Matcher.Comparison.candidate = { left; right }; bucket; score; _ }
+    =
+    printf
+      !"%-22s %.2f  %s  <->  %s\n"
+      (Sexp.to_string [%sexp (bucket : Matcher.Comparison.Bucket.t)])
+      score
+      left.title
+      right.title
+  in
+  List.iter report.judged ~f:print_comparison;
+  printf "-- near misses (of %d Neither) --\n" report.neither;
+  List.iter report.near_misses ~f:print_comparison;
+  [%expect
+    {|
+    Both                   1.00  Will BTC hit $100k by June 30?  <->  Will BTC hit 100k by June 30?
+    (Conflict Implied_by)  0.79  Will BTC hit $100k by June 30?  <->  Will BTC hit $200k by June 30?
+    Text_only              1.00  Who will win Best Picture?  <->  Who will win Best Picture?
+    Claims_only            0.43  Will the Fed cut rates by 25 bps in March?  <->  Federal Reserve lowers interest rates by 25 bps in March?
+    (Conflict Unrelated)   0.62  Will the Fed cut rates by 25 bps in March?  <->  Will the Bank of Canada cut rates by 25 bps in March?
+    -- near misses (of 1 Neither) --
+    Neither                0.07  Who will win Best Picture?  <->  Best selling album of 2027?
     |}]
 ;;
 

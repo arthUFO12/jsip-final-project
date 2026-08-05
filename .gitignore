@@ -39,4 +39,4 @@ _opam/
 .env
 *.db
 
-
+/client-release.bc.js

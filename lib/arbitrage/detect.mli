@@ -76,6 +76,14 @@ type opportunity =
     [find left right] and [find right left] agree. *)
 val find : mode:Mode.t -> Leg.t -> Leg.t -> opportunity option
 
+(** [cost_and_size ~mode ~yes ~no] is the combined entry cost (asks, plus
+    fees under {!Mode.Exact}) and available size of one split: buy YES on
+    [yes], NO on [no]. Unlike {!find} it reports unprofitable splits too — a
+    cost of [$1] or more just means no edge — which is what a display surface
+    needs to show {e why} nothing is tradable. Anything that acts on prices
+    should use {!find}. *)
+val cost_and_size : mode:Mode.t -> yes:Leg.t -> no:Leg.t -> Price.t * Size.t
+
 (** The pure pieces of the pipeline, exposed so tests can exercise them
     directly. Production code should only use {!find}. *)
 module For_testing : sig

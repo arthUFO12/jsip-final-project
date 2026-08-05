@@ -18,3 +18,5 @@ module Category = Category
 module Bbo = Bbo
 module Binary_book = Binary_book
 module Pair_proposal = Pair_proposal
+module Wallet_entry = Wallet_entry
+module Trade_log_entry = Trade_log_entry

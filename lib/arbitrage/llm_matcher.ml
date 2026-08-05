@@ -112,18 +112,18 @@ let parse_verdict (response_body : string) : verdict Or_error.t =
          }))
 ;;
 
-let adjudicate (candidate : Matcher.Candidate.t)
+let adjudicate ?api_key (candidate : Matcher.Candidate.t)
   : verdict Or_error.t Deferred.t
   =
   let key = cache_key candidate in
   match Hashtbl.find cache key with
   | Some verdict -> Deferred.Or_error.return verdict
   | None ->
-    (match Sys.getenv "ANTHROPIC_API_KEY" with
+    (match Option.first_some api_key (Sys.getenv "ANTHROPIC_API_KEY") with
      | None ->
        Deferred.Or_error.error_string
-         "ANTHROPIC_API_KEY is not set; export it before running (e.g. set \
-          -a; source .env; set +a)"
+         "no API key: pass one in, or export ANTHROPIC_API_KEY before \
+          running (e.g. set -a; source .env; set +a)"
      | Some api_key ->
        let headers =
          Cohttp.Header.of_list

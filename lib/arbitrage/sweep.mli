@@ -41,6 +41,20 @@ val sweep_once
   -> unit
   -> summary Deferred.Or_error.t
 
+(** [compare_once ~threshold ~apply_veto ~markets_to_sweep ()] runs the same
+    discovery as {!sweep_once} — the top Kalshi markets by volume, one
+    Polymarket search each — but instead of filing proposals it returns both
+    matching systems' verdicts on every discovered pair, via
+    {!Matcher.compare_pipelines}. Read-only: nothing is written to the store
+    and no LLM is called, so it is safe to run as often as needed while
+    evaluating the matchers against each other. *)
+val compare_once
+  :  threshold:float
+  -> apply_veto:bool
+  -> markets_to_sweep:int
+  -> unit
+  -> Matcher.Comparison.Report.t Deferred.Or_error.t
+
 (** [sweep_full ~matching ~max_adjudications ()] is the recall backstop: page
     through {e every} open market on both venues and run the matcher over the
     full cross product, filing survivors exactly as {!sweep_once} does. Our

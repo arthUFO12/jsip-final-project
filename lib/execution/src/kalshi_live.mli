@@ -17,12 +17,30 @@ open! Types
     with the fee estimated by {!Fees.taker_fee}. A resting remainder is not
     tracked; reconciling it via the fills endpoint is future work. *)
 
+(** The production venue. Every credential defaults here; the demo host must
+    be chosen explicitly. *)
+val live_host : string
+
+(** Kalshi's demo environment — same API, pretend money. Where all
+    development and integration testing runs. *)
+val demo_host : string
+
 module Credentials : sig
   type t
 
-  (** [create ~key_id ~private_key_pem] decodes the PEM (Kalshi issues an RSA
-      key in PKCS#8 form) or explains why it will not sign. *)
-  val create : key_id:string -> private_key_pem:string -> t Or_error.t
+  (** [create ?host ~key_id ~private_key_pem ()] decodes the PEM (Kalshi
+      issues an RSA key in PKCS#8 form) or explains why it will not sign.
+      [host] defaults to {!live_host}; pass {!demo_host} for the demo
+      environment (demo keys only work there, and vice versa). *)
+  val create
+    :  ?host:string
+    -> key_id:string
+    -> private_key_pem:string
+    -> unit
+    -> t Or_error.t
+
+  (** Which venue these credentials will talk to. *)
+  val host : t -> string
 
   (*_ The env var names [load_from_env] reads, exposed for error messages and
       docs. *)
@@ -32,14 +50,43 @@ module Credentials : sig
   (** Reads [KALSHI_API_KEY_ID] (the key's UUID) and
       [KALSHI_PRIVATE_KEY_FILE] (path to the PEM). Errors name whichever
       variable is missing, so going live fails loudly at startup rather than
-      on the first order. *)
-  val load_from_env : unit -> t Deferred.Or_error.t
+      on the first order. The ssh posture applies: a key file readable by
+      group or others is refused outright (fix: [chmod 600]). [host] as in
+      {!create}. *)
+  val load_from_env : ?host:string -> unit -> t Deferred.Or_error.t
 end
 
-(** [place_order credentials order] signs and sends [order]. Errors before
-    any network traffic if the order is not routable: a Polymarket market, a
-    sub-cent limit, a non-positive size. *)
-val place_order : Credentials.t -> Order.t -> Fill.t Deferred.Or_error.t
+(** [place_order ?client_order_id credentials order] signs and sends [order].
+    Errors before any network traffic if the order is not routable: a
+    Polymarket market, a sub-cent limit, a non-positive size.
+
+    [client_order_id] is the idempotency handle: Kalshi rejects a second
+    order carrying an id it has already seen, so a caller that retries a
+    timed-out placement MUST pass the same id again — that is the whole point
+    of supplying it. When omitted, a fresh unique id is minted, which is only
+    safe for fire-once callers. *)
+val place_order
+  :  ?client_order_id:string
+  -> Credentials.t
+  -> Order.t
+  -> Fill.t Deferred.Or_error.t
+
+(** [order_status credentials ~order_id] asks the venue where the order
+    stands; returns Kalshi's status string verbatim (e.g. ["resting"],
+    ["executed"], ["canceled"]). [order_id] is the venue's id from
+    {!Fill.venue_order_id}, not the client order id. *)
+val order_status
+  :  Credentials.t
+  -> order_id:string
+  -> string Deferred.Or_error.t
+
+(** [cancel_order credentials ~order_id] cancels the order's resting
+    remainder — contracts already filled stay filled — and returns how many
+    contracts the cancel removed from the book. *)
+val cancel_order
+  :  Credentials.t
+  -> order_id:string
+  -> int Deferred.Or_error.t
 
 (** The pure pieces, exposed so tests can exercise signing and encoding
     without a network or a real account. Production code should only use

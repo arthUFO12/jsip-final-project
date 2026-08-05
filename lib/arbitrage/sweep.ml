@@ -55,6 +55,16 @@ let insert_stub_if_missing (stub : Market_stub.t) =
   | None -> Database.Database_exec.insert_market_stub stub
 ;;
 
+(* Both stores get the leg: the catalog copy (if new) feeds the market
+   browser, the snapshot copy is what review and the bot read — the catalog's
+   rotation purges rows at will, so a pair outliving its catalog stubs must
+   not lose its titles and pricing handles. *)
+let record_leg_stub (stub : Market_stub.t) =
+  let open Deferred.Or_error.Let_syntax in
+  let%bind () = insert_stub_if_missing stub in
+  Database.Database_exec.insert_pair_stub stub
+;;
+
 (* Adjudication costs money, so each market only sends its best-scoring
    candidates to the LLM. *)
 let max_candidates_per_market = 10
@@ -70,8 +80,8 @@ let record_candidate
   ~llm_rejected
   =
   let open Deferred.Or_error.Let_syntax in
-  let%bind () = insert_stub_if_missing left in
-  let%bind () = insert_stub_if_missing right in
+  let%bind () = record_leg_stub left in
+  let%bind () = record_leg_stub right in
   let proposal =
     Pair_proposal.create
       ~left:left.market_id
@@ -93,19 +103,36 @@ let record_candidate
   return ()
 ;;
 
-(* The store-unaware pairs surviving the text funnel, best score first. *)
-let fresh_candidates ~matching ~known lefts rights =
+(* Every pair surviving the text funnel, best score first — the store may
+   already know some of them. *)
+let matched_candidates ~matching lefts rights =
   Matcher.find_candidates
     ~threshold:(Config.Matching.threshold matching)
     ~apply_veto:(Config.Matching.apply_veto matching)
     lefts
     rights
-  |> List.filter ~f:(fun candidate ->
-    not (Hash_set.mem known (candidate_key candidate)))
   |> List.sort
        ~compare:
          (Comparable.reverse
             (Comparable.lift Float.compare ~f:Matcher.score))
+;;
+
+let is_known ~known candidate = Hash_set.mem known (candidate_key candidate)
+
+(* A rediscovered pair is the only chance to restore or freshen its leg
+   snapshots: nothing can refetch a lost stub by id, so pairs whose snapshots
+   predate the snapshot table heal here, sweep by sweep. *)
+let refresh_known_stubs ~known candidates =
+  Deferred.Or_error.List.iter
+    ~how:`Sequential
+    candidates
+    ~f:(fun ({ left; right } as candidate : Matcher.Candidate.t) ->
+      match is_known ~known candidate with
+      | false -> Deferred.Or_error.return ()
+      | true ->
+        let open Deferred.Or_error.Let_syntax in
+        let%bind () = Database.Database_exec.insert_pair_stub left in
+        Database.Database_exec.insert_pair_stub right)
 ;;
 
 (* Adjudicate (in LLM mode) and record each fresh candidate; returns how many
@@ -156,16 +183,105 @@ let sweep_one_market ~matching ~known (l1 : L1_market_metadata.t) =
     List.filter hits ~f:L1_market_metadata.active
     |> List.map ~f:L1_market_metadata.to_market_stub
   in
-  let fresh =
-    fresh_candidates
+  let matched =
+    matched_candidates
       ~matching
-      ~known
       [ L1_market_metadata.to_market_stub l1 ]
       hit_stubs
+  in
+  let%bind () = refresh_known_stubs ~known matched in
+  let fresh =
+    List.filter matched ~f:(fun candidate -> not (is_known ~known candidate))
     |> fun sorted -> List.take sorted max_candidates_per_market
   in
   let%bind proposed, auto_rejected = record_fresh ~matching ~known fresh in
   return (List.length hits, List.length fresh, proposed, auto_rejected)
+;;
+
+(* Sweep-shaped comparison: the same discovery as [sweep_once] — the top
+   Kalshi markets by volume, one Polymarket search each — but instead of
+   filing proposals, both matching systems judge every discovered pair.
+   Read-only: nothing touches the store, no LLM is called. *)
+let compare_once ~threshold ~apply_veto ~markets_to_sweep () =
+  let open Deferred.Or_error.Let_syntax in
+  let%bind kalshi =
+    Market_data.Market_data_gateway.fetch_l1_market_data
+      ~venue:Kalshi
+      ~closed:false
+      ~limit:listing_limit
+      ()
+  in
+  let targets =
+    List.sort
+      kalshi
+      ~compare:
+        (Comparable.reverse (Comparable.lift Int.compare ~f:sweep_priority))
+    |> fun sorted -> List.take sorted markets_to_sweep
+  in
+  let%bind per_market =
+    Deferred.Or_error.List.map
+      ~how:`Sequential
+      targets
+      ~f:(fun (l1 : L1_market_metadata.t) ->
+        match%map.Deferred
+          Market_data.Market_data_gateway.search_polymarket
+            ~query:(query_of_title l1.title)
+        with
+        | Ok hits ->
+          let hit_stubs =
+            List.filter hits ~f:L1_market_metadata.active
+            |> List.map ~f:L1_market_metadata.to_market_stub
+          in
+          Ok
+            (Matcher.compare_pipelines
+               ~threshold
+               ~apply_veto
+               [ L1_market_metadata.to_market_stub l1 ]
+               hit_stubs)
+        | Error error ->
+          (* One dead search must not kill the comparison. *)
+          Core.eprint_s
+            [%message
+              "search failed; skipping market"
+                (l1.market_id : Market_id.t)
+                (error : Error.t)];
+          Ok Matcher.Comparison.Report.empty)
+  in
+  (* Merge the per-market reports. Judged pairs are deduplicated (two
+     searches can surface the same pair); the Neither tallies and coverage
+     may count such a pair twice, which is fine for a diagnostic. *)
+  let merged =
+    List.fold
+      per_market
+      ~init:Matcher.Comparison.Report.empty
+      ~f:(fun merged (report : Matcher.Comparison.Report.t) ->
+        { Matcher.Comparison.Report.judged = merged.judged @ report.judged
+        ; near_misses = merged.near_misses @ report.near_misses
+        ; neither = merged.neither + report.neither
+        ; coverage =
+            Matcher.Comparison.Coverage.merge merged.coverage report.coverage
+        })
+  in
+  let comparison_key (comparison : Matcher.Comparison.t) =
+    candidate_key comparison.candidate
+  in
+  return
+    { merged with
+      Matcher.Comparison.Report.judged =
+        List.dedup_and_sort
+          merged.judged
+          ~compare:(Comparable.lift String.compare ~f:comparison_key)
+    ; near_misses =
+        List.dedup_and_sort
+          merged.near_misses
+          ~compare:(Comparable.lift String.compare ~f:comparison_key)
+        |> List.sort
+             ~compare:
+               (Comparable.reverse
+                  (Comparable.lift
+                     Float.compare
+                     ~f:(fun (c : Matcher.Comparison.t) -> c.score)))
+    }
 ;;
 
 (* Shared by both sweeps: everything the store already knows, as keys. *)
@@ -250,8 +366,10 @@ let sweep_full ~matching ~max_adjudications () =
     |> List.map ~f:L1_market_metadata.to_market_stub
   in
   let%bind known = known_pairs () in
+  let matched = matched_candidates ~matching (stubs kalshi) (stubs poly) in
+  let%bind () = refresh_known_stubs ~known matched in
   let fresh =
-    fresh_candidates ~matching ~known (stubs kalshi) (stubs poly)
+    List.filter matched ~f:(fun candidate -> not (is_known ~known candidate))
   in
   let budgeted =
     if Config.Matching.use_llm matching

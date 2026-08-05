@@ -7,3 +7,5 @@ val int64_to_time_ns : int64 -> Time_ns.t
 val time_ns_to_int64 : Time_ns.t -> int64
 val pair_status_type : Pair_proposal.Status.t Caqti_type.t
 val pair_proposal_type : Pair_proposal.t Caqti_type.t
+val wallet_entry_type : Wallet_entry.t Caqti_type.t
+val trade_log_entry_type : Trade_log_entry.t Caqti_type.t

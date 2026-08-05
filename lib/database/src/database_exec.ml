@@ -233,3 +233,153 @@ let list_pair_proposals_by_status status
   | Ok pairs -> return (Ok pairs)
   | Error e -> Deferred.Or_error.error_string (Caqti_error.show e)
 ;;
+
+let set_pair_verdict ~left ~right status explanation
+  : unit Deferred.Or_error.t
+  =
+  let%bind success_or_error =
+    with_pool (fun (module C : Caqti_async.CONNECTION) ->
+      C.exec
+        Database_commands.set_pair_verdict
+        (status, explanation, left, right))
+  in
+  match success_or_error with
+  | Ok () -> return (Ok ())
+  | Error e -> Deferred.Or_error.error_string (Caqti_error.show e)
+;;
+
+let create_pair_stub_table () : unit Deferred.Or_error.t =
+  let%bind success_or_error =
+    with_pool (fun (module C : Caqti_async.CONNECTION) ->
+      C.exec Database_commands.create_pair_stub_table ())
+  in
+  match success_or_error with
+  | Ok () -> return (Ok ())
+  | Error e -> Deferred.Or_error.error_string (Caqti_error.show e)
+;;
+
+let insert_pair_stub stub : unit Deferred.Or_error.t =
+  let%bind success_or_error =
+    with_pool (fun (module C : Caqti_async.CONNECTION) ->
+      C.exec Database_commands.insert_pair_stub stub)
+  in
+  match success_or_error with
+  | Ok () -> return (Ok ())
+  | Error e -> Deferred.Or_error.error_string (Caqti_error.show e)
+;;
+
+let find_pair_stub market_id : Market_stub.t option Deferred.Or_error.t =
+  let%bind stub_or_error =
+    with_pool (fun (module C : Caqti_async.CONNECTION) ->
+      C.find_opt Database_commands.find_pair_stub market_id)
+  in
+  match stub_or_error with
+  | Ok (Some stub) -> return (Ok (Some stub))
+  | Ok None ->
+    (* No snapshot yet (a pair proposed before the snapshot table existed):
+       the catalog may still hold the stub. *)
+    find_market_stub market_id
+  | Error e -> Deferred.Or_error.error_string (Caqti_error.show e)
+;;
+
+let backfill_pair_stubs () : unit Deferred.Or_error.t =
+  let%bind success_or_error =
+    with_pool (fun (module C : Caqti_async.CONNECTION) ->
+      C.exec Database_commands.backfill_pair_stubs ())
+  in
+  match success_or_error with
+  | Ok () -> return (Ok ())
+  | Error e -> Deferred.Or_error.error_string (Caqti_error.show e)
+;;
+
+let create_arb_wallet_table () : unit Deferred.Or_error.t =
+  let%bind success_or_error =
+    with_pool (fun (module C : Caqti_async.CONNECTION) ->
+      C.exec Database_commands.create_arb_wallet_table ())
+  in
+  match success_or_error with
+  | Ok () -> return (Ok ())
+  | Error e -> Deferred.Or_error.error_string (Caqti_error.show e)
+;;
+
+let upsert_wallet_entry entry : unit Deferred.Or_error.t =
+  let%bind success_or_error =
+    with_pool (fun (module C : Caqti_async.CONNECTION) ->
+      C.exec Database_commands.upsert_wallet_entry entry)
+  in
+  match success_or_error with
+  | Ok () -> return (Ok ())
+  | Error e -> Deferred.Or_error.error_string (Caqti_error.show e)
+;;
+
+let mark_wallet_acted ~pair_key : unit Deferred.Or_error.t =
+  let%bind success_or_error =
+    with_pool (fun (module C : Caqti_async.CONNECTION) ->
+      C.exec Database_commands.mark_wallet_acted pair_key)
+  in
+  match success_or_error with
+  | Ok () -> return (Ok ())
+  | Error e -> Deferred.Or_error.error_string (Caqti_error.show e)
+;;
+
+let list_wallet_entries () : Wallet_entry.t list Deferred.Or_error.t =
+  let%bind entries_or_error =
+    with_pool (fun (module C : Caqti_async.CONNECTION) ->
+      C.collect_list Database_commands.list_wallet_entries ())
+  in
+  match entries_or_error with
+  | Ok entries -> return (Ok entries)
+  | Error e -> Deferred.Or_error.error_string (Caqti_error.show e)
+;;
+
+let create_trade_log_table () : unit Deferred.Or_error.t =
+  let%bind success_or_error =
+    with_pool (fun (module C : Caqti_async.CONNECTION) ->
+      C.exec Database_commands.create_trade_log_table ())
+  in
+  match success_or_error with
+  | Ok () -> return (Ok ())
+  | Error e -> Deferred.Or_error.error_string (Caqti_error.show e)
+;;
+
+let append_trade_log entry : unit Deferred.Or_error.t =
+  let%bind success_or_error =
+    with_pool (fun (module C : Caqti_async.CONNECTION) ->
+      C.exec Database_commands.append_trade_log entry)
+  in
+  match success_or_error with
+  | Ok () -> return (Ok ())
+  | Error e -> Deferred.Or_error.error_string (Caqti_error.show e)
+;;
+
+let list_trade_log limit : Trade_log_entry.t list Deferred.Or_error.t =
+  let%bind entries_or_error =
+    with_pool (fun (module C : Caqti_async.CONNECTION) ->
+      C.collect_list Database_commands.list_trade_log limit)
+  in
+  match entries_or_error with
+  | Ok entries -> return (Ok entries)
+  | Error e -> Deferred.Or_error.error_string (Caqti_error.show e)
+;;
+
+let sum_trade_dollars_since time : float Deferred.Or_error.t =
+  let%bind sum_or_error =
+    with_pool (fun (module C : Caqti_async.CONNECTION) ->
+      C.find
+        Database_commands.sum_trade_dollars_since
+        (Database_types.time_ns_to_int64 time))
+  in
+  match sum_or_error with
+  | Ok sum -> return (Ok sum)
+  | Error e -> Deferred.Or_error.error_string (Caqti_error.show e)
+;;
+
+let mark_wallet_acted_assisted ~pair_key ~dollars : unit Deferred.Or_error.t =
+  let%bind success_or_error =
+    with_pool (fun (module C : Caqti_async.CONNECTION) ->
+      C.exec Database_commands.mark_wallet_acted_assisted (dollars, pair_key))
+  in
+  match success_or_error with
+  | Ok () -> return (Ok ())
+  | Error e -> Deferred.Or_error.error_string (Caqti_error.show e)
+;;
