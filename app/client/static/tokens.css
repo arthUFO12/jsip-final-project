@@ -1,0 +1,116 @@
+/* Arbiter design tokens — the ONLY file that defines colors, spacing,
+ * radii, and type. Every visual decision is a custom property here;
+ * kit.css (and the app's app.css) consume these and never hard-code hex.
+ *
+ * Dark-only by design. Values below are a faithful transcription of the
+ * shipped app (app/client/bin/main.ml), factored into roles — except the
+ * chart series slots, which are new: the old series colors failed
+ * color-vision-deficiency checks (see cards/15-chart.html; the validator
+ * runs in that card's console). Keep any replacement palette passing:
+ *   node validate_palette.mjs "<slot1,...,slot5>" --mode dark --surface "#10151f"
+ */
+
+:root {
+  /* ── Surfaces (back to front) ─────────────────────────────── */
+  --bg-base: #0b0e14;          /* page background */
+  --bg-glow: #1a2340;          /* radial glow behind the header */
+  --panel: #141926;            /* cards, tiles, nav pills, secondary buttons */
+  --panel-deep: #10151f;       /* inputs, list columns, chart boxes, arb panels */
+  --panel-raised: #141a26;     /* explainers, stage chips, wallet cards, dialogs */
+  --chip-bg: #172033;          /* selected-market chips */
+  --overlay: rgba(5, 8, 14, 0.65); /* modal backdrop scrim */
+
+  /* ── Borders & dividers ───────────────────────────────────── */
+  --border: #2a3040;           /* default control border */
+  --border-soft: #232a3b;      /* card/panel border */
+  --border-chip: #2c3a55;
+  --divider: #1c2331;          /* row separators, suggestion dividers */
+
+  /* ── Ink (text) ───────────────────────────────────────────── */
+  --ink: #e8eaf0;              /* primary */
+  --ink-body: #a5b4d0;         /* body copy in panels, summaries */
+  --ink-soft: #aeb6c8;         /* nav + secondary-button labels */
+  --ink-muted: #8b93a7;        /* hints, labels, legends */
+  --ink-faint: #606a82;        /* slugs, axis labels */
+  --ink-ghost: #4a5268;        /* arrows, decorative glyphs */
+  --ink-list: #cdd4e2;         /* suggestion rows */
+
+  /* ── Brand ────────────────────────────────────────────────── */
+  --brand-a: #7dd3fc;          /* sky — gradient start (text/badges) */
+  --brand-b: #c084fc;          /* violet — gradient end */
+  --brand-strong-a: #0ea5e9;   /* gradient start (filled buttons) */
+  --brand-strong-b: #8b5cf6;   /* gradient end (filled buttons) */
+  --accent: #7dd3fc;           /* focus rings, hover borders, active outlines */
+  --accent-alt: #3b82f6;       /* market-card hover border */
+
+  /* ── Status (UI state, never chart series) ────────────────── */
+  --pos: #4ade80;
+  --pos-bg: #0f2e1e;
+  --pos-border: #14532d;
+  --neg: #f87171;
+  --neg-strong: #fca5a5;
+  --neg-bg: #2b1520;
+  --neg-border: #7f1d1d;
+  --warn: #fbbf24;
+  --warn-strong: #fcd34d;
+  --warn-bg: #2b2113;
+  --warn-border: #7c5806;
+  --demo-border: #155e75;      /* demo-key badge */
+
+  /* ── Chart series (validated — see header comment) ────────── */
+  --series-1: #3987e5;         /* blue */
+  --series-2: #199e70;         /* teal */
+  --series-3: #9085e9;         /* violet */
+  --series-4: #c98500;         /* amber */
+  --series-5: #d55181;         /* magenta */
+
+  /* ── Chart chrome ─────────────────────────────────────────── */
+  --chart-surface: var(--panel-deep);
+  --gridline: #1c2331;         /* recessive hairlines */
+  --axis-ink: var(--ink-faint);
+  --warmup-fill: #ffffff0a;    /* shaded warmup band */
+  --crosshair: #8b93a7;
+
+  /* ── Category accents (12, fixed) ─────────────────────────── */
+  --cat-elections: #c084fc;
+  --cat-politics: #f472b6;
+  --cat-sports: #4ade80;
+  --cat-culture: #fbbf24;
+  --cat-crypto: #f97316;
+  --cat-commodities: #eab308;
+  --cat-climate: #34d399;
+  --cat-economy: #60a5fa;
+  --cat-mentions: #a78bfa;
+  --cat-finance: #38bdf8;
+  --cat-tech: #22d3ee;
+  --cat-miscellaneous: #94a3b8;
+
+  /* ── Shape ────────────────────────────────────────────────── */
+  --radius-s: 8px;             /* inputs, buttons, error boxes */
+  --radius-m: 10px;            /* rows, explainers, wallet entries */
+  --radius-l: 12px;            /* cards, panels, dialogs */
+  --radius-pill: 999px;        /* nav pills, chips, badges */
+
+  /* ── Space scale ──────────────────────────────────────────── */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 26px;
+  --space-7: 32px;
+
+  /* ── Type ─────────────────────────────────────────────────── */
+  --font-ui: "Segoe UI", system-ui, sans-serif;
+  --font-mono: ui-monospace, monospace;
+  --text-xs: 11px;
+  --text-s: 12px;
+  --text-m: 13px;
+  --text-base: 14px;
+  --text-l: 15px;
+  --text-title: 34px;
+
+  /* ── Motion ───────────────────────────────────────────────── */
+  --ease-fast: 0.12s;
+  --ease-normal: 0.15s;
+}

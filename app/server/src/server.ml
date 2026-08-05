@@ -238,13 +238,25 @@ let implementations =
     ~on_exception:Log_on_background_exn
 ;;
 
-let http_handler ~client_js =
+let http_handler ~client_js ~client_css_dir =
+  (* [tokens.css] must precede [app.css]: the component rules consume the
+     custom properties the token sheet defines. Both load before the
+     bundle. *)
+  let css_asset file =
+    Cohttp_static_handler.Asset.local
+      Cohttp_static_handler.Asset.Kind.css
+      (Cohttp_static_handler.Asset.What_to_serve.file
+         ~path:(client_css_dir ^/ file)
+         ~relative_to:`Cwd)
+  in
   Cohttp_static_handler.Single_page_handler.create_handler
     (Cohttp_static_handler.Single_page_handler.default_with_body_div
        ~div_id:"app")
     ~title:"Arbiter"
     ~assets:
-      [ Cohttp_static_handler.Asset.local
+      [ css_asset "tokens.css"
+      ; css_asset "app.css"
+      ; Cohttp_static_handler.Asset.local
           Cohttp_static_handler.Asset.Kind.javascript
           (Cohttp_static_handler.Asset.What_to_serve.file
              ~path:client_js
@@ -253,7 +265,7 @@ let http_handler ~client_js =
     ~on_unknown_url:`Not_found
 ;;
 
-let serve ~port ~db_name ~client_js ~allow_live =
+let serve ~port ~db_name ~client_js ~client_css_dir ~allow_live =
   let open Deferred.Or_error.Let_syntax in
   (* The web server's only live path (assisted hedges) exists solely behind
      this launch flag: a routine restart cannot go live by accident, and a
@@ -310,7 +322,7 @@ let serve ~port ~db_name ~client_js ~allow_live =
         (Or_error.error_string
            "kalshi historical cutoff was not set by the startup fetch")
   in
-  let handler = http_handler ~client_js in
+  let handler = http_handler ~client_js ~client_css_dir in
   let%bind.Deferred (_ : (Socket.Address.Inet.t, int) Cohttp_async.Server.t) =
     Rpc_websocket.Rpc.serve
       ~where_to_listen:(Tcp.Where_to_listen.of_port port)
@@ -352,6 +364,13 @@ let serve_command =
              "_build/default/app/client/bin/main.bc.js"
              string)
           ~doc:"PATH compiled client bundle (default from dune's _build)"
+      and client_css_dir =
+        flag
+          "-client-css-dir"
+          (optional_with_default "app/client/static" string)
+          ~doc:
+            "DIR directory holding tokens.css and app.css (default \
+             app/client/static)"
       and allow_live =
         flag
           "-allow-live"
@@ -362,7 +381,7 @@ let serve_command =
              order runs inside the spending caps, behind the kill switch, \
              and lands in the audit log"
       in
-      fun () -> serve ~port ~db_name ~client_js ~allow_live]
+      fun () -> serve ~port ~db_name ~client_js ~client_css_dir ~allow_live]
 ;;
 
 (* Dispatches [get-markets] against a running server the same way the browser
