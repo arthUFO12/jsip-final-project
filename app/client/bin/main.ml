@@ -3063,8 +3063,26 @@ let arbitrage_page (local_ graph) =
       in
       arb_detect_panel ~scan_state ~scan ~wallet ~mark_acted ~assist ~dialog
   in
+  let us_notice =
+    Vdom.Node.div
+      ~attrs:[ cls "arb-explainer" ]
+      [ Vdom.Node.p
+          ~attrs:[ cls "arb-disclaimer" ]
+          [ Vdom.Node.text
+              "Polymarket's app is not available to US persons, so this \
+               app never auto-trades Polymarket. From the US you can still \
+               scan both venues to see what arbitrage exists, and place \
+               the Kalshi leg through this app (connect a key on the \
+               Wallet page); any Polymarket leg is yours to take or skip, \
+               on your own eligibility."
+          ]
+      ]
+  in
   Vdom.Node.div
-    [ arb_stage_banner ~current:section ~select:select_section; panel ]
+    [ us_notice
+    ; arb_stage_banner ~current:section ~select:select_section
+    ; panel
+    ]
 ;;
 
 (* ---------- Market detail popup ---------- *)
@@ -3235,6 +3253,12 @@ let wallet_disclaimer =
   Vdom.Node.div
     ~attrs:[ cls "wallet-disclaimer" ]
     [ p
+        "Polymarket does not serve US persons, so this app never places \
+         Polymarket orders for you and has no Polymarket key to connect — \
+         no auto-trading on that venue, period. What you can do from the \
+         US: scan both venues to see what arbitrage exists, and place the \
+         Kalshi side of a trade through this app with the key below."
+    ; p
         "Connecting a key lets this app place real orders on your Kalshi \
          account, spending real money, entirely at your own risk. Nothing \
          here is financial advice. Start with a demo key: demo trades are \
