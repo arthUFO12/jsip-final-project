@@ -17,3 +17,9 @@ val time_ticks
   :  Chart.Range.t
   -> max_count:int
   -> (float * string) list
+
+(** The label {!time_ticks} would give a tick at [time_s] when stepping by
+    [step] seconds — exposed for chart tooltips, which want the sub-day
+    form (["Jul 9 06:00"], any [step] below 86,400) regardless of the
+    axis's own step. *)
+val time_label : step:float -> float -> string

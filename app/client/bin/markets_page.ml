@@ -13,21 +13,6 @@ module Card = Protocol.Market_card
 let max_per_category = 5
 let min_per_category = 3
 
-let category_color : Category.t -> string = function
-  | Elections -> "#c084fc"
-  | Politics -> "#f472b6"
-  | Sports -> "#4ade80"
-  | Culture -> "#fbbf24"
-  | Crypto -> "#f97316"
-  | Commodities -> "#eab308"
-  | Climate -> "#34d399"
-  | Economy -> "#60a5fa"
-  | Mentions -> "#a78bfa"
-  | Finance -> "#38bdf8"
-  | Tech -> "#22d3ee"
-  | Miscellaneous -> "#94a3b8"
-;;
-
 (* ---------- Markets page ---------- *)
 
 let volume_string (card : Card.t) =
@@ -69,9 +54,15 @@ let category_section ~on_select (category, cards) =
     [ Vdom.Node.div
         ~attrs:[ cls "category-header" ]
         [ Vdom.Node.div
+          (* The dot's color comes from the stylesheet's per-category
+             [cat-*] tokens. *)
             ~attrs:
-              [ cls "category-dot"
-              ; style [%string "background:%{category_color category}"]
+              [ Vdom.Attr.classes
+                  [ "category-dot"
+                  ; [%string
+                      "cat-%{String.lowercase (Category.to_string \
+                       category)}"]
+                  ]
               ]
             []
         ; Vdom.Node.h2
@@ -122,7 +113,13 @@ end
 
 let seconds_per_day = 86_400.
 
-let market_detail_modal (card : Card.t) (detail : Detail_state.t) ~close =
+let market_detail_modal
+  (card : Card.t)
+  (detail : Detail_state.t)
+  ~close
+  ~hover
+  ~set_hover
+  =
   let body =
     match (detail : Detail_state.t) with
     | Idle | Loading ->
@@ -178,7 +175,9 @@ let market_detail_modal (card : Card.t) (detail : Detail_state.t) ~close =
       let price_chart =
         chart_view
           ~title:"yes price (dollars)"
-          ~series:[ solid ~name:"yes price" ~color:"#60a5fa" prices ]
+          ~series:[ solid ~name:"yes price" ~index:0 prices ]
+          ~hover
+          ~set_hover
           ()
       in
       let volume_chart =
@@ -188,8 +187,9 @@ let market_detail_modal (card : Card.t) (detail : Detail_state.t) ~close =
           [ chart_view
               ~title:"24h volume (contracts)"
               ~series:
-                [ solid ~name:"24h volume" ~color:"#4ade80" trailing_volumes
-                ]
+                [ solid ~name:"24h volume" ~index:1 trailing_volumes ]
+              ~hover
+              ~set_hover
               ()
           ]
       in
@@ -216,6 +216,8 @@ let market_detail_modal (card : Card.t) (detail : Detail_state.t) ~close =
 let markets_page markets_result (local_ graph) =
   let selected, set_selected = Bonsai.state (None : Card.t option) graph in
   let detail, set_detail = Bonsai.state Detail_state.Idle graph in
+  (* One hover cell for the modal's charts, keyed by chart title. *)
+  let hover, set_hover = Bonsai.state_opt graph in
   let dispatch_detail =
     Rpc_effect.Rpc.dispatcher Protocol.get_market_detail graph
   in
@@ -223,6 +225,8 @@ let markets_page markets_result (local_ graph) =
   and set_selected
   and detail
   and set_detail
+  and hover
+  and set_hover
   and dispatch_detail
   and markets_result in
   let close =
@@ -242,7 +246,7 @@ let markets_page markets_result (local_ graph) =
   let modal =
     match selected with
     | None -> Vdom.Node.none
-    | Some card -> market_detail_modal card detail ~close
+    | Some card -> market_detail_modal card detail ~close ~hover ~set_hover
   in
   Vdom.Node.div [ markets_page_view markets_result ~on_select; modal ]
 ;;

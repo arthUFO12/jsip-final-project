@@ -12,6 +12,10 @@ module Card = Protocol.Market_card
 
 let max_markets = 4
 
+(* Downsampling budget per chart series (~device pixels across the plot
+   area); a minute-interval month is ~43k ticks without it. *)
+let chart_point_budget = 800
+
 (* ---------- Bots page ---------- *)
 
 module Stage = struct
@@ -551,17 +555,6 @@ let fills_table (fills : Protocol.Fill.t list) ~expanded ~set_expanded =
 (* What selling every held contract to the market right now would fetch, in
    dollars. The final tick carries the per-market signed holdings and the
    marked yes prices. *)
-let portfolio_value
-  ~(inventory : (Slug.t * int) list)
-  ~(yes_prices : (Slug.t * float) list)
-  =
-  List.fold yes_prices ~init:0. ~f:(fun acc (slug, price) ->
-    let inv = List.Assoc.find_exn inventory ~equal:Slug.equal slug in
-    if inv < 0
-    then ((abs inv |> Int.to_float) *. (1. -. price)) +. acc
-    else ((inv |> Int.to_float) *. price) +. acc)
-;;
-
 let ordinal rank =
   let suffix =
     match rank % 100 with
@@ -583,7 +576,7 @@ let final_stats (final : Protocol.Tick_point.t) ~pnl_percentile =
     =
     final
   in
-  let portfolio = portfolio_value ~inventory ~yes_prices in
+  let portfolio = Client_logic.Portfolio.value ~inventory ~yes_prices in
   let money value = sprintf "$%.2f" value in
   let inventory_tile =
     let held = List.filter inventory ~f:(fun (_, count) -> count <> 0) in
@@ -656,6 +649,8 @@ let results_view
   ~sim_state
   ~fills_expanded
   ~set_fills_expanded
+  ~hover
+  ~set_hover
   ~edit_rules
   ~new_bot
   =
@@ -673,132 +668,56 @@ let results_view
              few seconds..."
         ]
     | Done result ->
+      (* Series come pre-assembled and downsampled from [Sim_series]; this
+         layer only assigns chart classes (solid = the configurable bot,
+         dashed = the averaged dumb bots) and threads the hover cell. *)
+      let series =
+        Client_logic.Sim_series.create
+          result
+          ~max_points:chart_point_budget
+      in
+      let to_series ~dash named =
+        List.mapi
+          named
+          ~f:(fun index { Client_logic.Sim_series.Series.name; points } ->
+            match dash with
+            | false -> solid ~name ~index points
+            | true -> dashed ~name ~index points)
+      in
+      let chart ~title ~dash named =
+        chart_view
+          ~title
+          ~series:(to_series ~dash named)
+          ~sim_start_s:result.sim_start_s
+          ~hover
+          ~set_hover
+          ()
+      in
       (* The baseline gets its own heading, stat tiles, and charts so the
-         averaged dumb-bot runs never mix with the configurable bot's lines;
-         absent entirely when the comparison was off. *)
+         averaged dumb-bot runs never mix with the configurable bot's
+         lines; absent entirely when the comparison was off. *)
       let baseline_section =
         match List.last result.baseline_ticks with
         | None -> []
         | Some final_baseline ->
-          let baseline_line ~name ~color f =
-            dashed
-              ~name
-              ~color
-              (List.map
-                 result.baseline_ticks
-                 ~f:(fun (point : Protocol.Baseline_point.t) ->
-                   point.time_s, f point))
-          in
-          let baseline_pnl =
-            [ baseline_line
-                ~name:"avg realized"
-                ~color:"#4ade80"
-                (fun point -> point.realized)
-            ; baseline_line
-                ~name:"avg unrealized"
-                ~color:"#60a5fa"
-                (fun point -> point.unrealized)
-            ; baseline_line ~name:"avg total" ~color:"#c084fc" (fun point ->
-                point.realized +. point.unrealized)
-            ]
-          in
-          let baseline_value =
-            [ baseline_line ~name:"avg cash" ~color:"#4ade80" (fun point ->
-                point.cash)
-            ; baseline_line
-                ~name:"avg portfolio"
-                ~color:"#60a5fa"
-                (fun point -> point.portfolio_value)
-            ; baseline_line
-                ~name:"avg total value"
-                ~color:"#c084fc"
-                (fun point -> point.cash +. point.portfolio_value)
-            ]
-          in
           [ Vdom.Node.div
               ~attrs:[ cls "list-heading" ]
               [ Vdom.Node.text "dumb bot average" ]
           ; baseline_stats final_baseline
           ; Vdom.Node.div
               ~attrs:[ cls "charts-grid" ]
-              [ chart_view
+              [ chart
                   ~title:
                     "dumb bot avg pnl (dollars, shaded region is warmup)"
-                  ~series:baseline_pnl
-                  ~sim_start_s:result.sim_start_s
-                  ()
-              ; chart_view
+                  ~dash:true
+                  series.baseline_pnl
+              ; chart
                   ~title:
                     "dumb bot avg value (dollars, shaded region is warmup)"
-                  ~series:baseline_value
-                  ~sim_start_s:result.sim_start_s
-                  ()
+                  ~dash:true
+                  series.baseline_value
               ]
           ]
-      in
-      let pnl_series =
-        [ solid
-            ~name:"realized"
-            ~color:"#4ade80"
-            (List.map result.ticks ~f:(fun tick ->
-               tick.time_s, tick.realized))
-        ; solid
-            ~name:"unrealized"
-            ~color:"#60a5fa"
-            (List.map result.ticks ~f:(fun tick ->
-               tick.time_s, tick.unrealized))
-        ; solid
-            ~name:"total"
-            ~color:"#c084fc"
-            (List.map result.ticks ~f:(fun tick ->
-               tick.time_s, tick.realized +. tick.unrealized))
-        ]
-      in
-      let slugs =
-        List.concat_map result.ticks ~f:(fun tick ->
-          List.map tick.yes_prices ~f:fst)
-        |> List.dedup_and_sort ~compare:Slug.compare
-      in
-      let price_series =
-        List.mapi slugs ~f:(fun index slug ->
-          solid
-            ~name:(Slug.to_string slug)
-            ~color:(series_color index)
-            (List.filter_map result.ticks ~f:(fun tick ->
-               List.Assoc.find tick.yes_prices slug ~equal:Slug.equal
-               |> Option.map ~f:(fun price -> tick.time_s, price))))
-      in
-      let inventory_series =
-        List.mapi slugs ~f:(fun index slug ->
-          solid
-            ~name:(Slug.to_string slug)
-            ~color:(series_color index)
-            (List.filter_map result.ticks ~f:(fun tick ->
-               List.Assoc.find tick.inventory slug ~equal:Slug.equal
-               |> Option.map ~f:(fun count ->
-                 tick.time_s, Float.of_int count))))
-      in
-      let value_series =
-        let portfolio (tick : Protocol.Tick_point.t) =
-          portfolio_value
-            ~inventory:tick.inventory
-            ~yes_prices:tick.yes_prices
-        in
-        [ solid
-            ~name:"cash"
-            ~color:"#4ade80"
-            (List.map result.ticks ~f:(fun tick -> tick.time_s, tick.cash))
-        ; solid
-            ~name:"portfolio value"
-            ~color:"#60a5fa"
-            (List.map result.ticks ~f:(fun tick ->
-               tick.time_s, portfolio tick))
-        ; solid
-            ~name:"total value"
-            ~color:"#c084fc"
-            (List.map result.ticks ~f:(fun tick ->
-               tick.time_s, tick.cash +. portfolio tick))
-        ]
       in
       let stats =
         match Protocol.Sim_result.final result with
@@ -810,26 +729,22 @@ let results_view
         ([ stats
          ; Vdom.Node.div
              ~attrs:[ cls "charts-grid" ]
-             [ chart_view
+             [ chart
                  ~title:"pnl (dollars, shaded region is warmup)"
-                 ~series:pnl_series
-                 ~sim_start_s:result.sim_start_s
-                 ()
-             ; chart_view
+                 ~dash:false
+                 series.pnl
+             ; chart
                  ~title:"value (dollars, shaded region is warmup)"
-                 ~series:value_series
-                 ~sim_start_s:result.sim_start_s
-                 ()
-             ; chart_view
+                 ~dash:false
+                 series.value
+             ; chart
                  ~title:"market YES prices (dollars)"
-                 ~series:price_series
-                 ~sim_start_s:result.sim_start_s
-                 ()
-             ; chart_view
+                 ~dash:false
+                 series.prices
+             ; chart
                  ~title:"inventory (contracts held per market)"
-                 ~series:inventory_series
-                 ~sim_start_s:result.sim_start_s
-                 ()
+                 ~dash:false
+                 series.inventory
              ]
          ]
          @ baseline_section
@@ -868,6 +783,8 @@ let bots_page markets_result (local_ graph) =
   let bot_max_size, set_bot_max_size = Bonsai.state "100" graph in
   let sim_state, set_sim_state = Bonsai.state Sim_state.Idle graph in
   let fills_expanded, set_fills_expanded = Bonsai.state false graph in
+  (* One hover cell for every results chart, keyed by chart title. *)
+  let chart_hover, set_chart_hover = Bonsai.state_opt graph in
   let error, set_error = Bonsai.state (None : Error.t option) graph in
   let dispatch_sim =
     Rpc_effect.Rpc.dispatcher Protocol.run_simulation graph
@@ -906,6 +823,8 @@ let bots_page markets_result (local_ graph) =
   and set_sim_state
   and fills_expanded
   and set_fills_expanded
+  and chart_hover
+  and set_chart_hover
   and error
   and set_error
   and dispatch_sim
@@ -1017,6 +936,8 @@ let bots_page markets_result (local_ graph) =
       ~sim_state
       ~fills_expanded
       ~set_fills_expanded
+      ~hover:chart_hover
+      ~set_hover:set_chart_hover
       ~edit_rules:(set_stage Rules)
       ~new_bot:
         (Effect.Many
