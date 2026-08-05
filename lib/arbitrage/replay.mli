@@ -47,15 +47,3 @@ val episodes
 (** Cumulative locked-in dollars as a step series at entry times, for
     charting. Empty when there are no episodes. *)
 val cumulative : Episode.t list -> (float * float) list
-
-(** Cumulative paper PnL from the scan's recorded edge sightings
-    ([(epoch_s, pair_key, dollars)], any order). A persistent edge is seen
-    by every scan tick, so sightings of one pair are collapsed into
-    episodes — a new episode starts when the gap since that pair's previous
-    sighting exceeds [gap_s] — and each episode contributes its first
-    sighting's dollars once, at that moment. Returns the cumulative step
-    series across all pairs, time-ascending. *)
-val observation_episodes
-  :  sightings:(float * string * float) list
-  -> gap_s:float
-  -> (float * float) list

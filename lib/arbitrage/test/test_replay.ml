@@ -60,16 +60,3 @@ let%expect_test "no edge, no episodes" =
   print_s [%sexp (Replay.cumulative [] : (float * float) list)];
   [%expect {| () |}]
 ;;
-
-let%expect_test "sightings collapse into episodes per pair, first dollars count" =
-  (* Pair A seen at t=0,60,120 (one episode), gone, back at t=1200 (second
-     episode). Pair B seen once at t=90. Gap threshold 300s. *)
-  let sightings =
-    [ 0., "A", 5.; 60., "A", 6.; 120., "A", 4.; 1200., "A", 2.; 90., "B", 3. ]
-  in
-  print_s
-    [%sexp
-      (Replay.observation_episodes ~sightings ~gap_s:300.
-       : (float * float) list)];
-  [%expect {| ((0 5) (90 8) (1200 10)) |}]
-;;

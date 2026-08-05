@@ -828,201 +828,7 @@ let arb_hedge_dialog_view
          ])
 ;;
 
-(* The strategy runner's cockpit: start/stop the server-side loop, watch
-   its ticks, and read the forward paper PnL accrued from real scans. The
-   armed path is the page's only standing authorization to spend — its
-   copy stays sober and spells out the one-sidedness. *)
-let arb_live_runner_card
-  ~(live_run : Protocol.Live_run.Status.t Or_error.t option)
-  ~interval
-  ~set_interval
-  ~arm
-  ~set_arm
-  ~budget
-  ~set_budget
-  ~start
-  ~stop
-  ~refresh
-  ~history
-  ~hover
-  ~set_hover
-  =
-  let interval_error =
-    match Int.of_string_opt (String.strip interval) with
-    | Some seconds when seconds >= 10 && seconds <= 3600 -> None
-    | Some (_ : int) | None -> Some "interval must be 10 to 3600 seconds"
-  in
-  let budget_error =
-    match arm with
-    | false -> None
-    | true ->
-      (match Float.of_string_opt (String.strip budget) with
-       | Some dollars when Float.O.(dollars > 0.) -> None
-       | Some (_ : float) | None ->
-         Some "budget must be a positive dollar amount")
-  in
-  let fields_valid =
-    Option.is_none interval_error && Option.is_none budget_error
-  in
-  let labeled label node =
-    Vdom.Node.div
-      [ Vdom.Node.label
-          ~attrs:[ cls "control-label" ]
-          [ Vdom.Node.text label ]
-      ; node
-      ]
-  in
-  let body =
-    match live_run with
-    | None ->
-      Vdom.Node.div
-        ~attrs:[ cls "status" ]
-        [ Vdom.Node.text "checking the runner..." ]
-    | Some (Error error) -> error_banner ~retry:refresh error
-    | Some
-        (Ok
-          { running
-          ; mode
-          ; interval_s
-          ; ticks
-          ; last_tick_s = (_ : float option)
-          ; last_summary
-          ; spent_dollars
-          }) ->
-      (match running with
-       | true ->
-         let mode_line =
-           match mode with
-           | Paper ->
-             [%string "PAPER · scanning every %{interval_s#Int}s"]
-           | Armed { budget_dollars } ->
-             [%string
-               "ARMED · every %{interval_s#Int}s · $%{sprintf \"%.2f\" \
-                spent_dollars} of $%{sprintf \"%.2f\" budget_dollars} \
-                budget spent"]
-         in
-         Vdom.Node.div
-           [ Vdom.Node.div
-               ~attrs:[ cls "arb-summary" ]
-               [ Vdom.Node.text
-                   [%string
-                     "%{mode_line} · %{ticks#Int} tick(s) · last: \
-                      %{last_summary}"]
-               ]
-           ; Vdom.Node.div
-               ~attrs:[ cls "button-row" ]
-               [ button ~class_:"btn-danger" ~label:"Stop the runner" stop
-               ; button ~class_:"btn-secondary" ~label:"Refresh" refresh
-               ]
-           ]
-       | false ->
-         Vdom.Node.div
-           ([ Vdom.Node.div
-                ~attrs:[ cls "arb-summary" ]
-                [ Vdom.Node.text [%string "stopped · last: %{last_summary}"]
-                ]
-            ; Vdom.Node.div
-                ~attrs:[ cls "arb-controls" ]
-                [ labeled
-                    "interval (seconds)"
-                    (num_input
-                       ?error:interval_error
-                       ~value:interval
-                       ~set_value:set_interval
-                       ())
-                ; labeled
-                    "arm real trading"
-                    (Vdom.Node.input
-                       ~attrs:
-                         [ cls "checkbox"
-                         ; Vdom.Attr.type_ "checkbox"
-                         ; Vdom.Attr.bool_property "checked" arm
-                         ; on_click (set_arm (not arm))
-                         ]
-                       ())
-                ]
-            ]
-            @ (match arm with
-               | false -> []
-               | true ->
-                 [ Vdom.Node.div
-                     ~attrs:[ cls "arb-controls" ]
-                     [ labeled
-                         "run budget ($ notional)"
-                         (num_input
-                            ?error:budget_error
-                            ~value:budget
-                            ~set_value:set_budget
-                            ())
-                     ]
-                 ; Vdom.Node.p
-                     ~attrs:[ cls "arb-disclaimer" ]
-                     [ Vdom.Node.text
-                         "⚠ Armed mode auto-fires REAL Kalshi orders — the \
-                          Kalshi leg only, once per pair per run, inside \
-                          the spending caps and kill switch, until this \
-                          budget of notional is spent. The position is \
-                          ONE-SIDED until you take the Polymarket leg \
-                          yourself: an arb signal traded this way is a \
-                          directional bet, not a locked-in arb. Requires \
-                          your unlocked key; the Wallet page's emergency \
-                          stop halts it instantly."
-                     ]
-                 ])
-            @ [ Vdom.Node.div
-                  ~attrs:[ cls "button-row" ]
-                  [ button
-                      ~enabled:fields_valid
-                      ~class_:(if arm then "btn-danger" else "btn-primary")
-                      ~label:
-                        (if arm
-                         then "Start ARMED (spends real money)"
-                         else "Start paper runner")
-                      start
-                  ; button ~class_:"btn-secondary" ~label:"Refresh" refresh
-                  ]
-              ])
-       )
-  in
-  let history_chart =
-    match history with
-    | None | Some (Error (_ : Error.t)) -> Vdom.Node.none
-    | Some (Ok points) ->
-      (match List.length points >= 2 with
-       | false ->
-         Vdom.Node.div
-           ~attrs:[ cls "status" ]
-           [ Vdom.Node.text
-               "not enough sighting history to chart yet — scans (manual \
-                or the runner) accrue it"
-           ]
-       | true ->
-         chart_view
-           ~title:"strategy paper PnL over time (dollars, from real scans)"
-           ~series:[ solid ~name:"locked-in if taken" ~index:0 points ]
-           ~hover
-           ~set_hover
-           ())
-  in
-  Vdom.Node.div
-    ~attrs:[ cls "arb-wallet" ]
-    [ Vdom.Node.div
-        ~attrs:[ cls "list-heading" ]
-        [ Vdom.Node.text "strategy runner" ]
-    ; body
-    ; history_chart
-    ]
-;;
-
-let arb_detect_panel
-  ~scan_state
-  ~scan
-  ~wallet
-  ~mark_acted
-  ~assist
-  ~dialog
-  ~live_runner
-  =
+let arb_detect_panel ~scan_state ~scan ~wallet ~mark_acted ~assist ~dialog =
   let running = Request_status.is_running scan_state in
   (* The wallet is the freshest word on what's been acted: cards from an
      older scan pick their badges up from it. *)
@@ -1070,7 +876,6 @@ let arb_detect_panel
              just word the title differently."
         ]
     ; arb_wallet_view wallet
-    ; live_runner
     ; dialog
     ; button
         ~enabled:(not running)
@@ -1364,28 +1169,9 @@ let arbitrage_page (local_ graph) =
   let sim_stake, set_sim_stake = Bonsai.state "10" graph in
   let sim_min_edge, set_sim_min_edge = Bonsai.state "1" graph in
   let sim_hover, set_sim_hover = Bonsai.state_opt graph in
-  (* The live strategy runner's status, its start form, and the forward
-     paper-PnL history drawn from recorded sightings. *)
-  let live_run, set_live_run = Bonsai.state_opt graph in
-  let run_interval, set_run_interval = Bonsai.state "30" graph in
-  let arm_real, set_arm_real = Bonsai.state false graph in
-  let arm_budget, set_arm_budget = Bonsai.state "20" graph in
-  let arb_history, set_arb_history = Bonsai.state_opt graph in
   let dispatch_pairs = Rpc_effect.Rpc.dispatcher Protocol.get_pairs graph in
   let dispatch_arb_sim =
     Rpc_effect.Rpc.dispatcher Protocol.run_arb_simulation graph
-  in
-  let dispatch_live_run =
-    Rpc_effect.Rpc.dispatcher Protocol.get_live_run graph
-  in
-  let dispatch_start_run =
-    Rpc_effect.Rpc.dispatcher Protocol.start_live_run graph
-  in
-  let dispatch_stop_run =
-    Rpc_effect.Rpc.dispatcher Protocol.stop_live_run graph
-  in
-  let dispatch_history =
-    Rpc_effect.Rpc.dispatcher Protocol.get_arb_history graph
   in
   let dispatch_decide =
     Rpc_effect.Rpc.dispatcher Protocol.decide_pair graph
@@ -1459,20 +1245,6 @@ let arbitrage_page (local_ graph) =
   and set_sim_min_edge
   and sim_hover
   and set_sim_hover
-  and live_run
-  and set_live_run
-  and run_interval
-  and set_run_interval
-  and arm_real
-  and set_arm_real
-  and arm_budget
-  and set_arm_budget
-  and arb_history
-  and set_arb_history
-  and dispatch_live_run
-  and dispatch_start_run
-  and dispatch_stop_run
-  and dispatch_history
   and dispatch_arb_sim
   and dispatch_pairs
   and dispatch_decide
@@ -1498,49 +1270,6 @@ let arbitrage_page (local_ graph) =
     let%bind response = dispatch_wallet () in
     set_wallet (Some (Or_error.join response))
   in
-  let load_live_run =
-    let open Effect.Let_syntax in
-    let%bind response = dispatch_live_run () in
-    set_live_run (Some (Or_error.join response))
-  in
-  let load_arb_history =
-    let open Effect.Let_syntax in
-    let%bind response = dispatch_history () in
-    set_arb_history (Some (Or_error.join response))
-  in
-  let start_live_run =
-    match
-      ( Int.of_string_opt (String.strip run_interval)
-      , (match arm_real with
-         | false -> Some Protocol.Live_run.Mode.Paper
-         | true ->
-           (match Float.of_string_opt (String.strip arm_budget) with
-            | Some budget_dollars when Float.O.(budget_dollars > 0.) ->
-              Some (Armed { budget_dollars })
-            | Some (_ : float) | None -> None)) )
-    with
-    | Some interval_s, Some mode ->
-      let open Effect.Let_syntax in
-      let%bind response =
-        dispatch_start_run { Protocol.Live_run.Start_request.interval_s; mode }
-      in
-      (match Or_error.join response with
-       | Error error -> set_action_error (Some error)
-       | Ok status ->
-         Effect.Many
-           [ set_action_error None; set_live_run (Some (Ok status)) ])
-    | None, (_ : Protocol.Live_run.Mode.t option) | Some (_ : int), None ->
-      Effect.Ignore
-  in
-  let stop_live_run =
-    let open Effect.Let_syntax in
-    let%bind response = dispatch_stop_run () in
-    match Or_error.join response with
-    | Error error -> set_action_error (Some error)
-    | Ok status ->
-      Effect.Many [ set_action_error None; set_live_run (Some (Ok status)) ]
-  in
-  let refresh_live_run = Effect.Many [ load_live_run; load_arb_history ] in
   let run_arb_sim =
     match
       ( Client_logic.Form_validate.lookback_days sim_lookback
@@ -1575,8 +1304,6 @@ let arbitrage_page (local_ graph) =
          | Pairs ->
            Effect.Many
              [ load_wallet
-             ; load_live_run
-             ; load_arb_history
              ; (let open Effect.Let_syntax in
                 let%bind response = dispatch_capability () in
                 set_hedge_capability (Some (Or_error.join response)))
@@ -1811,30 +1538,7 @@ let arbitrage_page (local_ graph) =
           ~set_count:hedge_set_count
           ~fire:hedge_fire
       in
-      let live_runner =
-        arb_live_runner_card
-          ~live_run
-          ~interval:run_interval
-          ~set_interval:set_run_interval
-          ~arm:arm_real
-          ~set_arm:set_arm_real
-          ~budget:arm_budget
-          ~set_budget:set_arm_budget
-          ~start:start_live_run
-          ~stop:stop_live_run
-          ~refresh:refresh_live_run
-          ~history:arb_history
-          ~hover:sim_hover
-          ~set_hover:set_sim_hover
-      in
-      arb_detect_panel
-        ~scan_state
-        ~scan
-        ~wallet
-        ~mark_acted
-        ~assist
-        ~dialog
-        ~live_runner
+      arb_detect_panel ~scan_state ~scan ~wallet ~mark_acted ~assist ~dialog
     | Backtest ->
       arb_backtest_panel
         ~sim_state:arb_sim_state
