@@ -41,23 +41,26 @@ let nav_button ~current ~set_page page =
 let app (local_ graph) =
   let page, set_page = Bonsai.state Page.Markets graph in
   let markets_result = Markets_page.fetch_markets graph in
-  let markets = Markets_page.markets_page markets_result graph in
-  let bots = Bots_page.bots_page markets_result graph in
-  let arbitrage = Arb_page.arbitrage_page graph in
-  let wallet = Wallet_page.wallet_page graph in
+  (* Only the active page's computation is alive: [match%sub] deactivates
+     the other branches (their models are retained, so wizard state
+     survives page flips) and [Bonsai.delay] defers even building a page's
+     graph until its first visit. Re-entering a page re-fires its
+     [on_activate] refresh — matching the arb page's own
+     refresh-on-section-entry behavior. *)
+  let body =
+    match%sub page with
+    | Markets -> Markets_page.markets_page markets_result graph
+    | Bots ->
+      Bonsai.delay graph ~f:(fun graph ->
+        Bots_page.bots_page markets_result graph)
+    | Arbitrage ->
+      Bonsai.delay graph ~f:(fun graph -> Arb_page.arbitrage_page graph)
+    | Wallet ->
+      Bonsai.delay graph ~f:(fun graph -> Wallet_page.wallet_page graph)
+  in
   let%arr page
   and set_page
-  and markets
-  and bots
-  and arbitrage
-  and wallet in
-  let body =
-    match page with
-    | Markets -> markets
-    | Bots -> bots
-    | Arbitrage -> arbitrage
-    | Wallet -> wallet
-  in
+  and body in
   Vdom.Node.div
     [ Vdom.Node.div
         ~attrs:[ cls "header" ]

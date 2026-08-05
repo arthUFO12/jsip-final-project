@@ -27,10 +27,13 @@ module Stage = struct
 end
 
 module Sim_state = struct
+  (* [Done] carries the chart series assembled (and downsampled) once at
+     completion — results re-renders (hover, fills toggle) must never
+     re-walk the raw ticks. *)
   type t =
     | Idle
     | Running
-    | Done of Protocol.Sim_result.t
+    | Done of Protocol.Sim_result.t * Client_logic.Sim_series.t
   [@@deriving sexp_of]
 end
 
@@ -710,15 +713,10 @@ let results_view
             "running backtest — fetching live Kalshi history, this takes a \
              few seconds..."
         ]
-    | Done result ->
+    | Done (result, series) ->
       (* Series come pre-assembled and downsampled from [Sim_series]; this
          layer only assigns chart classes (solid = the configurable bot,
          dashed = the averaged dumb bots) and threads the hover cell. *)
-      let series =
-        Client_logic.Sim_series.create
-          result
-          ~max_points:chart_point_budget
-      in
       let to_series ~dash named =
         List.mapi
           named
@@ -937,7 +935,13 @@ let bots_page markets_result (local_ graph) =
         in
         let%bind response = dispatch_sim request in
         (match Or_error.join response with
-         | Ok result -> set_sim_state (Done result)
+         | Ok result ->
+           set_sim_state
+             (Done
+                ( result
+                , Client_logic.Sim_series.create
+                    result
+                    ~max_points:chart_point_budget ))
          | Error error ->
            (* Bring the user back to their rules with the error inline. *)
            Effect.Many
