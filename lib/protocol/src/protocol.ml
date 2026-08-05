@@ -113,6 +113,7 @@ module Sim_result = struct
     ; sim_start_s : float
     ; baseline_ticks : Baseline_point.t list
     ; pnl_percentile : float option
+    ; truncated : bool
     }
   [@@deriving sexp_of, bin_io]
 
@@ -441,7 +442,7 @@ let mark_acted =
 let run_simulation =
   Rpc.Rpc.create
     ~name:"run-simulation"
-    ~version:4
+    ~version:5
     ~bin_query:[%bin_type_class: Sim_request.t]
     ~bin_response:[%bin_type_class: Sim_result.t Or_error.t]
     ~include_in_error_count:Or_error

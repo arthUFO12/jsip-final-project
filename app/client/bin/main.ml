@@ -929,8 +929,21 @@ let rules_view
         | Some size -> size >= 1 && size <= 1000
         | None -> false)
   in
+  let lookback_valid =
+    (* Mirrors the server's bound: the venue serves at most 5000 candles per
+       request, so lookback x interval must fit inside it. *)
+    let candles_per_day =
+      match (interval : Protocol.Interval.t) with
+      | Minute -> 24 * 60
+      | Hour -> 24
+      | Day -> 1
+    in
+    match Int.of_string_opt lookback with
+    | None -> false
+    | Some days -> days >= 1 && days * candles_per_day <= 5000
+  in
   let numbers_valid =
-    Option.is_some (Int.of_string_opt lookback)
+    lookback_valid
     && Option.is_some (Int.of_string_opt warmup)
     && basic_bots_valid
     &&
@@ -1103,6 +1116,17 @@ let dashed ~name ~color points =
   { Chart_series.name; color; dash = true; points }
 ;;
 
+(* Chart x values are epoch seconds (the Protocol wire convention). *)
+let date_string epoch_s =
+  Time_ns.Span.of_sec epoch_s
+  |> Time_ns.of_span_since_epoch
+  |> Time_ns.to_date ~zone:Time_float.Zone.utc
+  |> Date.to_string
+;;
+
+(* Reserved below the plot for the start/end date labels of the x axis. *)
+let x_axis_strip_height = 16.
+
 (* [sim_start_s] shades everything before it (the warmup); omit it for charts
    with no warmup notion, like the market-detail popup. *)
 let chart_view ~title ~(series : Chart_series.t list) ?sim_start_s () =
@@ -1172,6 +1196,43 @@ let chart_view ~title ~(series : Chart_series.t list) ?sim_start_s () =
         ]
       [ Vdom.Node.text text ]
   in
+  (* A reference line at y = 0, only when the data straddles it. *)
+  let zero_line =
+    match Float.O.(y_range.lo < 0. && y_range.hi > 0.) with
+    | false -> []
+    | true ->
+      let y = Client_logic.Chart.scale_y y_range ~extent:height 0. in
+      [ svg_node
+          "line"
+          ~attrs:
+            [ Vdom.Attr.create "x1" "0"
+            ; Vdom.Attr.create "x2" (sprintf "%.0f" width)
+            ; Vdom.Attr.create "y1" (sprintf "%.1f" y)
+            ; Vdom.Attr.create "y2" (sprintf "%.1f" y)
+            ; Vdom.Attr.create "stroke" "#606a82"
+            ; Vdom.Attr.create "stroke-width" "1"
+            ; Vdom.Attr.create "stroke-dasharray" "2 3"
+            ]
+          []
+      ]
+  in
+  (* Start and end dates of the plotted extent, in the strip below the plot. *)
+  let x_axis_labels =
+    match all_points with
+    | [] -> []
+    | _ :: _ ->
+      [ axis_label
+          ~x:2.
+          ~y:(height +. x_axis_strip_height -. 4.)
+          ~anchor:"start"
+          (date_string x_range.lo)
+      ; axis_label
+          ~x:(width -. 2.)
+          ~y:(height +. x_axis_strip_height -. 4.)
+          ~anchor:"end"
+          (date_string x_range.hi)
+      ]
+  in
   let legend =
     Vdom.Node.div
       ~attrs:[ cls "legend" ]
@@ -1197,10 +1258,14 @@ let chart_view ~title ~(series : Chart_series.t list) ?sim_start_s () =
         "svg"
         ~attrs:
           [ Vdom.Attr.create "width" (sprintf "%.0f" width)
-          ; Vdom.Attr.create "height" (sprintf "%.0f" height)
+          ; Vdom.Attr.create
+              "height"
+              (sprintf "%.0f" (height +. x_axis_strip_height))
           ]
         (warmup_rect
+         @ zero_line
          @ polylines
+         @ x_axis_labels
          @ [ axis_label
                ~x:2.
                ~y:12.
@@ -1569,8 +1634,27 @@ let results_view
         | Some final ->
           final_stats final ~pnl_percentile:result.pnl_percentile
       in
+      let truncation_note =
+        match result.truncated with
+        | false -> Vdom.Node.none
+        | true ->
+          let starts_at =
+            match result.ticks with
+            | [] -> ""
+            | tick :: _ ->
+              [%string " — the simulation starts %{date_string tick.time_s}"]
+          in
+          Vdom.Node.p
+            ~attrs:[ cls "stage-hint" ]
+            [ Vdom.Node.text
+                [%string
+                  "note: the lookback reached past this market's available \
+                   history and was truncated%{starts_at}"]
+            ]
+      in
       Vdom.Node.div
-        ([ stats
+        ([ truncation_note
+         ; stats
          ; Vdom.Node.div
              ~attrs:[ cls "charts-grid" ]
              [ chart_view

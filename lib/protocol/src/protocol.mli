@@ -151,6 +151,9 @@ module Sim_result : sig
     (** Percentile rank (0..100) of the configurable bot's final total PnL
         (realized + unrealized) among the baseline bots' final total PnLs;
         [None] when the request had no [basic_bots]. *)
+    ; truncated : bool
+    (** True when the requested lookback reached before the venue's available
+        history, so the simulation starts later than asked. *)
     }
   [@@deriving sexp_of, bin_io]
 

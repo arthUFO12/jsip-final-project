@@ -5,8 +5,19 @@ open Market_data
 open Database
 
 let max_markets = 4
-let max_lookback_days = 30
 let max_starting_cash_cents = 100_000_000 (* $1M *)
+
+(* Kalshi's candlestick endpoints reject requests spanning more than 5000
+   candles ("max candlesticks: 5000"), so [validate] rejects any
+   lookback/interval combination that would exceed it. *)
+let max_venue_candles = 5_000
+
+let candles_per_day : Protocol.Interval.t -> int = function
+  | Minute -> 24 * 60
+  | Hour -> 24
+  | Day -> 1
+;;
+
 let max_basic_bots = 100
 let max_basic_trade_size = 1000
 
@@ -27,7 +38,7 @@ let validate
   ({ slugs
    ; program
    ; variables = _
-   ; interval = _
+   ; interval
    ; lookback_days
    ; warmup_hours
    ; starting_cash_cents
@@ -50,11 +61,18 @@ let validate
       [%message
         "starting cash must be between $0.01 and $1,000,000"
           (starting_cash_cents : int)]
-  else if lookback_days < 1 || lookback_days > max_lookback_days
+  else if lookback_days < 1
+  then
+    Or_error.error_s
+      [%message "lookback must be at least 1 day" (lookback_days : int)]
+  else if lookback_days * candles_per_day interval > max_venue_candles
   then
     Or_error.error_s
       [%message
-        "lookback must be between 1 and 30 days" (lookback_days : int)]
+        "lookback spans more candlesticks than the venue serves; shorten it \
+         or use a coarser interval"
+          ~candles:(lookback_days * candles_per_day interval : int)
+          (max_venue_candles : int)]
   else if warmup_hours < 0
   then
     Or_error.error_s
@@ -276,6 +294,12 @@ let run (request : Protocol.Sim_request.t) =
     Deferred.return (Parser.Parse.program source ~slugs:request.slugs)
   in
   let interval = interval_of_wire request.interval in
+  let interval_span =
+    match (interval : Time_series.Interval.t) with
+    | Minute -> Time_ns.Span.of_min 1.
+    | Hour -> Time_ns.Span.of_hr 1.
+    | Day -> Time_ns.Span.of_day 1.
+  in
   let probe_finish = Time_ns.now () in
   let probe_start =
     Time_ns.sub
@@ -291,6 +315,10 @@ let run (request : Protocol.Sim_request.t) =
   in
   let%bind start, finish =
     Deferred.return (Time_series.shared_window series_by_stub)
+  in
+  (* One candle of slack, so normal grid alignment never reads as truncation. *)
+  let truncated =
+    Time_ns.( > ) start (Time_ns.add probe_start interval_span)
   in
   let sim_start_offset =
     Time_ns.Span.of_hr (Float.of_int request.warmup_hours)
@@ -360,6 +388,7 @@ let run (request : Protocol.Sim_request.t) =
          (match basic_recordings with
           | [] -> None
           | _ :: _ -> Some (pnl_percentile recording basic_recordings))
+     ; truncated
      }
      : Protocol.Sim_result.t)
 ;;

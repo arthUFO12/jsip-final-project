@@ -540,6 +540,9 @@ let check_sim
   (match result.pnl_percentile with
    | None -> ()
    | Some percentile -> printf "pnl percentile: %.0f\n" percentile);
+  (match result.truncated with
+   | false -> ()
+   | true -> print_endline "note: lookback truncated to available history");
   List.iter result.fills ~f:(fun fill ->
     print_s (Protocol.Fill.sexp_of_t fill));
   (match Protocol.Sim_result.final result with
