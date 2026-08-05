@@ -123,7 +123,8 @@ let css =
   }
   .stage-title { margin: 0 0 6px; font-size: 22px; }
   .stage-hint { color: #8b93a7; font-size: 13px; margin: 0 0 16px; }
-  .search-input, .num-input, .interval-select {
+  .search-input, .num-input, .interval-select, .saved-bot-select,
+  .bot-name-input {
     background: #10151f;
     border: 1px solid #2a3040;
     border-radius: 8px;
@@ -134,7 +135,12 @@ let css =
   }
   .search-input:focus { outline: none; border-color: #7dd3fc; }
   .num-input { width: 90px; }
-  .interval-select { width: auto; }
+  .interval-select, .saved-bot-select { width: auto; }
+  .bot-name-input { width: 180px; }
+  .saved-bot-row {
+    display: flex; gap: 10px; align-items: center; margin: 12px 0;
+  }
+  .save-confirm { color: #4ade80; font-size: 13px; align-self: center; }
   .suggestions {
     width: 420px;
     background: #10151f;
@@ -163,9 +169,13 @@ let css =
     gap: 8px;
     background: #172033;
     border: 1px solid #2c3a55;
-    border-radius: 999px;
+    border-radius: 12px;
     padding: 5px 12px;
     font-size: 13px;
+  }
+  .chip-lines { display: flex; flex-direction: column; gap: 2px; }
+  .chip-ticker {
+    color: #8b93a7; font-size: 11px; font-family: monospace;
   }
   .chip-remove {
     background: none;
@@ -454,6 +464,18 @@ let css =
     background: #2b1520; border: 1px solid #7f1d1d; border-radius: 8px;
     color: #fca5a5; font-size: 13px; padding: 10px 14px; margin: 8px 0;
   }
+  .manual-body { font-size: 13px; color: #a5b4d0; }
+  .manual-body p { margin: 6px 0; }
+  .manual-section-title {
+    font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em;
+    color: #7dd3fc; margin: 18px 0 4px;
+  }
+  .manual-code {
+    background: #0d1220; border: 1px solid #232a3b; border-radius: 8px;
+    color: #e8eaf0; font-family: ui-monospace, monospace; font-size: 13px;
+    padding: 8px 12px; margin: 6px 0; overflow-x: auto;
+  }
+  .manual-note { color: #fbbf24; margin: 6px 0; }
 |}
 ;;
 
@@ -519,6 +541,15 @@ let volume_string (card : Card.t) =
     [%string "%{count} contracts"]
   | Some (Notional dollars) ->
     [%string "%{Price.to_string_dollar dollars} traded"]
+;;
+
+(* Keeps a market-chip name to roughly one row of the rules layout. *)
+let max_title_length = 60
+
+let truncate_title title =
+  match String.length title > max_title_length with
+  | false -> title
+  | true -> String.prefix title max_title_length ^ "..."
 ;;
 
 let card_view ~on_select (card : Card.t) =
@@ -609,6 +640,40 @@ module Sim_state = struct
   [@@deriving sexp_of]
 end
 
+(* Saved bots persist per-browser in localStorage as one sexp blob; a missing
+   or unparseable entry is just "no saved bots" (see
+   {!Client_logic.Saved_bot}). *)
+let saved_bots_storage_key = Js_of_ocaml.Js.string "arbiter-saved-bots"
+
+let load_saved_bots () =
+  match
+    Js_of_ocaml.Js.Optdef.to_option
+      Js_of_ocaml.Dom_html.window##.localStorage
+  with
+  | None -> []
+  | Some storage ->
+    (match
+       Js_of_ocaml.Js.Opt.to_option (storage##getItem saved_bots_storage_key)
+     with
+     | None -> []
+     | Some text ->
+       Client_logic.Saved_bot.list_of_string (Js_of_ocaml.Js.to_string text))
+;;
+
+let store_saved_bots bots =
+  match
+    Js_of_ocaml.Js.Optdef.to_option
+      Js_of_ocaml.Dom_html.window##.localStorage
+  with
+  | None -> ()
+  | Some storage ->
+    storage##setItem
+      saved_bots_storage_key
+      (Js_of_ocaml.Js.string (Client_logic.Saved_bot.list_to_string bots))
+;;
+
+let store_saved_bots_effect = Effect.of_sync_fun store_saved_bots
+
 let suggestion_list suggestions ~on_pick =
   match suggestions with
   | [] -> Vdom.Node.none
@@ -635,9 +700,21 @@ let chips ?on_remove selected =
                [ Vdom.Node.text "✕" ]
            ]
        in
-       Vdom.Node.div
-         ~attrs:[ cls "chip" ]
-         (Vdom.Node.text (Slug.to_string card.slug) :: remove)))
+       let name_and_ticker =
+         Vdom.Node.div
+           ~attrs:[ cls "chip-lines" ]
+           [ Vdom.Node.div
+               [ Vdom.Node.text
+                   [%string "name: %{truncate_title card.title}"]
+               ]
+           ; Vdom.Node.div
+               ~attrs:[ cls "chip-ticker" ]
+               [ Vdom.Node.text
+                   [%string "ticker: %{Slug.to_string card.slug}"]
+               ]
+           ]
+       in
+       Vdom.Node.div ~attrs:[ cls "chip" ] (name_and_ticker :: remove)))
 ;;
 
 (* Column 2: one input takes either statement kind — a [name = expr] line
@@ -784,6 +861,11 @@ let pick_view
   ~set_selected
   ~search_text
   ~set_search_text
+  ~saved_bots
+  ~picked_bot
+  ~set_picked_bot
+  ~load_bot
+  ~delete_bot
   ~continue
   =
   let index_cards =
@@ -813,6 +895,56 @@ let pick_view
          not (Slug.equal kept.Card.slug card.slug)))
   in
   let count = List.length selected in
+  let saved_bot_row =
+    match saved_bots with
+    | [] -> Vdom.Node.none
+    | _ :: _ ->
+      let placeholder_option =
+        Vdom.Node.option
+          ~attrs:
+            ([ Vdom.Attr.value "" ]
+             @
+             match String.is_empty picked_bot with
+             | true -> [ Vdom.Attr.selected ]
+             | false -> [])
+          [ Vdom.Node.text "saved bots..." ]
+      in
+      let bot_option (bot : Client_logic.Saved_bot.t) =
+        Vdom.Node.option
+          ~attrs:
+            ([ Vdom.Attr.value bot.name ]
+             @
+             match String.equal bot.name picked_bot with
+             | true -> [ Vdom.Attr.selected ]
+             | false -> [])
+          [ Vdom.Node.text bot.name ]
+      in
+      let picked = Client_logic.Saved_bot.find saved_bots ~name:picked_bot in
+      let with_picked action =
+        match picked with None -> Effect.Ignore | Some bot -> action bot
+      in
+      Vdom.Node.div
+        ~attrs:[ cls "saved-bot-row" ]
+        [ Vdom.Node.select
+            ~attrs:
+              [ cls "saved-bot-select"
+              ; Vdom.Attr.on_change (fun (_ : _ Js_of_ocaml.Js.t) name ->
+                  set_picked_bot name)
+              ]
+            (placeholder_option :: List.map saved_bots ~f:bot_option)
+        ; button
+            ~enabled:(Option.is_some picked)
+            ~class_:"btn-secondary"
+            ~label:"Load"
+            (with_picked load_bot)
+        ; button
+            ~enabled:(Option.is_some picked)
+            ~class_:"btn-secondary"
+            ~label:"Delete"
+            (with_picked (fun (bot : Client_logic.Saved_bot.t) ->
+               delete_bot bot.name))
+        ]
+  in
   Vdom.Node.div
     [ Vdom.Node.h2
         ~attrs:[ cls "stage-title" ]
@@ -835,11 +967,148 @@ let pick_view
         ()
     ; suggestion_list suggestions ~on_pick:pick
     ; chips selected ~on_remove:remove
+    ; saved_bot_row
     ; button
         ~enabled:(count >= 1 && count <= max_markets)
         ~class_:"btn-primary"
         ~label:"Continue to rules"
         continue
+    ]
+;;
+
+(* Every example below is real syntax, checked against the grammar in
+   [lib/language_parser] (see parse.mli's doc block). If the language
+   changes, this text must change with it. *)
+let manual_view ~close =
+  let paragraph text = Vdom.Node.p [ Vdom.Node.text text ] in
+  let section_title text =
+    Vdom.Node.h3
+      ~attrs:[ cls "manual-section-title" ]
+      [ Vdom.Node.text text ]
+  in
+  let code_block lines =
+    Vdom.Node.create
+      "pre"
+      ~attrs:[ cls "manual-code" ]
+      [ Vdom.Node.text (String.concat lines ~sep:"\n") ]
+  in
+  let note text =
+    Vdom.Node.p ~attrs:[ cls "manual-note" ] [ Vdom.Node.text text ]
+  in
+  let body =
+    Vdom.Node.div
+      ~attrs:[ cls "manual-body" ]
+      [ paragraph
+          "A bot is a list of statements, one per line. Each line is either \
+           a rule (something to do) or a variable definition. Keywords work \
+           in any case. The examples use my_market as the ticker; swap in \
+           one of yours from the variables panel, spelled the way it \
+           appears there."
+      ; section_title "conditions"
+      ; code_block [ "$cash > 50 && my_market < 0.40" ]
+      ; paragraph
+          "Conditions work like in most languages: compare two amounts with \
+           > >= < <= == or !=, and combine comparisons with ! (not), && \
+           (and), ^ (exclusive or), || (or), and parentheses. true and \
+           false also work. A bare ticker is that market's current yes \
+           price in dollars, so my_market < 0.40 reads as \"yes costs under \
+           40 cents\". One condition is unique to this language: my_market \
+           down by 10% since 1d ago is true when the yes price fell that \
+           much over the window (use up for rises, by 0.05 for an absolute \
+           five-cent move)."
+      ; section_title "actions: buy and sell"
+      ; code_block
+          [ "buy 2 my_market yes"; "buy $cash / my_market my_market yes" ]
+      ; paragraph
+          "An action is buy or sell, an amount, a ticker, and the side (yes \
+           or no). The amount can be any arithmetic with + - * / and \
+           parentheses; it is rounded to whole contracts when the rule \
+           fires. An action never stands alone - it needs an if, every, or \
+           when i in front of it so the bot knows when to act."
+      ; section_title "if statements"
+      ; code_block
+          [ "if my_market < 0.30 then buy 2 my_market yes else sell 1 \
+             my_market yes"
+          ]
+      ; paragraph
+          "if CONDITION then ACTION runs the action whenever the condition \
+           holds; the else part is optional. The condition is re-checked at \
+           every step of the simulation."
+      ; section_title "every statements"
+      ; code_block
+          [ "every 2h buy 1 my_market yes"
+          ; "every 1d if my_market < 0.50 then buy 1 my_market yes"
+          ]
+      ; paragraph
+          "every N throttles a rule to a schedule: N is a number plus m \
+           (minutes), h (hours), or d (days). Alone it fires the action on \
+           every beat; combined with if it checks the condition only on the \
+           beat."
+      ; note
+          "The every span must be a whole multiple of the simulation \
+           interval you picked in configuration - every 90m on an hourly \
+           simulation is an error."
+      ; section_title "when i statements"
+      ; code_block [ "when i buy my_market sell 1 my_market no" ]
+      ; paragraph
+          "when i buy (or sell) my_market fires right after one of your own \
+           trades in that market goes through - useful for hedging or \
+           taking the other side automatically. It combines with every and \
+           if in one rule: every 1d when i sell my_market buy 1 my_market \
+           yes."
+      ; section_title "price of, inventory of, avgcost of"
+      ; code_block
+          [ "if price of my_market > avgcost of my_market then sell 1 \
+             my_market yes"
+          ; "every 1h buy 10 - inventory of my_market my_market yes"
+          ]
+      ; paragraph
+          "These read your position wherever an amount fits. price of \
+           my_market is the yes price (same as the bare ticker; the no \
+           price is 1 - my_market). inventory of is the contracts you hold \
+           (positive long yes, negative long no), and avgcost of is what \
+           you paid per contract on average - so the first rule takes \
+           profit, and the second tops your position up to 10. Your account \
+           totals are $cash, $realized, and $unrealized."
+      ; section_title "variables"
+      ; code_block
+          [ "lot = 5"
+          ; "cheap = my_market < 0.50"
+          ; "if $cheap then buy $lot my_market yes"
+          ]
+      ; paragraph
+          "Define a variable bare (name = ...), use it with a $ prefix. A \
+           variable can hold an amount or a condition, and must be defined \
+           on an earlier line than its first use. Ticker names, keywords, \
+           and the built-ins $cash, $realized, and $unrealized are \
+           reserved."
+      ; section_title "gotchas"
+      ; note
+          "Tickers are typed in lowercase with every - replaced by _ : the \
+           market KXELONMARS-99 is written kxelonmars_99."
+      ; note
+          "Names may contain hyphens, so put spaces around subtraction: $a \
+           - $b, never $a-b."
+      ; note
+          "= defines a variable; == compares two amounts. There is no \
+           comment syntax."
+      ]
+  in
+  Vdom.Node.div
+    ~attrs:[ cls "modal-backdrop"; on_click close ]
+    [ Vdom.Node.div
+      (* Clicks inside the panel must not bubble to the backdrop's close
+         handler. *)
+        ~attrs:[ cls "modal"; on_click Effect.Stop_propagation ]
+        [ Vdom.Node.div
+            ~attrs:[ cls "modal-header" ]
+            [ Vdom.Node.h2
+                ~attrs:[ cls "stage-title" ]
+                [ Vdom.Node.text "Bot language manual" ]
+            ; button ~class_:"btn-secondary" ~label:"Close" close
+            ]
+        ; body
+        ]
     ]
 ;;
 
@@ -870,6 +1139,8 @@ let rules_view
   ~bot_max_size
   ~set_bot_max_size
   ~error
+  ~manual_open
+  ~set_manual_open
   ~back
   ~run
   =
@@ -1059,7 +1330,11 @@ let rules_view
             ]
         ; Vdom.Node.div
             ~attrs:[ cls "button-row" ]
-            [ button ~class_:"btn-secondary" ~label:"Back" back
+            [ button
+                ~class_:"btn-secondary"
+                ~label:"? Manual"
+                (set_manual_open true)
+            ; button ~class_:"btn-secondary" ~label:"Back" back
             ; button
                 ~enabled:((not (List.is_empty rules)) && numbers_valid)
                 ~class_:"btn-primary"
@@ -1092,6 +1367,9 @@ let rules_view
         ; rules_column ~rules ~set_rules ~set_draft
         ; variables_column ~tickers ~variables ~set_variables
         ]
+    ; (match manual_open with
+       | false -> Vdom.Node.none
+       | true -> manual_view ~close:(set_manual_open false))
     ]
 ;;
 
@@ -1484,6 +1762,10 @@ let results_view
   ~sim_state
   ~fills_expanded
   ~set_fills_expanded
+  ~bot_name
+  ~set_bot_name
+  ~saved_message
+  ~save
   ~edit_rules
   ~new_bot
   =
@@ -1693,6 +1975,26 @@ let results_view
         ~attrs:[ cls "button-row" ]
         [ button ~class_:"btn-secondary" ~label:"Edit rules" edit_rules
         ; button ~class_:"btn-secondary" ~label:"New bot" new_bot
+        ; Vdom.Node.input
+            ~attrs:
+              [ cls "bot-name-input"
+              ; Vdom.Attr.placeholder "bot name"
+              ; Vdom.Attr.value bot_name
+              ; Vdom.Attr.on_input (fun (_ : _ Js_of_ocaml.Js.t) text ->
+                  set_bot_name text)
+              ]
+            ()
+        ; button
+            ~enabled:(not (String.is_empty (String.strip bot_name)))
+            ~class_:"btn-secondary"
+            ~label:"Save bot"
+            save
+        ; (match saved_message with
+           | None -> Vdom.Node.none
+           | Some message ->
+             Vdom.Node.span
+               ~attrs:[ cls "save-confirm" ]
+               [ Vdom.Node.text [%string "✓ %{message}"] ])
         ]
     ]
 ;;
@@ -1716,6 +2018,13 @@ let bots_page markets_result (local_ graph) =
   let sim_state, set_sim_state = Bonsai.state Sim_state.Idle graph in
   let fills_expanded, set_fills_expanded = Bonsai.state false graph in
   let error, set_error = Bonsai.state (None : Error.t option) graph in
+  let manual_open, set_manual_open = Bonsai.state false graph in
+  let saved_bots, set_saved_bots = Bonsai.state (load_saved_bots ()) graph in
+  let bot_name, set_bot_name = Bonsai.state "" graph in
+  let picked_bot, set_picked_bot = Bonsai.state "" graph in
+  let saved_message, set_saved_message =
+    Bonsai.state (None : string option) graph
+  in
   let dispatch_sim =
     Rpc_effect.Rpc.dispatcher Protocol.run_simulation graph
   in
@@ -1755,6 +2064,16 @@ let bots_page markets_result (local_ graph) =
   and set_fills_expanded
   and error
   and set_error
+  and manual_open
+  and set_manual_open
+  and saved_bots
+  and set_saved_bots
+  and bot_name
+  and set_bot_name
+  and picked_bot
+  and set_picked_bot
+  and saved_message
+  and set_saved_message
   and dispatch_sim
   and markets_result in
   let all_cards =
@@ -1764,12 +2083,53 @@ let bots_page markets_result (local_ graph) =
   in
   match (stage : Stage.t) with
   | Pick ->
+    (* Restoring a saved bot looks its slugs back up in today's catalog;
+       markets the server has rotated out since the save are dropped. *)
+    let load_bot (bot : Client_logic.Saved_bot.t) =
+      let cards =
+        List.filter_map bot.slugs ~f:(fun slug ->
+          List.find all_cards ~f:(fun (card : Card.t) ->
+            Slug.equal card.slug slug))
+      in
+      let interval_effects =
+        match
+          List.find Protocol.Interval.all ~f:(fun value ->
+            String.equal (Protocol.Interval.name value) bot.interval)
+        with
+        | None -> []
+        | Some value -> [ set_interval value ]
+      in
+      Effect.Many
+        ([ set_selected cards
+         ; set_rules bot.rules
+         ; set_variables bot.variables
+         ; set_lookback bot.lookback
+         ; set_warmup bot.warmup
+         ; set_starting_cash bot.starting_cash
+         ; set_allow_negative bot.allow_negative
+         ; set_bot_name bot.name
+         ]
+         @ interval_effects)
+    in
+    let delete_bot name =
+      let bots = Client_logic.Saved_bot.remove saved_bots ~name in
+      Effect.Many
+        [ store_saved_bots_effect bots
+        ; set_saved_bots bots
+        ; set_picked_bot ""
+        ]
+    in
     pick_view
       ~all_cards
       ~selected
       ~set_selected
       ~search_text
       ~set_search_text
+      ~saved_bots
+      ~picked_bot
+      ~set_picked_bot
+      ~load_bot
+      ~delete_bot
       ~continue:(set_stage Rules)
   | Rules ->
     let run =
@@ -1857,20 +2217,56 @@ let bots_page markets_result (local_ graph) =
       ~bot_max_size
       ~set_bot_max_size
       ~error
+      ~manual_open
+      ~set_manual_open
       ~back:(set_stage Pick)
       ~run
   | Results ->
+    let save =
+      let name = String.strip bot_name in
+      match String.is_empty name with
+      | true -> Effect.Ignore
+      | false ->
+        let bot : Client_logic.Saved_bot.t =
+          { name
+          ; slugs = List.map selected ~f:(fun (card : Card.t) -> card.slug)
+          ; rules
+          ; variables
+          ; interval = Protocol.Interval.name interval
+          ; lookback
+          ; warmup
+          ; starting_cash
+          ; allow_negative
+          }
+        in
+        let bots = Client_logic.Saved_bot.upsert saved_bots bot in
+        Effect.Many
+          [ store_saved_bots_effect bots
+          ; set_saved_bots bots
+          ; set_saved_message (Some [%string "saved as %{name}"])
+          ]
+    in
+    (* Typing a new name invalidates the "saved as ..." confirmation. *)
+    let set_bot_name text =
+      Effect.Many [ set_bot_name text; set_saved_message None ]
+    in
     results_view
       ~sim_state
       ~fills_expanded
       ~set_fills_expanded
-      ~edit_rules:(set_stage Rules)
+      ~bot_name
+      ~set_bot_name
+      ~saved_message
+      ~save
+      ~edit_rules:(Effect.Many [ set_saved_message None; set_stage Rules ])
       ~new_bot:
         (Effect.Many
            [ set_selected []
            ; set_rules []
            ; set_variables []
            ; set_draft ""
+           ; set_bot_name ""
+           ; set_saved_message None
            ; set_sim_state Idle
            ; set_fills_expanded false
            ; set_error None
