@@ -714,6 +714,136 @@ let check_sim_command =
           ~basic_max_size]
 ;;
 
+(* The live-testing verb: exercise the entire assisted-hedge path — pair
+   resolution, preflight, rails, placement, reconciliation, audit — against
+   Kalshi's DEMO environment by default. Mirrors the arbitrage CLI's
+   check-trade, but goes through Arb_runner rather than the venue directly,
+   so what it proves is the exact code path the browser's dialog uses. The
+   manual (Polymarket) leg is pretend: only the Kalshi hedge is placed. *)
+let check_hedge ~db ~pair_key ~count ~manual_price_cents ~real =
+  let open Deferred.Or_error.Let_syntax in
+  let%bind cwd = Deferred.ok (Sys.getcwd ()) in
+  let db = if Filename.is_absolute db then db else cwd ^/ db in
+  let%bind () = Deferred.return (Database_exec.init_database db) in
+  let%bind () = Database_exec.create_market_stub_table () in
+  let%bind () = Database_exec.create_pair_proposal_table () in
+  let%bind () = Database_exec.create_pair_stub_table () in
+  let%bind () = Database_exec.create_arb_wallet_table () in
+  let%bind () = Database_exec.create_trade_log_table () in
+  let host =
+    match real with
+    | true -> Execution.Kalshi_live.live_host
+    | false -> Execution.Kalshi_live.demo_host
+  in
+  (match real with
+   | true ->
+     printf "REAL MONEY: hedging on production; worst case is count x ask\n"
+   | false -> printf "demo environment - pretend money\n");
+  printf
+    "note: this writes real rows to the audit log and wallet in %s; use a \
+     scratch -db to keep your main wallet clean\n"
+    db;
+  let%bind credentials =
+    Execution.Kalshi_live.Credentials.load_from_env ~host ()
+  in
+  Arb_runner.set_live_allowed true;
+  Arb_runner.enable_live credentials;
+  let%bind pair_key =
+    match pair_key with
+    | Some key -> return key
+    | None ->
+      (match%bind Arbitrage.Bot.candidates_of_approved () with
+       | [] ->
+         Deferred.Or_error.error_string
+           "no approved pairs in the store - run a sweep and approve one \
+            first, or pass -pair-key"
+       | { left; right } :: (_ : Arbitrage.Matcher.Candidate.t list) ->
+         let ids =
+           List.sort
+             ~compare:String.compare
+             [ Market_id.to_string left.market_id
+             ; Market_id.to_string right.market_id
+             ]
+         in
+         return (String.concat ids ~sep:"|"))
+  in
+  printf "pair: %s\n" pair_key;
+  let%bind preflight =
+    Arb_runner.preflight
+      { Protocol.Preflight_request.pair_key; manual_is_yes = true }
+  in
+  printf !"preflight: %{sexp: Protocol.Preflight.t}\n" preflight;
+  match preflight.hedgeable <= 0 with
+  | true ->
+    printf
+      "not hedgeable right now (kill switch, caps, or no depth) - stopping \
+       before placement\n";
+    return ()
+  | false ->
+    let count = Int.min count preflight.hedgeable in
+    let now_ms =
+      Time_ns.to_int_ns_since_epoch (Time_ns.now ()) / 1_000_000
+    in
+    let%bind result =
+      Arb_runner.hedge
+        { Protocol.Hedge_request.pair_key
+        ; nonce = [%string "check-%{now_ms#Int}"]
+        ; manual_venue = "Polymarket"
+        ; manual_is_yes = true
+        ; manual_price_cents
+        ; manual_count = count
+        ; max_hedge_price_cents = preflight.ask_cents + 2
+        }
+    in
+    printf !"hedge result: %{sexp: Protocol.Hedge_result.t}\n" result;
+    let%bind entries = Database_exec.list_trade_log 5 in
+    printf "audit log (newest first):\n";
+    List.iter entries ~f:(fun entry ->
+      printf !"  %{sexp: Trade_log_entry.t}\n" entry);
+    return ()
+;;
+
+let check_hedge_command =
+  Command.async_or_error
+    ~summary:
+      "run the whole assisted-hedge path (preflight, rails, placement, \
+       reconciliation, audit) against Kalshi's DEMO environment; the \
+       manual Polymarket leg is pretend"
+    [%map_open.Command
+      let db =
+        flag
+          "-db"
+          (optional_with_default "arbiter.db" string)
+          ~doc:
+            "FILE sqlite database with an approved pair (default \
+             arbiter.db)"
+      and pair_key =
+        flag
+          "-pair-key"
+          (optional string)
+          ~doc:"KEY the pair to hedge (default: first approved pair)"
+      and count =
+        flag
+          "-count"
+          (optional_with_default 1 int)
+          ~doc:"N contracts for the pretend manual leg (default 1)"
+      and manual_price_cents =
+        flag
+          "-manual-price-cents"
+          (optional_with_default 50 int)
+          ~doc:"CENTS pretend fill price of the manual leg (default 50)"
+      and real =
+        flag
+          "-real"
+          no_arg
+          ~doc:
+            " REAL MONEY: hedge on production instead of demo. KALSHI_* \
+             env vars must hold production credentials; the spending caps \
+             and kill switch still apply."
+      in
+      fun () -> check_hedge ~db ~pair_key ~count ~manual_price_cents ~real]
+;;
+
 let command =
   Command.group
     ~summary:"The Arbiter web app server"
@@ -722,6 +852,7 @@ let command =
     ; "check-arb", check_arb_command
     ; "check-detail", check_detail_command
     ; "check-sim", check_sim_command
+    ; "check-hedge", check_hedge_command
     ]
 ;;
 
