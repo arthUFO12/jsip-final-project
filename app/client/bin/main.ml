@@ -640,6 +640,17 @@ module Sim_state = struct
   [@@deriving sexp_of]
 end
 
+(* What the backtest runs alongside the bot. A [Saved_bot] holds only the
+   name; the record is looked up in the saved list at run time, so a bot
+   deleted after being picked simply invalidates the Run button. *)
+module Compare_choice = struct
+  type t =
+    | No_comparison
+    | Dumb_bots
+    | Saved_bot of string
+  [@@deriving sexp_of, equal]
+end
+
 (* Saved bots persist per-browser in localStorage as one sexp blob; a missing
    or unparseable entry is just "no saved bots" (see
    {!Client_logic.Saved_bot}). *)
@@ -1130,8 +1141,9 @@ let rules_view
   ~set_starting_cash
   ~allow_negative
   ~set_allow_negative
-  ~compare_bots
-  ~set_compare_bots
+  ~compare_choice
+  ~set_compare_choice
+  ~saved_bots
   ~bot_count
   ~set_bot_count
   ~bot_probability
@@ -1182,12 +1194,15 @@ let rules_view
               [ set_variables (variables @ [ entry ]); set_draft "" ])
        | None -> Effect.Many [ set_rules (rules @ [ entry ]); set_draft "" ])
   in
-  let basic_bots_valid =
+  let comparison_valid =
     (* Mirrors the server's bounds so Run stays disabled on inputs the server
        would reject. *)
-    match compare_bots with
-    | false -> true
-    | true ->
+    match (compare_choice : Compare_choice.t) with
+    | No_comparison -> true
+    | Saved_bot name ->
+      (* The bot may have been deleted since it was picked. *)
+      Option.is_some (Client_logic.Saved_bot.find saved_bots ~name)
+    | Dumb_bots ->
       (match Int.of_string_opt bot_count with
        | Some count -> count >= 1 && count <= 100
        | None -> false)
@@ -1216,7 +1231,7 @@ let rules_view
   let numbers_valid =
     lookback_valid
     && Option.is_some (Int.of_string_opt warmup)
-    && basic_bots_valid
+    && comparison_valid
     &&
     match Int.of_string_opt starting_cash with
     | Some cash -> cash > 0
@@ -1250,25 +1265,62 @@ let rules_view
         ]
       ()
   in
-  (* Collapsed to just the toggle until it's on; the inputs only matter (and
-     are only validated) when the comparison runs. *)
+  (* One dropdown covers every comparison mode, so picking dumb bots and a
+     saved bot at once is impossible by construction. The dumb-bot inputs
+     only appear (and are only validated) when that mode runs. *)
   let compare_section =
-    let toggle =
-      labeled
-        "compare against dumb bots"
-        (Vdom.Node.input
-           ~attrs:
-             [ cls "checkbox"
-             ; Vdom.Attr.type_ "checkbox"
-             ; Vdom.Attr.bool_property "checked" compare_bots
-             ; on_click (set_compare_bots (not compare_bots))
-             ]
-           ())
+    let dumb_bots_value = "dumb bots" in
+    let choice_option ~value ~label ~chosen =
+      Vdom.Node.option
+        ~attrs:
+          ([ Vdom.Attr.value value ]
+           @ match chosen with true -> [ Vdom.Attr.selected ] | false -> [])
+        [ Vdom.Node.text label ]
     in
-    match compare_bots with
-    | false -> [ toggle ]
-    | true ->
-      [ toggle
+    let choice_options =
+      choice_option
+        ~value:""
+        ~label:"no comparison"
+        ~chosen:
+          (Compare_choice.equal compare_choice Compare_choice.No_comparison)
+      :: choice_option
+           ~value:dumb_bots_value
+           ~label:dumb_bots_value
+           ~chosen:
+             (Compare_choice.equal compare_choice Compare_choice.Dumb_bots)
+      :: List.map saved_bots ~f:(fun (bot : Client_logic.Saved_bot.t) ->
+        (* Prefixed so a bot named "dumb bots" can't shadow the mode. *)
+        choice_option
+          ~value:[%string "saved:%{bot.name}"]
+          ~label:bot.name
+          ~chosen:
+            (Compare_choice.equal
+               compare_choice
+               (Compare_choice.Saved_bot bot.name)))
+    in
+    let dropdown =
+      labeled
+        "compare against"
+        (Vdom.Node.select
+           ~attrs:
+             [ cls "saved-bot-select"
+             ; Vdom.Attr.on_change (fun (_ : _ Js_of_ocaml.Js.t) value ->
+                 let choice : Compare_choice.t =
+                   match String.chop_prefix value ~prefix:"saved:" with
+                   | Some name -> Saved_bot name
+                   | None ->
+                     (match String.equal value dumb_bots_value with
+                      | true -> Dumb_bots
+                      | false -> No_comparison)
+                 in
+                 set_compare_choice choice)
+             ]
+           choice_options)
+    in
+    match (compare_choice : Compare_choice.t) with
+    | No_comparison | Saved_bot (_ : string) -> [ dropdown ]
+    | Dumb_bots ->
+      [ dropdown
       ; labeled "number of bots" (num_input bot_count set_bot_count)
       ; labeled
           "trade probability"
@@ -1762,6 +1814,7 @@ let results_view
   ~sim_state
   ~fills_expanded
   ~set_fills_expanded
+  ~baseline_label
   ~bot_name
   ~set_bot_name
   ~saved_message
@@ -1827,19 +1880,23 @@ let results_view
           in
           [ Vdom.Node.div
               ~attrs:[ cls "list-heading" ]
-              [ Vdom.Node.text "dumb bot average" ]
+              [ Vdom.Node.text baseline_label ]
           ; baseline_stats final_baseline
           ; Vdom.Node.div
               ~attrs:[ cls "charts-grid" ]
               [ chart_view
                   ~title:
-                    "dumb bot avg pnl (dollars, shaded region is warmup)"
+                    [%string
+                      "%{baseline_label} pnl (dollars, shaded region is \
+                       warmup)"]
                   ~series:baseline_pnl
                   ~sim_start_s:result.sim_start_s
                   ()
               ; chart_view
                   ~title:
-                    "dumb bot avg value (dollars, shaded region is warmup)"
+                    [%string
+                      "%{baseline_label} value (dollars, shaded region is \
+                       warmup)"]
                   ~series:baseline_value
                   ~sim_start_s:result.sim_start_s
                   ()
@@ -2011,7 +2068,10 @@ let bots_page markets_result (local_ graph) =
   let warmup, set_warmup = Bonsai.state "12" graph in
   let starting_cash, set_starting_cash = Bonsai.state "100" graph in
   let allow_negative, set_allow_negative = Bonsai.state false graph in
-  let compare_bots, set_compare_bots = Bonsai.state false graph in
+  let compare_choice, set_compare_choice =
+    Bonsai.state Compare_choice.No_comparison graph
+  in
+  let baseline_label, set_baseline_label = Bonsai.state "" graph in
   let bot_count, set_bot_count = Bonsai.state "5" graph in
   let bot_probability, set_bot_probability = Bonsai.state "0.2" graph in
   let bot_max_size, set_bot_max_size = Bonsai.state "100" graph in
@@ -2050,8 +2110,10 @@ let bots_page markets_result (local_ graph) =
   and set_starting_cash
   and allow_negative
   and set_allow_negative
-  and compare_bots
-  and set_compare_bots
+  and compare_choice
+  and set_compare_choice
+  and baseline_label
+  and set_baseline_label
   and bot_count
   and set_bot_count
   and bot_probability
@@ -2133,32 +2195,42 @@ let bots_page markets_result (local_ graph) =
       ~continue:(set_stage Rules)
   | Rules ->
     let run =
-      let basic_bots_request =
-        match compare_bots with
-        | false -> Some None
-        | true ->
+      (* [None] means the comparison inputs don't parse (or the saved bot is
+         gone); the Run button is disabled on the same condition. *)
+      let comparison_request : Protocol.Comparison.t option =
+        match (compare_choice : Compare_choice.t) with
+        | No_comparison -> Some Protocol.Comparison.No_comparison
+        | Dumb_bots ->
           (match
              ( Int.of_string_opt bot_count
              , Float.of_string_opt bot_probability
              , Int.of_string_opt bot_max_size )
            with
            | Some count, Some trade_probability, Some max_size ->
-             Some
-               (Some
-                  ({ count; trade_probability; max_size }
-                   : Protocol.Basic_bots.t))
+             Some (Dumb_bots { count; trade_probability; max_size })
            | None, _, _ | _, None, _ | _, _, None -> None)
+        | Saved_bot name ->
+          (match Client_logic.Saved_bot.find saved_bots ~name with
+           | None -> None
+           | Some bot ->
+             Some
+               (Rival_bot
+                  { name = bot.name
+                  ; slugs = bot.slugs
+                  ; program = String.concat bot.rules ~sep:"\n"
+                  ; variables = bot.variables
+                  }))
       in
       match
         ( Int.of_string_opt lookback
         , Int.of_string_opt warmup
         , Int.of_string_opt starting_cash
-        , basic_bots_request )
+        , comparison_request )
       with
       | ( Some lookback_days
         , Some warmup_hours
         , Some starting_cash_dollars
-        , Some basic_bots ) ->
+        , Some comparison ) ->
         let request : Protocol.Sim_request.t =
           { slugs = List.map selected ~f:(fun card -> card.Card.slug)
           ; program = String.concat rules ~sep:"\n"
@@ -2168,8 +2240,16 @@ let bots_page markets_result (local_ graph) =
           ; warmup_hours
           ; starting_cash_cents = starting_cash_dollars * 100
           ; allow_negative_cash = allow_negative
-          ; basic_bots
+          ; comparison
           }
+        in
+        (* Captured at run time so the Results labels describe this run even
+           if the dropdown changes afterwards. *)
+        let label =
+          match (compare_choice : Compare_choice.t) with
+          | No_comparison -> ""
+          | Dumb_bots -> "dumb bot average"
+          | Saved_bot name -> [%string "saved bot %{name}"]
         in
         let open Effect.Let_syntax in
         let%bind () =
@@ -2177,6 +2257,7 @@ let bots_page markets_result (local_ graph) =
             [ set_error None
             ; set_sim_state Running
             ; set_fills_expanded false
+            ; set_baseline_label label
             ; set_stage Results
             ]
         in
@@ -2208,8 +2289,9 @@ let bots_page markets_result (local_ graph) =
       ~set_starting_cash
       ~allow_negative
       ~set_allow_negative
-      ~compare_bots
-      ~set_compare_bots
+      ~compare_choice
+      ~set_compare_choice
+      ~saved_bots
       ~bot_count
       ~set_bot_count
       ~bot_probability
@@ -2254,6 +2336,7 @@ let bots_page markets_result (local_ graph) =
       ~sim_state
       ~fills_expanded
       ~set_fills_expanded
+      ~baseline_label
       ~bot_name
       ~set_bot_name
       ~saved_message

@@ -34,6 +34,24 @@ let interval_of_wire : Protocol.Interval.t -> Time_series.Interval.t
   | Day -> Day
 ;;
 
+let validate_rival
+  ({ name; slugs; program; variables = _ } : Protocol.Rival_bot.t)
+  =
+  let market_count = List.length slugs in
+  if market_count < 1 || market_count > max_markets
+  then
+    Or_error.error_s
+      [%message
+        "the saved bot must trade between 1 and 4 markets"
+          (name : string)
+          (market_count : int)]
+  else if String.is_empty (String.strip program)
+  then
+    Or_error.error_s
+      [%message "the saved bot's program is empty" (name : string)]
+  else Ok ()
+;;
+
 let validate
   ({ slugs
    ; program
@@ -43,7 +61,7 @@ let validate
    ; warmup_hours
    ; starting_cash_cents
    ; allow_negative_cash = _
-   ; basic_bots
+   ; comparison
    } :
     Protocol.Sim_request.t)
   =
@@ -86,10 +104,11 @@ let validate
           (warmup_hours : int)
           (lookback_days : int)]
   else (
-    match basic_bots with
-    | None -> Ok ()
-    | Some ({ count; trade_probability; max_size } : Protocol.Basic_bots.t)
-      ->
+    match comparison with
+    | No_comparison -> Ok ()
+    | Rival_bot rival -> validate_rival rival
+    | Dumb_bots
+        ({ count; trade_probability; max_size } : Protocol.Basic_bots.t) ->
       if count < 1 || count > max_basic_bots
       then
         Or_error.error_s
@@ -154,7 +173,11 @@ let sort_by_slug alist =
     Slug.compare left right)
 ;;
 
+(* [slugs] is the request's market set: a rival bot's markets share the
+   simulation's book, and without the filter they would leak extra price and
+   inventory lines into the main bot's charts. *)
 let tick_point
+  ~slugs
   ({ time; cash; realized_pnl; unrealized_pnl; yes_prices; inventories } :
     Simulation.Harness.Recording.Tick.t)
   : Protocol.Tick_point.t
@@ -165,10 +188,13 @@ let tick_point
   ; unrealized = Price.to_dollar_float unrealized_pnl
   ; yes_prices =
       Hashtbl.to_alist yes_prices
+      |> List.filter ~f:(fun (slug, (_ : Price.t)) ->
+        Hash_set.mem slugs slug)
       |> List.map ~f:(fun (slug, price) -> slug, Price.to_dollar_float price)
       |> sort_by_slug
   ; inventory =
       Hashtbl.to_alist inventories
+      |> List.filter ~f:(fun (slug, (_ : Size.t)) -> Hash_set.mem slugs slug)
       |> List.map ~f:(fun (slug, size) -> slug, Size.to_int size)
       |> sort_by_slug
   }
@@ -285,6 +311,18 @@ let run (request : Protocol.Sim_request.t) =
   let open Deferred.Or_error.Let_syntax in
   let%bind () = Deferred.return (validate request) in
   let%bind stubs = resolve_stubs request.slugs in
+  (* A rival's markets ride along in the same fetch and simulation book so
+     both bots walk one tick grid; markets it shares with the request are not
+     fetched twice. *)
+  let%bind rival_stubs =
+    match request.comparison with
+    | No_comparison | Dumb_bots (_ : Protocol.Basic_bots.t) -> return []
+    | Rival_bot rival ->
+      resolve_stubs
+        (List.filter rival.slugs ~f:(fun slug ->
+           not (List.mem request.slugs slug ~equal:Slug.equal)))
+  in
+  let all_stubs = stubs @ rival_stubs in
   (* Definitions precede the rules in one parse, so rule parse errors report
      line numbers offset by the number of variables. *)
   let source =
@@ -308,7 +346,7 @@ let run (request : Protocol.Sim_request.t) =
   in
   let%bind series_by_stub =
     Market_data_gateway.fetch_many_ticker_series
-      stubs
+      all_stubs
       ~start:probe_start
       ~finish:probe_finish
       ~interval
@@ -336,58 +374,97 @@ let run (request : Protocol.Sim_request.t) =
          ~slugs:request.slugs
          ~rules)
   in
-  let basic_configs =
-    match request.basic_bots with
-    | None -> []
-    | Some ({ count; trade_probability; max_size } : Protocol.Basic_bots.t)
-      ->
+  (* The baseline group: either the dumb bots or the rival as a group of one.
+     All of them share the main bot's window, interval, and cash — the rival
+     keeps only its own rules, variables, and markets. *)
+  let%bind baseline_bots =
+    match request.comparison with
+    | No_comparison -> return []
+    | Dumb_bots
+        ({ count; trade_probability; max_size } : Protocol.Basic_bots.t) ->
       incr basic_bot_seed_counter;
       let seed = !basic_bot_seed_counter in
-      List.init count ~f:(fun index : Bots.Basic.Config.t ->
-        { id = index + 1
-        ; start
-        ; finish
-        ; interval
-        ; sim_start_offset
-        ; initial_cash
-        ; trade_probability
-        ; max_size
-        ; seed
-        })
+      return
+        (List.init count ~f:(fun index ->
+           Simulation.Harness.P
+             ( (module Bots.Basic.Bot)
+             , { id = index + 1
+               ; start
+               ; finish
+               ; interval
+               ; sim_start_offset
+               ; initial_cash
+               ; trade_probability
+               ; max_size
+               ; seed
+               } )))
+    | Rival_bot rival ->
+      let rival_source =
+        String.concat ~sep:"\n" (rival.variables @ [ rival.program ])
+      in
+      let tag = [%string "in saved bot %{rival.name}"] in
+      let%bind rival_rules =
+        Deferred.return
+          (Or_error.tag
+             (Parser.Parse.program rival_source ~slugs:rival.slugs)
+             ~tag)
+      in
+      let%bind rival_config =
+        Deferred.return
+          (Or_error.tag
+             (Bots.Configurable.Config.create
+                ~id:1
+                ~start
+                ~finish
+                ~interval
+                ~sim_start_offset
+                ~initial_cash
+                ~slugs:rival.slugs
+                ~rules:rival_rules)
+             ~tag)
+      in
+      return
+        [ Simulation.Harness.P ((module Bots.Configurable.Bot), rival_config)
+        ]
   in
   (* Enqueue every job before awaiting any: the throttle runs them in
      parallel domains, [max_concurrent_jobs] at a time. *)
   let configurable_job =
     run_recorded_in_domain
-      stubs
+      all_stubs
       series_by_stub
       (Simulation.Harness.P ((module Bots.Configurable.Bot), config))
       ~allow_negative_cash:request.allow_negative_cash
   in
-  let basic_jobs =
-    List.map basic_configs ~f:(fun basic_config ->
+  let baseline_jobs =
+    List.map baseline_bots ~f:(fun packed_bot ->
       run_recorded_in_domain
-        stubs
+        all_stubs
         series_by_stub
-        (Simulation.Harness.P ((module Bots.Basic.Bot), basic_config))
+        packed_bot
         ~allow_negative_cash:request.allow_negative_cash)
   in
   let%bind recording = configurable_job in
-  let%bind basic_recordings = Deferred.Or_error.all basic_jobs in
+  let%bind baseline_recordings = Deferred.Or_error.all baseline_jobs in
   let%bind baseline_ticks =
-    match basic_recordings with
+    match baseline_recordings with
     | [] -> return []
-    | _ :: _ -> Deferred.return (baseline_points basic_recordings)
+    | _ :: _ -> Deferred.return (baseline_points baseline_recordings)
   in
+  let request_slugs = Slug.Hash_set.of_list request.slugs in
   return
-    ({ ticks = List.map recording.ticks ~f:tick_point
+    ({ ticks = List.map recording.ticks ~f:(tick_point ~slugs:request_slugs)
      ; fills = List.map recording.responses ~f:fill_of_response
      ; sim_start_s = Protocol.epoch_seconds recording.sim_start
      ; baseline_ticks
      ; pnl_percentile =
-         (match basic_recordings with
-          | [] -> None
-          | _ :: _ -> Some (pnl_percentile recording basic_recordings))
+         (* A rank within a group of one rival says nothing. *)
+         (match request.comparison with
+          | No_comparison | Rival_bot (_ : Protocol.Rival_bot.t) -> None
+          | Dumb_bots (_ : Protocol.Basic_bots.t) ->
+            (match baseline_recordings with
+             | [] -> None
+             | _ :: _ -> Some (pnl_percentile recording baseline_recordings)))
      ; truncated
      }
      : Protocol.Sim_result.t)

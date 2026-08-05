@@ -53,6 +53,24 @@ module Basic_bots = struct
   [@@deriving sexp_of, bin_io]
 end
 
+module Rival_bot = struct
+  type t =
+    { name : string
+    ; slugs : Slug.t list
+    ; program : string
+    ; variables : string list
+    }
+  [@@deriving sexp_of, bin_io]
+end
+
+module Comparison = struct
+  type t =
+    | No_comparison
+    | Dumb_bots of Basic_bots.t
+    | Rival_bot of Rival_bot.t
+  [@@deriving sexp_of, bin_io]
+end
+
 module Sim_request = struct
   type t =
     { slugs : Slug.t list
@@ -63,7 +81,7 @@ module Sim_request = struct
     ; warmup_hours : int
     ; starting_cash_cents : int
     ; allow_negative_cash : bool
-    ; basic_bots : Basic_bots.t option
+    ; comparison : Comparison.t
     }
   [@@deriving sexp_of, bin_io]
 end
@@ -442,7 +460,7 @@ let mark_acted =
 let run_simulation =
   Rpc.Rpc.create
     ~name:"run-simulation"
-    ~version:5
+    ~version:6
     ~bin_query:[%bin_type_class: Sim_request.t]
     ~bin_response:[%bin_type_class: Sim_result.t Or_error.t]
     ~include_in_error_count:Or_error
