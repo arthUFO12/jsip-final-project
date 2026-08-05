@@ -141,6 +141,54 @@ let seed_database () =
   seed_split `Historical ~purged_ids
 ;;
 
+(* The detail popup shows the market's whole life: hourly candles while the
+   history is short enough to chart, daily once it isn't. *)
+let market_detail_interval ~now (stub : Market_stub.t)
+  : Time_series.Interval.t
+  =
+  let age = Time_ns.diff now stub.created_time in
+  match Time_ns.Span.( < ) age (Time_ns.Span.of_day 30.) with
+  | true -> Hour
+  | false -> Day
+;;
+
+let get_market_detail slug : Protocol.Market_detail.t Deferred.Or_error.t =
+  let open Deferred.Or_error.Let_syntax in
+  let%bind stub =
+    match%bind.Deferred.Or_error
+      Database_exec.find_market_stub_by_slug slug
+    with
+    | None ->
+      Deferred.return
+        (Or_error.error_s [%message "unknown market" (slug : Slug.t)])
+    | Some stub ->
+      (match stub.series_ticker with
+       | None ->
+         Deferred.return
+           (Or_error.error_s
+              [%message "market cannot serve price history" (slug : Slug.t)])
+       | Some (_ : Slug.t) -> return stub)
+  in
+  let now = Time_ns.now () in
+  let%bind prices, volumes =
+    Market_data_gateway.fetch_one_ticker_history
+      stub
+      ~start:stub.created_time
+      ~finish:(Time_ns.min now stub.close_time)
+      ~interval:(market_detail_interval ~now stub)
+  in
+  return
+    ({ prices =
+         List.map prices ~f:(fun (point : Time_series.Point.t) ->
+           ( Protocol.epoch_seconds point.time
+           , Price.to_dollar_float point.yes_price ))
+     ; volumes =
+         List.map volumes ~f:(fun (time, volume) ->
+           Protocol.epoch_seconds time, volume)
+     }
+     : Protocol.Market_detail.t)
+;;
+
 let implementations =
   Rpc.Implementations.create_exn
     ~implementations:
@@ -149,6 +197,8 @@ let implementations =
             Database_exec.list_current_market_stubs market_read_limit
           in
           Or_error.map stubs ~f:(List.map ~f:Protocol.Market_card.of_stub))
+      ; Rpc.Rpc.implement Protocol.get_market_detail (fun () slug ->
+          get_market_detail slug)
       ; Rpc.Rpc.implement Protocol.run_simulation (fun () request ->
           Sim_runner.run request)
       ; Rpc.Rpc.implement Protocol.get_pairs (fun () status ->
@@ -392,6 +442,47 @@ let check_arb_command =
       fun () -> check_arb ~port]
 ;;
 
+(* Dispatches [get-market-detail] the way the markets-page popup does, so the
+   history fetch is testable headlessly. *)
+let check_detail ~port ~slug =
+  let open Deferred.Or_error.Let_syntax in
+  let uri = Uri.of_string [%string "ws://localhost:%{port#Int}/"] in
+  let%bind connection = Rpc_websocket.Rpc.client uri in
+  let%bind detail =
+    Rpc.Rpc.dispatch Protocol.get_market_detail connection slug
+    |> Deferred.map ~f:Or_error.join
+  in
+  printf
+    "%d price points, %d volume points\n"
+    (List.length detail.prices)
+    (List.length detail.volumes);
+  (match List.hd detail.prices, List.last detail.prices with
+   | Some (_, first), Some (_, last) ->
+     printf "first price $%.2f | last price $%.2f\n" first last
+   | _ -> print_endline "no price history returned");
+  (match List.last detail.volumes with
+   | None -> ()
+   | Some (_, volume) -> printf "last candle volume %.2f contracts\n" volume);
+  return ()
+;;
+
+let check_detail_command =
+  Command.async_or_error
+    ~summary:
+      "Dispatch get-market-detail against a running server and print a \
+       summary"
+    [%map_open.Command
+      let port =
+        flag
+          "-port"
+          (optional_with_default 8080 int)
+          ~doc:"INT port the server listens on (default 8080)"
+      and slug =
+        flag "-slug" (required string) ~doc:"SLUG market to inspect"
+      in
+      fun () -> check_detail ~port ~slug:(Slug.of_string slug)]
+;;
+
 (* Dispatches [run-simulation] the same way the bot builder does, so the
    whole parse -> fetch -> backtest pipeline is testable headlessly. *)
 let check_sim
@@ -549,6 +640,7 @@ let command =
     [ "serve", serve_command
     ; "check-rpc", check_rpc_command
     ; "check-arb", check_arb_command
+    ; "check-detail", check_detail_command
     ; "check-sim", check_sim_command
     ]
 ;;

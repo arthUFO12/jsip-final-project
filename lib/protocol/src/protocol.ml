@@ -36,6 +36,14 @@ module Interval = struct
   let name = function Minute -> "minute" | Hour -> "hour" | Day -> "day"
 end
 
+module Market_detail = struct
+  type t =
+    { prices : (float * float) list
+    ; volumes : (float * float) list
+    }
+  [@@deriving sexp_of, bin_io]
+end
+
 module Basic_bots = struct
   type t =
     { count : int
@@ -319,6 +327,15 @@ let get_markets =
     ~version:0
     ~bin_query:[%bin_type_class: unit]
     ~bin_response:[%bin_type_class: Market_card.t list Or_error.t]
+    ~include_in_error_count:Or_error
+;;
+
+let get_market_detail =
+  Rpc.Rpc.create
+    ~name:"get-market-detail"
+    ~version:0
+    ~bin_query:[%bin_type_class: Slug.t]
+    ~bin_response:[%bin_type_class: Market_detail.t Or_error.t]
     ~include_in_error_count:Or_error
 ;;
 

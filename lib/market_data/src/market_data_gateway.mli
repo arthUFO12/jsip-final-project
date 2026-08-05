@@ -31,6 +31,16 @@ val fetch_one_ticker_series
   -> interval:Time_series.Interval.t
   -> Time_series.t Deferred.Or_error.t
 
+(** Like {!fetch_one_ticker_series}, but also returns the per-candle traded
+    volume (contracts) when the venue reports it — Kalshi candles do,
+    Polymarket price history does not (its volume list is always empty). *)
+val fetch_one_ticker_history
+  :  Market_stub.t
+  -> start:Time_ns.t
+  -> finish:Time_ns.t
+  -> interval:Time_series.Interval.t
+  -> (Time_series.t * (Time_ns.t * float) list) Deferred.Or_error.t
+
 val fetch_many_ticker_series
   :  Market_stub.t list
   -> start:Time_ns.t

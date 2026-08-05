@@ -65,6 +65,33 @@ let fetch_one_ticker_series
       (Time_series_parser.parse_polymarket_time_series response_body)
 ;;
 
+let fetch_one_ticker_history
+  (market_stub : Market_stub.t)
+  ~start
+  ~finish
+  ~interval
+  =
+  match market_stub.venue with
+  | Kalshi ->
+    (* One fetch, two parses: prices and per-candle volume come from the same
+       candlestick body. *)
+    let%bind.Deferred.Or_error response_body =
+      Fetch_time_series.fetch_kalshi_data
+        market_stub
+        ~start
+        ~finish
+        ~interval
+    in
+    Deferred.Or_error.return
+      ( Time_series_parser.parse_kalshi_time_series response_body
+      , Time_series_parser.parse_kalshi_volume_series response_body )
+  | Polymarket ->
+    let%bind.Deferred.Or_error series =
+      fetch_one_ticker_series market_stub ~start ~finish ~interval
+    in
+    Deferred.Or_error.return (series, [])
+;;
+
 let fetch_many_ticker_series
   (market_stubs : Market_stub.t list)
   ~start
