@@ -590,10 +590,16 @@ let fills_table (fills : Protocol.Fill.t list) ~expanded ~set_expanded =
           ]
     in
     Vdom.Node.div
-      [ Vdom.Node.table
-          ~attrs:[ cls "fills-table" ]
-          (Vdom.Node.tr [ header "time"; header "action"; header "status" ]
-           :: List.map shown ~f:row)
+      [ Vdom.Node.div
+        (* Narrow screens scroll the table inside this wrapper instead of
+           stretching the page. *)
+          ~attrs:[ cls "fills-table-wrap" ]
+          [ Vdom.Node.table
+              ~attrs:[ cls "fills-table" ]
+              (Vdom.Node.tr
+                 [ header "time"; header "action"; header "status" ]
+               :: List.map shown ~f:row)
+          ]
       ; toggle
       ]
 ;;
