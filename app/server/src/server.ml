@@ -717,71 +717,6 @@ let check_sim_command =
           ~basic_max_size]
 ;;
 
-(* Dispatches the arb backtest exactly as the Backtest section does, so it
-   is testable headlessly against a running server. *)
-let check_arb_sim ~port ~lookback_days ~stake ~min_edge_cents =
-  let open Deferred.Or_error.Let_syntax in
-  let uri = Uri.of_string [%string "ws://localhost:%{port#Int}/"] in
-  let%bind connection = Rpc_websocket.Rpc.client uri in
-  let%bind result =
-    Rpc.Rpc.dispatch
-      Protocol.run_arb_simulation
-      connection
-      { Protocol.Arb_sim_request.lookback_days
-      ; interval = Hour
-      ; stake
-      ; min_edge_cents
-      }
-    |> Deferred.map ~f:Or_error.join
-  in
-  printf
-    "replayed %d pair(s), skipped %d: %d edge(s) taken, $%.2f locked in\n"
-    (List.length result.pairs)
-    (List.length result.skipped)
-    result.episode_count
-    result.total_dollars;
-  List.iter result.pairs ~f:(fun pair ->
-    printf
-      "  %s: %d points, %d episode(s), $%.2f\n"
-      pair.label
-      (List.length pair.points)
-      (List.length pair.episodes)
-      pair.total_dollars);
-  List.iter result.skipped ~f:(fun (label, reason) ->
-    printf "  skipped %s: %s\n" label reason);
-  return ()
-;;
-
-let check_arb_sim_command =
-  Command.async_or_error
-    ~summary:
-      "Dispatch run-arb-simulation against a running server and print the \
-       replay summary"
-    [%map_open.Command
-      let port =
-        flag
-          "-port"
-          (optional_with_default 8080 int)
-          ~doc:"INT port the server listens on (default 8080)"
-      and lookback_days =
-        flag
-          "-lookback-days"
-          (optional_with_default 14 int)
-          ~doc:"DAYS history window (default 14)"
-      and stake =
-        flag
-          "-stake"
-          (optional_with_default 10 int)
-          ~doc:"N assumed contracts per taken edge (default 10)"
-      and min_edge_cents =
-        flag
-          "-min-edge-cents"
-          (optional_with_default 1 int)
-          ~doc:"CENTS entry threshold (default 1)"
-      in
-      fun () -> check_arb_sim ~port ~lookback_days ~stake ~min_edge_cents]
-;;
-
 (* The live-testing verb: exercise the entire assisted-hedge path — pair
    resolution, preflight, rails, placement, reconciliation, audit — against
    Kalshi's DEMO environment by default. Mirrors the arbitrage CLI's
@@ -922,7 +857,6 @@ let command =
     ; "check-detail", check_detail_command
     ; "check-sim", check_sim_command
     ; "check-hedge", check_hedge_command
-    ; "check-arb-sim", check_arb_sim_command
     ]
 ;;
 
