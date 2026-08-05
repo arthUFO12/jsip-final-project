@@ -464,62 +464,6 @@ module Trading_key : sig
   end
 end
 
-module Arb_sim_request : sig
-  (** Backtest the arbitrage strategy over the approved pairs' price
-      history. [stake] contracts are assumed taken per episode (historical
-      depth does not exist), and an episode enters when the after-fee edge
-      first clears [min_edge_cents] and re-arms when it drops back below. *)
-  type t =
-    { lookback_days : int (** 1..30, as the bots sim *)
-    ; interval : Interval.t
-    ; stake : int (** assumed contracts per taken edge, 1..1000 *)
-    ; min_edge_cents : int (** entry threshold, 0..99 *)
-    }
-  [@@deriving sexp_of, bin_io]
-end
-
-module Arb_episode : sig
-  (** One taking of an edge — see {!Arbitrage.Replay.Episode}. *)
-  type t =
-    { entered_s : float
-    ; exited_s : float option (** [None] = still open at window end *)
-    ; entry_edge : float (** dollars per contract after fees at entry *)
-    ; locked_dollars : float (** [entry_edge x stake] *)
-    }
-  [@@deriving sexp_of, bin_io]
-end
-
-module Arb_pair_series : sig
-  (** One approved pair's replay: the after-fee edge at every tick, the
-      episodes the strategy would have taken, and its cumulative
-      locked-in dollars. *)
-  type t =
-    { pair_key : string
-    ; label : string (** short human name for legends *)
-    ; points : (float * float) list (** [(epoch_s, edge_dollars)] *)
-    ; episodes : Arb_episode.t list
-    ; cumulative : (float * float) list (** step series at entry times *)
-    ; total_dollars : float
-    }
-  [@@deriving sexp_of, bin_io]
-end
-
-module Arb_sim_result : sig
-  (** The whole replay. IMPORTANT bias, surfaced in the UI: history is
-      mid-price only (no order books), so edges are upper bounds on what
-      the live scan — which pays real asks — would have found. *)
-  type t =
-    { pairs : Arb_pair_series.t list
-    ; combined : (float * float) list
-      (** all pairs' entries merged, cumulative *)
-    ; total_dollars : float
-    ; episode_count : int
-    ; skipped : (string * string) list
-      (** [(label, reason)] for pairs that could not be replayed *)
-    }
-  [@@deriving sexp_of, bin_io]
-end
-
 module Account : sig
   (** The unlocked trading key's account as the venue reports it — cash and
       open positions on whichever host (demo or production) the key
@@ -628,13 +572,6 @@ val lock_trading_key : (unit, Trading_key.Status.t Or_error.t) Rpc.Rpc.t
 
 (** Lock, then delete the encrypted key file — full disconnect. *)
 val forget_trading_key : (unit, Trading_key.Status.t Or_error.t) Rpc.Rpc.t
-
-(** Replay the arbitrage strategy over the approved pairs' two-venue price
-    history: per-tick after-fee edges, enter-once episodes, cumulative
-    locked-in PnL. Fetches both legs' series from the venues (a second per
-    leg — a long pair list takes a while). *)
-val run_arb_simulation
-  : (Arb_sim_request.t, Arb_sim_result.t Or_error.t) Rpc.Rpc.t
 
 (** The unlocked key's cash and open positions, straight from the venue.
     Errors when no key is unlocked. *)

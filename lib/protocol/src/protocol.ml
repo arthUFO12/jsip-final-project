@@ -362,49 +362,6 @@ module Account = struct
   [@@deriving sexp_of, bin_io]
 end
 
-module Arb_sim_request = struct
-  type t =
-    { lookback_days : int
-    ; interval : Interval.t
-    ; stake : int
-    ; min_edge_cents : int
-    }
-  [@@deriving sexp_of, bin_io]
-end
-
-module Arb_episode = struct
-  type t =
-    { entered_s : float
-    ; exited_s : float option
-    ; entry_edge : float
-    ; locked_dollars : float
-    }
-  [@@deriving sexp_of, bin_io]
-end
-
-module Arb_pair_series = struct
-  type t =
-    { pair_key : string
-    ; label : string
-    ; points : (float * float) list
-    ; episodes : Arb_episode.t list
-    ; cumulative : (float * float) list
-    ; total_dollars : float
-    }
-  [@@deriving sexp_of, bin_io]
-end
-
-module Arb_sim_result = struct
-  type t =
-    { pairs : Arb_pair_series.t list
-    ; combined : (float * float) list
-    ; total_dollars : float
-    ; episode_count : int
-    ; skipped : (string * string) list
-    }
-  [@@deriving sexp_of, bin_io]
-end
-
 let get_markets =
   Rpc.Rpc.create
     ~name:"get-markets"
@@ -564,15 +521,6 @@ let lock_trading_key =
     ~version:0
     ~bin_query:[%bin_type_class: unit]
     ~bin_response:[%bin_type_class: Trading_key.Status.t Or_error.t]
-    ~include_in_error_count:Or_error
-;;
-
-let run_arb_simulation =
-  Rpc.Rpc.create
-    ~name:"run-arb-simulation"
-    ~version:0
-    ~bin_query:[%bin_type_class: Arb_sim_request.t]
-    ~bin_response:[%bin_type_class: Arb_sim_result.t Or_error.t]
     ~include_in_error_count:Or_error
 ;;
 

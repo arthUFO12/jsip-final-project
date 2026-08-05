@@ -237,8 +237,6 @@ let implementations =
           Arb_runner.account ())
       ; Rpc.Rpc.implement Protocol.trip_kill_switch (fun () reason ->
           Arb_runner.trip_kill_switch reason)
-      ; Rpc.Rpc.implement Protocol.run_arb_simulation (fun () request ->
-          Arb_sim_runner.run request)
       ]
     ~on_unknown_rpc:`Close_connection
     ~on_exception:Log_on_background_exn

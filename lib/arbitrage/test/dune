@@ -6,8 +6,7 @@
   test_llm_matcher
   test_detect
   test_config
-  test_bot
-  test_replay)
+  test_bot)
  (libraries
   arbitrage
   database
