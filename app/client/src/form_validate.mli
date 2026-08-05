@@ -30,6 +30,12 @@ val bot_max_size : string -> (int, string) Result.t
 (** Sweep and auto-review score thresholds share a 0..1 scale. *)
 val match_threshold : string -> (float, string) Result.t
 
+(** Arb backtest fields: assumed contracts per taken edge, and the entry
+    threshold. *)
+val arb_stake : string -> (int, string) Result.t
+
+val min_edge_cents : string -> (int, string) Result.t
+
 (** Hedge dialog step 2. *)
 val fill_price_cents : string -> (int, string) Result.t
 

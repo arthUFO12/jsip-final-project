@@ -45,6 +45,8 @@ let match_threshold text =
      | false -> Error "threshold must be between 0 and 1")
 ;;
 
+let arb_stake = int_in ~min:1 ~max:1000 ~what:"stake"
+let min_edge_cents = int_in ~min:0 ~max:99 ~what:"min edge (cents)"
 let fill_price_cents = int_in ~min:1 ~max:99 ~what:"fill price (cents)"
 let fill_count = int_in ~min:1 ~max:10_000 ~what:"contracts filled"
 

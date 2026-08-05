@@ -6,6 +6,7 @@ open! Types
 open Bonsai_web
 open Bonsai.Let_syntax
 open Ui
+open Chart_view
 
 (* ---------- Arbitrage page ---------- *)
 
@@ -78,6 +79,7 @@ module Arb_section = struct
     | Sweep
     | Review
     | Pairs
+    | Backtest
   [@@deriving sexp_of, compare, equal, enumerate]
 
   let stage = function
@@ -85,6 +87,8 @@ module Arb_section = struct
     | Review ->
       "2", "Review", "LLM or human: approve pairs settling on the same event"
     | Pairs -> "3", "Arb Pairs", "price approved pairs on live order books"
+    | Backtest ->
+      "4", "Backtest", "replay the strategy over the pairs' price history"
   ;;
 end
 
@@ -882,6 +886,258 @@ let arb_detect_panel ~scan_state ~scan ~wallet ~mark_acted ~assist ~dialog =
     ]
 ;;
 
+(* The strategy's own backtest: replay every approved pair's two-venue
+   price history and chart what taking each edge once would have locked
+   in. The explainer states the model's bias out loud — mid prices, no
+   order books — because the numbers WILL flatter the strategy. *)
+let arb_backtest_panel
+  ~sim_state
+  ~lookback
+  ~set_lookback
+  ~interval
+  ~set_interval
+  ~stake
+  ~set_stake
+  ~min_edge
+  ~set_min_edge
+  ~run
+  ~hover
+  ~set_hover
+  =
+  let running = Request_status.is_running sim_state in
+  let lookback_error =
+    Result.error (Client_logic.Form_validate.lookback_days lookback)
+  in
+  let stake_error =
+    Result.error (Client_logic.Form_validate.arb_stake stake)
+  in
+  let min_edge_error =
+    Result.error (Client_logic.Form_validate.min_edge_cents min_edge)
+  in
+  let fields_valid =
+    List.for_all
+      [ lookback_error; stake_error; min_edge_error ]
+      ~f:Option.is_none
+  in
+  let labeled label node =
+    Vdom.Node.div
+      [ Vdom.Node.label
+          ~attrs:[ cls "control-label" ]
+          [ Vdom.Node.text label ]
+      ; node
+      ]
+  in
+  let interval_option value =
+    Vdom.Node.option
+      ~attrs:
+        ([ Vdom.Attr.value (Protocol.Interval.name value) ]
+         @
+         match Protocol.Interval.equal value interval with
+         | true -> [ Vdom.Attr.selected ]
+         | false -> [])
+      [ Vdom.Node.text (Protocol.Interval.name value) ]
+  in
+  let controls =
+    Vdom.Node.div
+      ~attrs:[ cls "arb-controls" ]
+      [ labeled
+          "lookback (days)"
+          (num_input
+             ?error:lookback_error
+             ~value:lookback
+             ~set_value:set_lookback
+             ())
+      ; labeled
+          "interval"
+          (Vdom.Node.select
+             ~attrs:
+               [ cls "interval-select"
+               ; Vdom.Attr.on_change (fun (_ : _ Js_of_ocaml.Js.t) name ->
+                   match
+                     List.find Protocol.Interval.all ~f:(fun value ->
+                       String.equal (Protocol.Interval.name value) name)
+                   with
+                   | None -> Effect.Ignore
+                   | Some value -> set_interval value)
+               ]
+             (List.map Protocol.Interval.all ~f:interval_option))
+      ; labeled
+          "stake (contracts)"
+          (num_input ?error:stake_error ~value:stake ~set_value:set_stake ())
+      ; labeled
+          "min edge (cents)"
+          (num_input
+             ?error:min_edge_error
+             ~value:min_edge
+             ~set_value:set_min_edge
+             ())
+      ; button
+          ~enabled:((not running) && fields_valid)
+          ~class_:"btn-primary"
+          ~label:"Run backtest"
+          run
+      ]
+  in
+  let explainer =
+    Vdom.Node.div
+      ~attrs:[ cls "arb-explainer" ]
+      [ Vdom.Node.p
+          [ Vdom.Node.text
+              "Would the strategy have paid? This replays every approved \
+               pair's price history on both venues, re-prices the spread \
+               each tick with real fees, and takes each edge once the \
+               moment it clears your threshold — locking in edge x stake, \
+               the way an arb pays whichever way the world goes."
+          ]
+      ; Vdom.Node.p
+          ~attrs:[ cls "arb-disclaimer" ]
+          [ Vdom.Node.text
+              "⚠ Flattering by construction: history keeps mid prices, \
+               not order books, so this replay pays no bid/ask spread and \
+               assumes your stake always had depth. Treat results as an \
+               upper bound on the live scan, never a promise."
+          ]
+      ]
+  in
+  let body =
+    match
+      (sim_state : Protocol.Arb_sim_result.t Request_status.t)
+    with
+    | Idle -> Vdom.Node.div []
+    | Running ->
+      Vdom.Node.div
+        ~attrs:[ cls "arb-summary" ]
+        [ Vdom.Node.text
+            "fetching both legs' history for every approved pair — the \
+             venues are polled a second apart, so allow a few seconds per \
+             pair..."
+        ]
+    | Failed error -> error_banner ~retry:run error
+    | Done { pairs; combined; total_dollars; episode_count; skipped } ->
+      let window_start =
+        List.filter_map pairs ~f:(fun pair ->
+          List.hd pair.Protocol.Arb_pair_series.points |> Option.map ~f:fst)
+        |> List.min_elt ~compare:Float.compare
+      in
+      (* Cumulative series are steps at entry times; anchor each at zero
+         at the window start so a single-entry series still draws. *)
+      let anchored points =
+        match window_start with
+        | Some start -> (start, 0.) :: points
+        | None -> points
+      in
+      let cumulative_chart =
+        chart_view
+          ~title:"cumulative locked-in profit (dollars)"
+          ~series:
+            (solid ~name:"all pairs" ~index:0 (anchored combined)
+             :: List.mapi pairs ~f:(fun i pair ->
+               solid
+                 ~name:pair.Protocol.Arb_pair_series.label
+                 ~index:(i + 1)
+                 (anchored pair.cumulative)))
+          ~hover
+          ~set_hover
+          ()
+      in
+      let edge_chart =
+        chart_view
+          ~title:"edge after fees (dollars per contract)"
+          ~series:
+            (List.mapi pairs ~f:(fun i pair ->
+               solid
+                 ~name:pair.Protocol.Arb_pair_series.label
+                 ~index:i
+                 (Client_logic.Downsample.downsample
+                    pair.points
+                    ~max_points:800)))
+          ~hover
+          ~set_hover
+          ()
+      in
+      let stats =
+        Vdom.Node.div
+          ~attrs:[ cls "stats-grid" ]
+          [ stat_tile
+              ~label:"locked-in profit"
+              ~value:(sprintf "$%.2f" total_dollars)
+              ~value_class:"stat-pos"
+              ()
+          ; stat_tile
+              ~label:"edges taken"
+              ~value:(Int.to_string episode_count)
+              ()
+          ; stat_tile
+              ~label:"pairs replayed"
+              ~value:(Int.to_string (List.length pairs))
+              ()
+          ; stat_tile
+              ~label:"pairs skipped"
+              ~value:(Int.to_string (List.length skipped))
+              ()
+          ]
+      in
+      let pair_row (pair : Protocol.Arb_pair_series.t) =
+        Vdom.Node.tr
+          [ Vdom.Node.td [ Vdom.Node.text pair.label ]
+          ; Vdom.Node.td
+              [ Vdom.Node.text
+                  (Int.to_string (List.length pair.episodes))
+              ]
+          ; Vdom.Node.td
+              [ Vdom.Node.text (sprintf "$%.2f" pair.total_dollars) ]
+          ]
+      in
+      let header text = Vdom.Node.th [ Vdom.Node.text text ] in
+      let pair_table =
+        match pairs with
+        | [] ->
+          Vdom.Node.div
+            ~attrs:[ cls "status" ]
+            [ Vdom.Node.text "no pair could be replayed" ]
+        | pairs ->
+          Vdom.Node.div
+            ~attrs:[ cls "fills-table-wrap" ]
+            [ Vdom.Node.table
+                ~attrs:[ cls "fills-table" ]
+                (Vdom.Node.tr
+                   [ header "pair"; header "edges taken"; header "locked in" ]
+                 :: List.map pairs ~f:pair_row)
+            ]
+      in
+      let skipped_rows =
+        List.map skipped ~f:(fun (label, reason) ->
+          Vdom.Node.div
+            ~attrs:[ cls "status" ]
+            [ Vdom.Node.text [%string "skipped %{label}: %{reason}"] ])
+      in
+      Vdom.Node.div
+        ([ stats
+         ; Vdom.Node.div
+             ~attrs:[ cls "charts-grid" ]
+             [ cumulative_chart; edge_chart ]
+         ; pair_table
+         ]
+         @ skipped_rows)
+  in
+  Vdom.Node.div
+    ~attrs:[ cls "arb-panel" ]
+    [ Vdom.Node.h2
+        ~attrs:[ cls "arb-panel-title" ]
+        [ Vdom.Node.text "4 · Backtest" ]
+    ; Vdom.Node.p
+        ~attrs:[ cls "arb-panel-hint" ]
+        [ Vdom.Node.text
+            "The same PnL treatment the bots get, for the arbitrage \
+             strategy: replay the approved pairs and see what disciplined \
+             edge-taking would have earned."
+        ]
+    ; explainer
+    ; controls
+    ; body
+    ]
+;;
+
 let arbitrage_page (local_ graph) =
   let section, set_section = Bonsai.state Arb_section.Sweep graph in
   let tab, set_tab = Bonsai.state Protocol.Pair_status.Proposed graph in
@@ -901,7 +1157,22 @@ let arbitrage_page (local_ graph) =
   let action_error, set_action_error = Bonsai.state_opt graph in
   let auto_threshold, set_auto_threshold = Bonsai.state "0.50" graph in
   let api_key, set_api_key = Bonsai.state "" graph in
+  (* Backtest state: config strings, the result lifecycle, and one hover
+     cell for its charts. *)
+  let arb_sim_state, set_arb_sim_state =
+    Bonsai.state Request_status.Idle graph
+  in
+  let sim_lookback, set_sim_lookback = Bonsai.state "14" graph in
+  let sim_interval, set_sim_interval =
+    Bonsai.state Protocol.Interval.Hour graph
+  in
+  let sim_stake, set_sim_stake = Bonsai.state "10" graph in
+  let sim_min_edge, set_sim_min_edge = Bonsai.state "1" graph in
+  let sim_hover, set_sim_hover = Bonsai.state_opt graph in
   let dispatch_pairs = Rpc_effect.Rpc.dispatcher Protocol.get_pairs graph in
+  let dispatch_arb_sim =
+    Rpc_effect.Rpc.dispatcher Protocol.run_arb_simulation graph
+  in
   let dispatch_decide =
     Rpc_effect.Rpc.dispatcher Protocol.decide_pair graph
   in
@@ -962,6 +1233,19 @@ let arbitrage_page (local_ graph) =
   and set_auto_threshold
   and api_key
   and set_api_key
+  and arb_sim_state
+  and set_arb_sim_state
+  and sim_lookback
+  and set_sim_lookback
+  and sim_interval
+  and set_sim_interval
+  and sim_stake
+  and set_sim_stake
+  and sim_min_edge
+  and set_sim_min_edge
+  and sim_hover
+  and set_sim_hover
+  and dispatch_arb_sim
   and dispatch_pairs
   and dispatch_decide
   and dispatch_llm
@@ -986,6 +1270,30 @@ let arbitrage_page (local_ graph) =
     let%bind response = dispatch_wallet () in
     set_wallet (Some (Or_error.join response))
   in
+  let run_arb_sim =
+    match
+      ( Client_logic.Form_validate.lookback_days sim_lookback
+      , Client_logic.Form_validate.arb_stake sim_stake
+      , Client_logic.Form_validate.min_edge_cents sim_min_edge )
+    with
+    | Ok lookback_days, Ok stake, Ok min_edge_cents ->
+      let open Effect.Let_syntax in
+      let%bind () = set_arb_sim_state Request_status.Running in
+      let%bind response =
+        dispatch_arb_sim
+          { Protocol.Arb_sim_request.lookback_days
+          ; interval = sim_interval
+          ; stake
+          ; min_edge_cents
+          }
+      in
+      (match Or_error.join response with
+       | Error error -> set_arb_sim_state (Failed error)
+       | Ok result -> set_arb_sim_state (Done result))
+    | Error (_ : string), (_ : (int, string) Result.t), _
+    | Ok (_ : int), Error (_ : string), _
+    | Ok (_ : int), Ok (_ : int), Error (_ : string) -> Effect.Ignore
+  in
   let select_section new_section =
     (* Re-entering a section refreshes what it shows — Review's listing and
        the Pairs wallet both change behind this page's back. *)
@@ -1000,7 +1308,7 @@ let arbitrage_page (local_ graph) =
                 let%bind response = dispatch_capability () in
                 set_hedge_capability (Some (Or_error.join response)))
              ]
-         | Sweep -> Effect.Ignore)
+         | Sweep | Backtest -> Effect.Ignore)
       ]
   in
   let mark_acted pair_key =
@@ -1231,6 +1539,20 @@ let arbitrage_page (local_ graph) =
           ~fire:hedge_fire
       in
       arb_detect_panel ~scan_state ~scan ~wallet ~mark_acted ~assist ~dialog
+    | Backtest ->
+      arb_backtest_panel
+        ~sim_state:arb_sim_state
+        ~lookback:sim_lookback
+        ~set_lookback:set_sim_lookback
+        ~interval:sim_interval
+        ~set_interval:set_sim_interval
+        ~stake:sim_stake
+        ~set_stake:set_sim_stake
+        ~min_edge:sim_min_edge
+        ~set_min_edge:set_sim_min_edge
+        ~run:run_arb_sim
+        ~hover:sim_hover
+        ~set_hover:set_sim_hover
   in
   let us_notice =
     Vdom.Node.div
