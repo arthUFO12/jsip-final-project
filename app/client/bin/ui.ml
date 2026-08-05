@@ -75,3 +75,80 @@ let signed_stat_tile ~label value =
   stat_tile ~label ~value:(sprintf "$%.2f" value) ~value_class ()
 ;;
 
+(* The one lifecycle every background request shares. Pages alias it with
+   their payload ([Sweep_summary.t Request_status.t], ...) so a server
+   failure always lands in a [Failed] arm the view must render — the old
+   per-page state machines had no failure arm and dropped errors on the
+   floor. *)
+module Request_status = struct
+  type 'a t =
+    | Idle
+    | Running
+    | Failed of Error.t
+    | Done of 'a
+  [@@deriving sexp_of]
+
+  let is_running = function
+    | Running -> true
+    | Idle | Failed (_ : Error.t) | Done _ -> false
+  ;;
+end
+
+let error_box error =
+  Vdom.Node.div
+    ~attrs:[ cls "error-box" ]
+    [ Vdom.Node.text (Error.to_string_hum error) ]
+;;
+
+(* A failure the user can act on: the message plus an optional retry of
+   the request that failed, and an optional dismiss. *)
+let error_banner ?retry ?dismiss error =
+  let retry_button =
+    match retry with
+    | None -> []
+    | Some retry ->
+      [ button ~class_:"btn-secondary" ~label:"Retry" retry ]
+  in
+  let dismiss_button =
+    match dismiss with
+    | None -> []
+    | Some dismiss ->
+      [ Vdom.Node.button
+          ~attrs:[ cls "chip-remove"; on_click dismiss ]
+          [ Vdom.Node.text "✕" ]
+      ]
+  in
+  Vdom.Node.div
+    ~attrs:[ cls "error-banner" ]
+    (Vdom.Node.div
+       ~attrs:[ cls "error-banner-text" ]
+       [ Vdom.Node.text (Error.to_string_hum error) ]
+     :: (retry_button @ dismiss_button))
+;;
+
+let field_error = function
+  | None -> Vdom.Node.none
+  | Some message ->
+    Vdom.Node.div ~attrs:[ cls "field-error" ] [ Vdom.Node.text message ]
+;;
+
+(* A numeric text field that flags itself and explains when [error] is
+   present — silent button-disabling gives the user nothing to fix. *)
+let num_input ?error ~value ~set_value () =
+  Vdom.Node.div
+    [ Vdom.Node.input
+        ~attrs:
+          [ Vdom.Attr.classes
+              ("num-input"
+               :: (match error with
+                   | None -> []
+                   | Some (_ : string) -> [ "input-invalid" ]))
+          ; Vdom.Attr.value value
+          ; Vdom.Attr.on_input (fun (_ : _ Js_of_ocaml.Js.t) text ->
+              set_value text)
+          ]
+        ()
+    ; field_error error
+    ]
+;;
+

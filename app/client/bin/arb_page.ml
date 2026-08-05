@@ -9,36 +9,24 @@ open Ui
 
 (* ---------- Arbitrage page ---------- *)
 
+(* Every background request on this page shares {!Ui.Request_status}, so
+   each has a [Failed] arm its panel must render — sweep, scan, and
+   auto-review used to map failures back to [Idle], silently. *)
 module Sweep_state = struct
-  type t =
-    | Idle
-    | Running
-    | Done of Protocol.Sweep_summary.t
-  [@@deriving sexp_of]
+  type t = Protocol.Sweep_summary.t Request_status.t [@@deriving sexp_of]
 end
 
 module Scan_state = struct
-  type t =
-    | Idle
-    | Running
-    | Done of Protocol.Scan_report.t
-  [@@deriving sexp_of]
+  type t = Protocol.Scan_report.t Request_status.t [@@deriving sexp_of]
 end
 
 module Llm_state = struct
-  type t =
-    | Idle
-    | Running
-    | Done of Protocol.Llm_review_summary.t
-    | Failed of string
+  type t = Protocol.Llm_review_summary.t Request_status.t
   [@@deriving sexp_of]
 end
 
 module Auto_state = struct
-  type t =
-    | Idle
-    | Running
-    | Done of Protocol.Auto_review_summary.t
+  type t = Protocol.Auto_review_summary.t Request_status.t
   [@@deriving sexp_of]
 end
 
@@ -135,14 +123,14 @@ let arb_stage_banner ~current ~select =
 ;;
 
 let arb_sweep_panel ~sweep_state ~threshold ~set_threshold ~run =
-  let running =
-    match (sweep_state : Sweep_state.t) with
-    | Running -> true
-    | Idle | Done (_ : Protocol.Sweep_summary.t) -> false
+  let running = Request_status.is_running sweep_state in
+  let threshold_error =
+    Result.error (Client_logic.Form_validate.match_threshold threshold)
   in
   let status =
     match (sweep_state : Sweep_state.t) with
     | Idle -> Vdom.Node.div []
+    | Failed error -> error_banner ~retry:run error
     | Running ->
       Vdom.Node.div
         ~attrs:[ cls "arb-summary" ]
@@ -177,16 +165,13 @@ let arb_sweep_panel ~sweep_state ~threshold ~set_threshold ~run =
         [ Vdom.Node.label
             ~attrs:[ cls "control-label" ]
             [ Vdom.Node.text "threshold" ]
-        ; Vdom.Node.input
-            ~attrs:
-              [ cls "num-input"
-              ; Vdom.Attr.value threshold
-              ; Vdom.Attr.on_input (fun (_ : _ Js_of_ocaml.Js.t) text ->
-                  set_threshold text)
-              ]
+        ; num_input
+            ?error:threshold_error
+            ~value:threshold
+            ~set_value:set_threshold
             ()
         ; button
-            ~enabled:(not running)
+            ~enabled:((not running) && Option.is_none threshold_error)
             ~class_:"btn-primary"
             ~label:"Run sweep"
             run
@@ -255,14 +240,15 @@ let arb_pair_row ~tab ~decide (pair : Protocol.Pair_card.t) =
    is the whole point — this approves on the text matcher's score alone, so
    it is exactly as trustworthy as the algorithm that filed the pairs. *)
 let arb_auto_panel ~auto_state ~auto_threshold ~set_auto_threshold ~run =
-  let running =
-    match (auto_state : Auto_state.t) with
-    | Running -> true
-    | Idle | Done (_ : Protocol.Auto_review_summary.t) -> false
+  let running = Request_status.is_running auto_state in
+  let threshold_error =
+    Result.error
+      (Client_logic.Form_validate.match_threshold auto_threshold)
   in
   let status =
     match (auto_state : Auto_state.t) with
     | Idle -> Vdom.Node.div []
+    | Failed error -> error_banner ~retry:run error
     | Running ->
       Vdom.Node.div
         ~attrs:[ cls "arb-summary" ]
@@ -304,16 +290,13 @@ let arb_auto_panel ~auto_state ~auto_threshold ~set_auto_threshold ~run =
         [ Vdom.Node.label
             ~attrs:[ cls "control-label" ]
             [ Vdom.Node.text "min score" ]
-        ; Vdom.Node.input
-            ~attrs:
-              [ cls "num-input"
-              ; Vdom.Attr.value auto_threshold
-              ; Vdom.Attr.on_input (fun (_ : _ Js_of_ocaml.Js.t) text ->
-                  set_auto_threshold text)
-              ]
+        ; num_input
+            ?error:threshold_error
+            ~value:auto_threshold
+            ~set_value:set_auto_threshold
             ()
         ; button
-            ~enabled:(not running)
+            ~enabled:((not running) && Option.is_none threshold_error)
             ~class_:"btn-secondary"
             ~label:"Auto-approve above score"
             run
@@ -325,13 +308,7 @@ let arb_auto_panel ~auto_state ~auto_threshold ~set_auto_threshold ~run =
 (* The pitch, the hookup, and the fine print — the LLM is a first-pass
    analyst the user rents with their own key, never a silent cost. *)
 let arb_llm_panel ~llm_state ~api_key ~set_api_key ~run =
-  let running =
-    match (llm_state : Llm_state.t) with
-    | Running -> true
-    | Idle | Done (_ : Protocol.Llm_review_summary.t) | Failed (_ : string)
-      ->
-      false
-  in
+  let running = Request_status.is_running llm_state in
   let status =
     match (llm_state : Llm_state.t) with
     | Idle -> Vdom.Node.div []
@@ -342,10 +319,7 @@ let arb_llm_panel ~llm_state ~api_key ~set_api_key ~run =
             "the analyst is reading the proposed queue — one pair per API \
              call, so a long queue takes a few minutes..."
         ]
-    | Failed error ->
-      Vdom.Node.div
-        ~attrs:[ cls "arb-summary" ]
-        [ Vdom.Node.text [%string "LLM review failed: %{error}"] ]
+    | Failed error -> error_banner ~retry:run error
     | Done { reviewed; approved; rejected; errored; first_error } ->
       let errors =
         match first_error with
@@ -432,10 +406,7 @@ let arb_review_panel ~tab ~pairs ~select_tab ~decide ~llm ~auto =
     match (pairs : Protocol.Pair_card.t list Or_error.t option) with
     | None ->
       Vdom.Node.div ~attrs:[ cls "status" ] [ Vdom.Node.text "loading..." ]
-    | Some (Error error) ->
-      Vdom.Node.div
-        ~attrs:[ cls "status" ]
-        [ Vdom.Node.text (Error.to_string_hum error) ]
+    | Some (Error error) -> error_box error
     | Some (Ok []) ->
       Vdom.Node.div
         ~attrs:[ cls "status" ]
@@ -574,12 +545,7 @@ let arb_wallet_view (wallet : Protocol.Wallet.t Or_error.t option) =
           [ Vdom.Node.text "loading wallet..." ]
       ]
   | Some (Error error) ->
-    Vdom.Node.div
-      ~attrs:[ cls "arb-wallet" ]
-      [ Vdom.Node.div
-          ~attrs:[ cls "status" ]
-          [ Vdom.Node.text (Error.to_string_hum error) ]
-      ]
+    Vdom.Node.div ~attrs:[ cls "arb-wallet" ] [ error_box error ]
   | Some (Ok { paper; acted; entries }) ->
     let score label class_ amount =
       Vdom.Node.div
@@ -742,6 +708,15 @@ let arb_hedge_dialog_view
   | Step2 { edge = _; preflight; nonce = _; price_text; count_text; firing }
     ->
     let max_cents = preflight.ask_cents + hedge_slippage_cents in
+    let price_error =
+      Result.error (Client_logic.Form_validate.fill_price_cents price_text)
+    in
+    let count_error =
+      Result.error (Client_logic.Form_validate.fill_count count_text)
+    in
+    let fields_valid =
+      Option.is_none price_error && Option.is_none count_error
+    in
     box
       [ Vdom.Node.h2
           ~attrs:[ cls "arb-panel-title" ]
@@ -751,24 +726,18 @@ let arb_hedge_dialog_view
           [ Vdom.Node.label
               ~attrs:[ cls "control-label" ]
               [ Vdom.Node.text "your fill price (cents)" ]
-          ; Vdom.Node.input
-              ~attrs:
-                [ cls "num-input"
-                ; Vdom.Attr.value price_text
-                ; Vdom.Attr.on_input (fun (_ : _ Js_of_ocaml.Js.t) text ->
-                    set_price text)
-                ]
+          ; num_input
+              ?error:price_error
+              ~value:price_text
+              ~set_value:set_price
               ()
           ; Vdom.Node.label
               ~attrs:[ cls "control-label" ]
               [ Vdom.Node.text "contracts filled" ]
-          ; Vdom.Node.input
-              ~attrs:
-                [ cls "num-input"
-                ; Vdom.Attr.value count_text
-                ; Vdom.Attr.on_input (fun (_ : _ Js_of_ocaml.Js.t) text ->
-                    set_count text)
-                ]
+          ; num_input
+              ?error:count_error
+              ~value:count_text
+              ~set_value:set_count
               ()
           ]
       ; Vdom.Node.p
@@ -783,7 +752,7 @@ let arb_hedge_dialog_view
       ; Vdom.Node.div
           ~attrs:[ cls "arb-pair-actions" ]
           [ button
-              ~enabled:(not firing)
+              ~enabled:((not firing) && fields_valid)
               ~class_:"btn-primary"
               ~label:
                 (if firing
@@ -856,11 +825,7 @@ let arb_hedge_dialog_view
 ;;
 
 let arb_detect_panel ~scan_state ~scan ~wallet ~mark_acted ~assist ~dialog =
-  let running =
-    match (scan_state : Scan_state.t) with
-    | Running -> true
-    | Idle | Done (_ : Protocol.Scan_report.t) -> false
-  in
+  let running = Request_status.is_running scan_state in
   (* The wallet is the freshest word on what's been acted: cards from an
      older scan pick their badges up from it. *)
   let acted_keys =
@@ -874,6 +839,7 @@ let arb_detect_panel ~scan_state ~scan ~wallet ~mark_acted ~assist ~dialog =
   let body =
     match (scan_state : Scan_state.t) with
     | Idle -> Vdom.Node.div []
+    | Failed error -> error_banner ~retry:scan error
     | Running ->
       Vdom.Node.div
         ~attrs:[ cls "arb-summary" ]
@@ -925,11 +891,14 @@ let arbitrage_page (local_ graph) =
   let hedge_dialog, set_hedge_dialog =
     Bonsai.state Hedge_dialog.Closed graph
   in
-  let sweep_state, set_sweep_state = Bonsai.state Sweep_state.Idle graph in
-  let scan_state, set_scan_state = Bonsai.state Scan_state.Idle graph in
-  let llm_state, set_llm_state = Bonsai.state Llm_state.Idle graph in
-  let auto_state, set_auto_state = Bonsai.state Auto_state.Idle graph in
+  let sweep_state, set_sweep_state = Bonsai.state Request_status.Idle graph in
+  let scan_state, set_scan_state = Bonsai.state Request_status.Idle graph in
+  let llm_state, set_llm_state = Bonsai.state Request_status.Idle graph in
+  let auto_state, set_auto_state = Bonsai.state Request_status.Idle graph in
   let threshold, set_threshold = Bonsai.state "0.35" graph in
+  (* Failures of one-shot actions (decide, mark-acted) land here and render
+     as a dismissible banner above the panels. *)
+  let action_error, set_action_error = Bonsai.state_opt graph in
   let auto_threshold, set_auto_threshold = Bonsai.state "0.50" graph in
   let api_key, set_api_key = Bonsai.state "" graph in
   let dispatch_pairs = Rpc_effect.Rpc.dispatcher Protocol.get_pairs graph in
@@ -987,6 +956,8 @@ let arbitrage_page (local_ graph) =
   and set_auto_state
   and threshold
   and set_threshold
+  and action_error
+  and set_action_error
   and auto_threshold
   and set_auto_threshold
   and api_key
@@ -1035,7 +1006,10 @@ let arbitrage_page (local_ graph) =
   let mark_acted pair_key =
     let open Effect.Let_syntax in
     let%bind response = dispatch_mark pair_key in
-    set_wallet (Some (Or_error.join response))
+    match Or_error.join response with
+    | Error error -> set_action_error (Some error)
+    | Ok wallet ->
+      Effect.Many [ set_action_error None; set_wallet (Some (Ok wallet)) ]
   in
   let close_hedge = set_hedge_dialog Hedge_dialog.Closed in
   let open_hedge (edge : Protocol.Edge_card.t) =
@@ -1139,22 +1113,25 @@ let arbitrage_page (local_ graph) =
   in
   let decide ~index ~new_status =
     let open Effect.Let_syntax in
-    let%bind (_ : Protocol.Pair_card.t Or_error.t Or_error.t) =
+    let%bind response =
       dispatch_decide { Protocol.Decide_request.tab; index; new_status }
     in
-    load tab
+    match Or_error.join response with
+    | Error error -> set_action_error (Some error)
+    | Ok (_ : Protocol.Pair_card.t) ->
+      Effect.Many [ set_action_error None; load tab ]
   in
   let run_llm =
     let open Effect.Let_syntax in
     let api_key =
       match String.strip api_key with "" -> None | key -> Some key
     in
-    let%bind () = set_llm_state Running in
+    let%bind () = set_llm_state Request_status.Running in
     let%bind response =
       dispatch_llm { Protocol.Llm_review_request.api_key }
     in
     match Or_error.join response with
-    | Error error -> set_llm_state (Failed (Error.to_string_hum error))
+    | Error error -> set_llm_state (Failed error)
     | Ok summary ->
       Effect.Many [ set_llm_state (Done summary); set_pairs None; load tab ]
   in
@@ -1163,12 +1140,12 @@ let arbitrage_page (local_ graph) =
     | None -> Effect.Ignore
     | Some threshold ->
       let open Effect.Let_syntax in
-      let%bind () = set_auto_state Running in
+      let%bind () = set_auto_state Request_status.Running in
       let%bind response =
         dispatch_auto { Protocol.Auto_review_request.threshold }
       in
       (match Or_error.join response with
-       | Error (_ : Error.t) -> set_auto_state Idle
+       | Error error -> set_auto_state (Failed error)
        | Ok summary ->
          Effect.Many
            [ set_auto_state (Done summary); set_pairs None; load tab ])
@@ -1178,21 +1155,21 @@ let arbitrage_page (local_ graph) =
     | None -> Effect.Ignore
     | Some threshold ->
       let open Effect.Let_syntax in
-      let%bind () = set_sweep_state Running in
+      let%bind () = set_sweep_state Request_status.Running in
       let%bind response =
         dispatch_sweep { Protocol.Sweep_request.threshold }
       in
       (match Or_error.join response with
-       | Error (_ : Error.t) -> set_sweep_state Idle
+       | Error error -> set_sweep_state (Failed error)
        | Ok summary ->
          Effect.Many [ set_sweep_state (Done summary); load tab ])
   in
   let scan =
     let open Effect.Let_syntax in
-    let%bind () = set_scan_state Running in
+    let%bind () = set_scan_state Request_status.Running in
     let%bind response = dispatch_scan () in
     match Or_error.join response with
-    | Error (_ : Error.t) -> set_scan_state Idle
+    | Error error -> set_scan_state (Failed error)
     | Ok report ->
       (* The scan just booked its tradable edges — refresh the score. *)
       Effect.Many [ set_scan_state (Done report); load_wallet ]
@@ -1256,9 +1233,15 @@ let arbitrage_page (local_ graph) =
           ]
       ]
   in
+  let action_banner =
+    match action_error with
+    | None -> Vdom.Node.none
+    | Some error -> error_banner ~dismiss:(set_action_error None) error
+  in
   Vdom.Node.div
     [ us_notice
     ; arb_stage_banner ~current:section ~select:select_section
+    ; action_banner
     ; panel
     ]
 ;;

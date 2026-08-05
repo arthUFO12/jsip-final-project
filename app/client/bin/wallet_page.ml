@@ -9,13 +9,10 @@ open Ui
 
 (* ---------- Wallet page: connect / unlock the trading key ---------- *)
 
+(* One trading-key RPC in flight at a time; success lands in the shared
+   status card, so [Done] never carries a payload. *)
 module Key_op = struct
-  (* One trading-key RPC in flight at a time; success lands in the shared
-     status, so this only tracks busy-ness and the last failure. *)
-  type t =
-    | Idle
-    | Running
-    | Failed of Error.t
+  type t = unit Request_status.t
 end
 
 let wallet_disclaimer =
@@ -48,7 +45,7 @@ let wallet_disclaimer =
 
 let wallet_page (local_ graph) =
   let status, set_status = Bonsai.state_opt graph in
-  let op, set_op = Bonsai.state Key_op.Idle graph in
+  let op, set_op = Bonsai.state Request_status.Idle graph in
   let key_id, set_key_id = Bonsai.state "" graph in
   let pem, set_pem = Bonsai.state "" graph in
   let passphrase, set_passphrase = Bonsai.state "" graph in
@@ -96,23 +93,22 @@ let wallet_page (local_ graph) =
   and dispatch_unlock
   and dispatch_lock
   and dispatch_forget in
-  let running =
-    match (op : Key_op.t) with
-    | Running -> true
-    | Idle | Failed (_ : Error.t) -> false
-  in
+  let running = Request_status.is_running op in
   (* Every mutation follows the same shape: mark busy, dispatch, land the
      fresh status (clearing any secrets the form was holding) or keep the
      error. *)
   let run_op ?(on_ok = Effect.Ignore) dispatch =
     let open Effect.Let_syntax in
-    let%bind () = set_op Key_op.Running in
+    let%bind () = set_op Request_status.Running in
     let%bind response = dispatch in
     match Or_error.join response with
     | Ok new_status ->
       Effect.Many
-        [ set_status (Some (Ok new_status)); set_op Key_op.Idle; on_ok ]
-    | Error error -> set_op (Key_op.Failed error)
+        [ set_status (Some (Ok new_status))
+        ; set_op Request_status.Idle
+        ; on_ok
+        ]
+    | Error error -> set_op (Failed error)
   in
   let clear_secrets =
     Effect.Many
@@ -145,15 +141,12 @@ let wallet_page (local_ graph) =
   in
   let op_status =
     match (op : Key_op.t) with
-    | Idle -> Vdom.Node.none
+    | Idle | Done () -> Vdom.Node.none
     | Running ->
       Vdom.Node.div
         ~attrs:[ cls "status" ]
         [ Vdom.Node.text "talking to the server..." ]
-    | Failed error ->
-      Vdom.Node.div
-        ~attrs:[ cls "error-box" ]
-        [ Vdom.Node.text (Error.to_string_hum error) ]
+    | Failed error -> error_box error
   in
   let connect_form =
     let passphrases_match = String.equal passphrase passphrase2 in

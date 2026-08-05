@@ -37,7 +37,8 @@ end
 (* Column 2: one input takes either statement kind — a [name = expr] line
    becomes a variable, anything else a rule — one per Enter press. Nothing
    compiles until Run; the server reports parse errors then. *)
-let define_column ~draft ~set_draft ~suggestions ~on_pick ~submit =
+let define_column ~draft ~set_draft ~suggestions ~on_pick ~submit ~collision
+  =
   Vdom.Node.div
     ~attrs:[ cls "define-col" ]
     [ Vdom.Node.label
@@ -72,6 +73,7 @@ let define_column ~draft ~set_draft ~suggestions ~on_pick ~submit =
               | _ -> Effect.Ignore)
           ]
         []
+    ; field_error collision
     ; button ~class_:"btn-secondary" ~label:"Add" submit
     ; suggestion_list suggestions ~on_pick
     ]
@@ -305,32 +307,50 @@ let rules_view
               [ set_variables (variables @ [ entry ]); set_draft "" ])
        | None -> Effect.Many [ set_rules (rules @ [ entry ]); set_draft "" ])
   in
-  let basic_bots_valid =
-    (* Mirrors the server's bounds so Run stays disabled on inputs the server
-       would reject. *)
+  (* Field bounds mirror the server's ([Form_validate]), each with its own
+     message under the input — Run stays disabled on invalid input, but now
+     the user is told which field is wrong and why. *)
+  let lookback_error =
+    Result.error (Client_logic.Form_validate.lookback_days lookback)
+  in
+  let warmup_error =
+    match Client_logic.Form_validate.warmup_hours warmup with
+    | Error message -> Some message
+    | Ok warmup_hours ->
+      (match Client_logic.Form_validate.lookback_days lookback with
+       | Error (_ : string) -> None
+       | Ok lookback_days ->
+         Client_logic.Form_validate.warmup_within_lookback
+           ~warmup_hours
+           ~lookback_days)
+  in
+  let cash_error =
+    Result.error
+      (Client_logic.Form_validate.starting_cash_dollars starting_cash)
+  in
+  let bot_count_error, probability_error, max_size_error =
     match compare_bots with
-    | false -> true
+    | false -> None, None, None
     | true ->
-      (match Int.of_string_opt bot_count with
-       | Some count -> count >= 1 && count <= 100
-       | None -> false)
-      && (match Float.of_string_opt bot_probability with
-          | Some probability ->
-            Float.O.(probability > 0. && probability <= 1.)
-          | None -> false)
-      &&
-        (match Int.of_string_opt bot_max_size with
-        | Some size -> size >= 1 && size <= 1000
-        | None -> false)
+      ( Result.error (Client_logic.Form_validate.bot_count bot_count)
+      , Result.error
+          (Client_logic.Form_validate.trade_probability bot_probability)
+      , Result.error (Client_logic.Form_validate.bot_max_size bot_max_size)
+      )
+  in
+  let collision =
+    Client_logic.Form_validate.definition_collision ~draft ~variables
   in
   let numbers_valid =
-    Option.is_some (Int.of_string_opt lookback)
-    && Option.is_some (Int.of_string_opt warmup)
-    && basic_bots_valid
-    &&
-    match Int.of_string_opt starting_cash with
-    | Some cash -> cash > 0
-    | None -> false
+    List.for_all
+      [ lookback_error
+      ; warmup_error
+      ; cash_error
+      ; bot_count_error
+      ; probability_error
+      ; max_size_error
+      ]
+      ~f:Option.is_none
   in
   let interval_option value =
     Vdom.Node.option
@@ -349,16 +369,6 @@ let rules_view
           [ Vdom.Node.text label ]
       ; node
       ]
-  in
-  let num_input value set_value =
-    Vdom.Node.input
-      ~attrs:
-        [ cls "num-input"
-        ; Vdom.Attr.value value
-        ; Vdom.Attr.on_input (fun (_ : _ Js_of_ocaml.Js.t) text ->
-            set_value text)
-        ]
-      ()
   in
   (* Collapsed to just the toggle until it's on; the inputs only matter (and
      are only validated) when the comparison runs. *)
@@ -379,11 +389,27 @@ let rules_view
     | false -> [ toggle ]
     | true ->
       [ toggle
-      ; labeled "number of bots" (num_input bot_count set_bot_count)
+      ; labeled
+          "number of bots"
+          (num_input
+             ?error:bot_count_error
+             ~value:bot_count
+             ~set_value:set_bot_count
+             ())
       ; labeled
           "trade probability"
-          (num_input bot_probability set_bot_probability)
-      ; labeled "max trade size" (num_input bot_max_size set_bot_max_size)
+          (num_input
+             ?error:probability_error
+             ~value:bot_probability
+             ~set_value:set_bot_probability
+             ())
+      ; labeled
+          "max trade size"
+          (num_input
+             ?error:max_size_error
+             ~value:bot_max_size
+             ~set_value:set_bot_max_size
+             ())
       ]
   in
   let config_column =
@@ -406,11 +432,27 @@ let rules_view
                     | Some value -> set_interval value)
                 ]
               (List.map Protocol.Interval.all ~f:interval_option))
-       ; labeled "lookback (days)" (num_input lookback set_lookback)
-       ; labeled "warmup (hours)" (num_input warmup set_warmup)
+       ; labeled
+           "lookback (days)"
+           (num_input
+              ?error:lookback_error
+              ~value:lookback
+              ~set_value:set_lookback
+              ())
+       ; labeled
+           "warmup (hours)"
+           (num_input
+              ?error:warmup_error
+              ~value:warmup
+              ~set_value:set_warmup
+              ())
        ; labeled
            "starting cash ($)"
-           (num_input starting_cash set_starting_cash)
+           (num_input
+              ?error:cash_error
+              ~value:starting_cash
+              ~set_value:set_starting_cash
+              ())
        ; labeled
            "allow negative cash"
            (Vdom.Node.input
@@ -470,6 +512,7 @@ let rules_view
             ~suggestions
             ~on_pick:insert
             ~submit
+            ~collision
         ; rules_column ~rules ~set_rules ~set_draft
         ; variables_column ~tickers ~variables ~set_variables
         ]
