@@ -389,7 +389,32 @@ let arb_llm_panel ~llm_state ~api_key ~set_api_key ~run =
     ]
 ;;
 
-let arb_review_panel ~tab ~pairs ~select_tab ~decide ~llm ~auto =
+let arb_review_panel ~tab ~pairs ~counts ~select_tab ~decide ~llm ~auto =
+  (* The running total lives above the tabs: the per-tab listing below only
+     ever shows one status, so without this line "how much arbitrage have we
+     found?" takes three clicks to answer. *)
+  let found_so_far =
+    match (counts : Protocol.Pair_counts.t Or_error.t option) with
+    | None ->
+      Vdom.Node.p
+        ~attrs:[ cls "arb-panel-hint" ]
+        [ Vdom.Node.text "counting pairs..." ]
+    | Some (Error error) -> error_box error
+    | Some (Ok counts) ->
+      let { Protocol.Pair_counts.proposed; approved; rejected } = counts in
+      let line =
+        match Protocol.Pair_counts.total counts with
+        | 0 ->
+          "no arbitrage found yet — run a sweep (step 1) to file candidate \
+           pairs"
+        | total ->
+          [%string
+            "arbitrage found so far: %{total#Int} pair(s) — \
+             %{approved#Int} approved, %{proposed#Int} awaiting review, \
+             %{rejected#Int} rejected"]
+      in
+      Vdom.Node.p ~attrs:[ cls "arb-panel-hint" ] [ Vdom.Node.text line ]
+  in
   let tab_button status =
     let class_ =
       match Protocol.Pair_status.equal status tab with
@@ -428,11 +453,19 @@ let arb_review_panel ~tab ~pairs ~select_tab ~decide ~llm ~auto =
              Correlated is not identical. Judge by hand below, or rent the \
              LLM a seat at the desk."
         ]
+    ; found_so_far
     ; llm
     ; auto
     ; Vdom.Node.div
         ~attrs:[ cls "arb-tabs" ]
         (List.map Protocol.Pair_status.all ~f:tab_button)
+    ; Vdom.Node.p
+        ~attrs:[ cls "arb-panel-hint" ]
+        [ Vdom.Node.text
+            "Pairs are listed most-likely-first: the text matcher's \
+             highest-scoring pairs sit at the top, so start reviewing \
+             there."
+        ]
     ; body
     ]
 ;;
@@ -883,6 +916,7 @@ let arbitrage_page (local_ graph) =
   let section, set_section = Bonsai.state Arb_section.Sweep graph in
   let tab, set_tab = Bonsai.state Protocol.Pair_status.Proposed graph in
   let pairs, set_pairs = Bonsai.state_opt graph in
+  let counts, set_counts = Bonsai.state_opt graph in
   let wallet, set_wallet = Bonsai.state_opt graph in
   let hedge_capability, set_hedge_capability = Bonsai.state_opt graph in
   let hedge_dialog, set_hedge_dialog =
@@ -901,6 +935,9 @@ let arbitrage_page (local_ graph) =
   let auto_threshold, set_auto_threshold = Bonsai.state "0.50" graph in
   let api_key, set_api_key = Bonsai.state "" graph in
   let dispatch_pairs = Rpc_effect.Rpc.dispatcher Protocol.get_pairs graph in
+  let dispatch_counts =
+    Rpc_effect.Rpc.dispatcher Protocol.get_pair_counts graph
+  in
   let dispatch_decide =
     Rpc_effect.Rpc.dispatcher Protocol.decide_pair graph
   in
@@ -926,11 +963,15 @@ let arbitrage_page (local_ graph) =
     Rpc_effect.Rpc.dispatcher Protocol.execute_hedge graph
   in
   let on_activate =
-    let%map dispatch_pairs and set_pairs in
-    let%bind.Effect response =
-      dispatch_pairs Protocol.Pair_status.Proposed
-    in
-    set_pairs (Some (Or_error.join response))
+    let%map dispatch_pairs
+    and set_pairs
+    and dispatch_counts
+    and set_counts in
+    let open Effect.Let_syntax in
+    let%bind response = dispatch_pairs Protocol.Pair_status.Proposed in
+    let%bind () = set_pairs (Some (Or_error.join response)) in
+    let%bind counts = dispatch_counts () in
+    set_counts (Some (Or_error.join counts))
   in
   Bonsai.Edge.lifecycle ~on_activate graph;
   let%arr section
@@ -939,6 +980,8 @@ let arbitrage_page (local_ graph) =
   and set_tab
   and pairs
   and set_pairs
+  and counts
+  and set_counts
   and wallet
   and set_wallet
   and hedge_capability
@@ -962,6 +1005,7 @@ let arbitrage_page (local_ graph) =
   and api_key
   and set_api_key
   and dispatch_pairs
+  and dispatch_counts
   and dispatch_decide
   and dispatch_llm
   and dispatch_auto
@@ -973,9 +1017,13 @@ let arbitrage_page (local_ graph) =
   and dispatch_preflight
   and dispatch_hedge in
   let load status =
+    (* Every path that can change a pair's status funnels through here, so
+       the found-so-far counts refresh with the listing. *)
     let open Effect.Let_syntax in
     let%bind response = dispatch_pairs status in
-    set_pairs (Some (Or_error.join response))
+    let%bind () = set_pairs (Some (Or_error.join response)) in
+    let%bind counts = dispatch_counts () in
+    set_counts (Some (Or_error.join counts))
   in
   let select_tab status =
     Effect.Many [ set_tab status; set_pairs None; load status ]
@@ -1199,7 +1247,7 @@ let arbitrage_page (local_ graph) =
           ~set_auto_threshold
           ~run:run_auto
       in
-      arb_review_panel ~tab ~pairs ~select_tab ~decide ~llm ~auto
+      arb_review_panel ~tab ~pairs ~counts ~select_tab ~decide ~llm ~auto
     | Pairs ->
       let live =
         match hedge_capability with

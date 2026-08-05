@@ -12,9 +12,10 @@ open! Types
 module Listed : sig
   (** One proposal joined back to its market stubs, tagged with its position
       in the listing. [index] is what a human quotes back to {!decide}; it is
-      stable across calls because the store lists proposals in insertion
-      order. A [None] stub means the market vanished from the store after the
-      proposal was filed — display it, but expect {!Bot} to skip it. *)
+      stable across calls because the store lists proposals most-likely-first
+      — text-match score descending — and a pair's score never changes after
+      filing. A [None] stub means the market vanished from the store after
+      the proposal was filed — display it, but expect {!Bot} to skip it. *)
   type t =
     { index : int
     ; proposal : Pair_proposal.t
@@ -43,6 +44,24 @@ val list_by_status
 (** [list_by_status Proposed] — the queue a reviewer works through, and the
     numbering {!decide} accepts. *)
 val list_proposed : unit -> Listed.t list Deferred.Or_error.t
+
+module Summary : sig
+  (** How much arbitrage the sweeps have surfaced so far: one count per
+      review status over the whole pair store. What every review surface
+      shows above its listing, so the queue in front of the reviewer reads
+      against the running total. *)
+  type t =
+    { proposed : int (** awaiting a verdict *)
+    ; approved : int (** what {!Bot} trades *)
+    ; rejected : int
+    }
+  [@@deriving sexp_of]
+
+  val total : t -> int
+end
+
+(** Counts of every pair the sweeps have filed, by current status. *)
+val summary : unit -> Summary.t Deferred.Or_error.t
 
 (** [decide ~from ~index ~status] moves the [index]th proposal of the [from]
     listing to [status] and returns it as decided. [from] other than

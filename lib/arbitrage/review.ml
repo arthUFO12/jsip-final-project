@@ -60,6 +60,34 @@ let list_by_status status =
 
 let list_proposed () = list_by_status Proposed
 
+module Summary = struct
+  type t =
+    { proposed : int
+    ; approved : int
+    ; rejected : int
+    }
+  [@@deriving sexp_of]
+
+  let total { proposed; approved; rejected } =
+    proposed + approved + rejected
+  ;;
+end
+
+let summary () =
+  let open Deferred.Or_error.Let_syntax in
+  (* Counts only, so skip [list_by_status]'s per-entry stub joins. *)
+  let count status =
+    let%map proposals =
+      Database.Database_exec.list_pair_proposals_by_status status
+    in
+    List.length proposals
+  in
+  let%bind proposed = count Proposed in
+  let%bind approved = count Approved in
+  let%bind rejected = count Rejected in
+  return { Summary.proposed; approved; rejected }
+;;
+
 let decide ~from ~index ~status =
   let open Deferred.Or_error.Let_syntax in
   let%bind listed = list_by_status from in

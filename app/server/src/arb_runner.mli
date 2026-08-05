@@ -14,6 +14,9 @@ val list_pairs
   :  Protocol.Pair_status.t
   -> Protocol.Pair_card.t list Deferred.Or_error.t
 
+(** Backs {!Protocol.get_pair_counts}. *)
+val pair_counts : unit -> Protocol.Pair_counts.t Deferred.Or_error.t
+
 (** Backs {!Protocol.decide_pair}. *)
 val decide
   :  Protocol.Decide_request.t

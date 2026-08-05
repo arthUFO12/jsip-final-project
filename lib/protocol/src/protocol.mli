@@ -236,6 +236,21 @@ module Pair_card : sig
   [@@deriving sexp_of, bin_io]
 end
 
+module Pair_counts : sig
+  (** How much arbitrage the sweeps have surfaced so far: one count per
+      review status over the whole pair store. The review page's
+      "found so far" line, above the per-tab listing {!get_pairs}
+      returns. *)
+  type t =
+    { proposed : int
+    ; approved : int
+    ; rejected : int
+    }
+  [@@deriving sexp_of, bin_io]
+
+  val total : t -> int
+end
+
 module Sweep_request : sig
   (** Text-only matching at [threshold] — the UI never spends LLM credits;
       adjudicated sweeps stay on the CLI where the flag is explicit. *)
@@ -542,8 +557,13 @@ val get_markets : (unit, Market_card.t list Or_error.t) Rpc.Rpc.t
     price history. *)
 val get_market_detail : (Slug.t, Market_detail.t Or_error.t) Rpc.Rpc.t
 
-(** The pairs currently in the given status, in review-listing order. *)
+(** The pairs currently in the given status, in review-listing order —
+    most-likely-first, text-match score descending. *)
 val get_pairs : (Pair_status.t, Pair_card.t list Or_error.t) Rpc.Rpc.t
+
+(** Counts of every pair the sweeps have filed so far, by current status —
+    the review page's headline number. *)
+val get_pair_counts : (unit, Pair_counts.t Or_error.t) Rpc.Rpc.t
 
 (** Move one listed pair to a new status; returns it as decided. *)
 val decide_pair : (Decide_request.t, Pair_card.t Or_error.t) Rpc.Rpc.t
