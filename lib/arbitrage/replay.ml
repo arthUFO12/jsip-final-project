@@ -62,3 +62,33 @@ let cumulative episodes =
     total, (episode.entered_s, total))
     ~init:0.
 ;;
+
+let observation_episodes ~sightings ~gap_s =
+  let by_pair =
+    List.sort_and_group sightings ~compare:(fun (_, pair_a, _) (_, pair_b, _) ->
+      String.compare pair_a pair_b)
+  in
+  let entries =
+    List.concat_map by_pair ~f:(fun sightings ->
+      let sightings =
+        List.sort sightings ~compare:(fun (time_a, _, _) (time_b, _, _) ->
+          Float.compare time_a time_b)
+      in
+      List.folding_map
+        sightings
+        ~init:None
+        ~f:(fun previous (time_s, (_ : string), dollars) ->
+          let fresh =
+            match previous with
+            | None -> true
+            | Some previous_s -> Float.O.(time_s -. previous_s > gap_s)
+          in
+          Some time_s, Option.some_if fresh (time_s, dollars))
+      |> List.filter_opt)
+  in
+  List.sort entries ~compare:(fun (time_a, _) (time_b, _) ->
+    Float.compare time_a time_b)
+  |> List.folding_map ~init:0. ~f:(fun total (time_s, dollars) ->
+    let total = total +. dollars in
+    total, (time_s, total))
+;;

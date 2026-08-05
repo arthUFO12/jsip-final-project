@@ -464,6 +464,44 @@ module Trading_key : sig
   end
 end
 
+module Live_run : sig
+  (** The in-app strategy runner: the server ticking the scan on an
+      interval against live markets. [Paper] only records — wallet paper
+      entries and edge sightings. [Armed] additionally auto-fires the
+      KALSHI LEG ONLY of each fresh tradable edge, inside the caps and
+      kill switch, until [budget_dollars] of notional is spent — a
+      deliberately one-sided, directional position, because the Polymarket
+      leg can never be auto-traded. Arming requires an unlocked key. *)
+
+  module Mode : sig
+    type t =
+      | Paper
+      | Armed of { budget_dollars : float }
+    [@@deriving sexp_of, bin_io, equal]
+  end
+
+  module Status : sig
+    type t =
+      { running : bool
+      ; mode : Mode.t
+      ; interval_s : int
+      ; ticks : int
+      ; last_tick_s : float option
+      ; last_summary : string (** the last tick's one-line outcome *)
+      ; spent_dollars : float (** armed-mode notional spent this run *)
+      }
+    [@@deriving sexp_of, bin_io]
+  end
+
+  module Start_request : sig
+    type t =
+      { interval_s : int (** clamped to 10..3600 by the server *)
+      ; mode : Mode.t
+      }
+    [@@deriving sexp_of, bin_io]
+  end
+end
+
 module Arb_sim_request : sig
   (** Backtest the arbitrage strategy over the approved pairs' price
       history. [stake] contracts are assumed taken per episode (historical
@@ -635,6 +673,23 @@ val forget_trading_key : (unit, Trading_key.Status.t Or_error.t) Rpc.Rpc.t
     leg — a long pair list takes a while). *)
 val run_arb_simulation
   : (Arb_sim_request.t, Arb_sim_result.t Or_error.t) Rpc.Rpc.t
+
+(** The strategy runner's current state. *)
+val get_live_run : (unit, Live_run.Status.t Or_error.t) Rpc.Rpc.t
+
+(** Start the runner (errors if already running; [Armed] errors without an
+    unlocked key). Returns the started status. *)
+val start_live_run
+  : (Live_run.Start_request.t, Live_run.Status.t Or_error.t) Rpc.Rpc.t
+
+(** Ask the runner to stop after its current tick. *)
+val stop_live_run : (unit, Live_run.Status.t Or_error.t) Rpc.Rpc.t
+
+(** Cumulative paper PnL over time from recorded edge sightings
+    ({!Arbitrage.Replay.observation_episodes} over the arb_observations
+    table): what taking every fresh edge once would have locked in, as the
+    scans actually saw them. *)
+val get_arb_history : (unit, (float * float) list Or_error.t) Rpc.Rpc.t
 
 (** The unlocked key's cash and open positions, straight from the venue.
     Errors when no key is unlocked. *)

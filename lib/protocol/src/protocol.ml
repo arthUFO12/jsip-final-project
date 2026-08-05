@@ -362,6 +362,36 @@ module Account = struct
   [@@deriving sexp_of, bin_io]
 end
 
+module Live_run = struct
+  module Mode = struct
+    type t =
+      | Paper
+      | Armed of { budget_dollars : float }
+    [@@deriving sexp_of, bin_io, equal]
+  end
+
+  module Status = struct
+    type t =
+      { running : bool
+      ; mode : Mode.t
+      ; interval_s : int
+      ; ticks : int
+      ; last_tick_s : float option
+      ; last_summary : string
+      ; spent_dollars : float
+      }
+    [@@deriving sexp_of, bin_io]
+  end
+
+  module Start_request = struct
+    type t =
+      { interval_s : int
+      ; mode : Mode.t
+      }
+    [@@deriving sexp_of, bin_io]
+  end
+end
+
 module Arb_sim_request = struct
   type t =
     { lookback_days : int
@@ -573,6 +603,42 @@ let run_arb_simulation =
     ~version:0
     ~bin_query:[%bin_type_class: Arb_sim_request.t]
     ~bin_response:[%bin_type_class: Arb_sim_result.t Or_error.t]
+    ~include_in_error_count:Or_error
+;;
+
+let get_live_run =
+  Rpc.Rpc.create
+    ~name:"get-live-run"
+    ~version:0
+    ~bin_query:[%bin_type_class: unit]
+    ~bin_response:[%bin_type_class: Live_run.Status.t Or_error.t]
+    ~include_in_error_count:Or_error
+;;
+
+let start_live_run =
+  Rpc.Rpc.create
+    ~name:"start-live-run"
+    ~version:0
+    ~bin_query:[%bin_type_class: Live_run.Start_request.t]
+    ~bin_response:[%bin_type_class: Live_run.Status.t Or_error.t]
+    ~include_in_error_count:Or_error
+;;
+
+let stop_live_run =
+  Rpc.Rpc.create
+    ~name:"stop-live-run"
+    ~version:0
+    ~bin_query:[%bin_type_class: unit]
+    ~bin_response:[%bin_type_class: Live_run.Status.t Or_error.t]
+    ~include_in_error_count:Or_error
+;;
+
+let get_arb_history =
+  Rpc.Rpc.create
+    ~name:"get-arb-history"
+    ~version:0
+    ~bin_query:[%bin_type_class: unit]
+    ~bin_response:[%bin_type_class: (float * float) list Or_error.t]
     ~include_in_error_count:Or_error
 ;;
 

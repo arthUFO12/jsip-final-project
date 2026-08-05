@@ -115,6 +115,20 @@ val account : unit -> Protocol.Account.t Deferred.Or_error.t
     returns the engaged reason as confirmation. *)
 val trip_kill_switch : string -> string Deferred.Or_error.t
 
+(** The in-app strategy runner: status / start / stop. Paper mode records
+    only; Armed mode auto-fires the Kalshi leg within the rails until the
+    run budget is spent (requires an unlocked key). *)
+val live_run_status : unit -> Protocol.Live_run.Status.t Deferred.Or_error.t
+
+val start_live_run
+  :  Protocol.Live_run.Start_request.t
+  -> Protocol.Live_run.Status.t Deferred.Or_error.t
+
+val stop_live_run : unit -> Protocol.Live_run.Status.t Deferred.Or_error.t
+
+(** Cumulative paper PnL over time from recorded edge sightings. *)
+val arb_history : unit -> (float * float) list Deferred.Or_error.t
+
 val wallet : unit -> Protocol.Wallet.t Deferred.Or_error.t
 
 (** Backs {!Protocol.mark_acted}: freeze one booked pair as really traded and
