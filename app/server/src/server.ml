@@ -591,12 +591,15 @@ let check_sim
     ; warmup_hours
     ; starting_cash_cents = starting_cash_dollars * 100
     ; allow_negative_cash
-    ; basic_bots =
-        Option.map basic_bots ~f:(fun count : Protocol.Basic_bots.t ->
-          { count
-          ; trade_probability = basic_trade_probability
-          ; max_size = basic_max_size
-          })
+    ; comparison =
+        (match basic_bots with
+         | None -> Protocol.Comparison.No_comparison
+         | Some count ->
+           Dumb_bots
+             { count
+             ; trade_probability = basic_trade_probability
+             ; max_size = basic_max_size
+             })
     }
   in
   let%bind result =
@@ -621,6 +624,9 @@ let check_sim
   (match result.pnl_percentile with
    | None -> ()
    | Some percentile -> printf "pnl percentile: %.0f\n" percentile);
+  (match result.truncated with
+   | false -> ()
+   | true -> print_endline "note: lookback truncated to available history");
   List.iter result.fills ~f:(fun fill ->
     print_s (Protocol.Fill.sexp_of_t fill));
   (match Protocol.Sim_result.final result with

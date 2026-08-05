@@ -58,7 +58,7 @@ module Market_detail : sig
 end
 
 module Basic_bots : sig
-  (** The optional baseline group for a simulation: the server also runs this
+  (** A dumb-bot baseline group for a simulation: the server also runs this
       many random reference bots ([Bots.Basic]) over the same markets and
       window as the configurable bot, and returns their per-tick metrics
       averaged across the group in [Sim_result.baseline_ticks]. *)
@@ -68,6 +68,31 @@ module Basic_bots : sig
     (** Chance each market trades on a given tick, in (0, 1]. *)
     ; max_size : int (** Trades are 1..[max_size] contracts, 1 to 1000. *)
     }
+  [@@deriving sexp_of, bin_io]
+end
+
+module Rival_bot : sig
+  (** A user-authored baseline: a previously saved bot re-run as a group of
+      one. It trades its own [slugs] with its own rules, but shares the
+      request's interval, window, starting cash, and cash policy so its
+      series line up with the configurable bot's. *)
+  type t =
+    { name : string (** Display name, echoed in error messages. *)
+    ; slugs : Slug.t list (** 1 to 4 markets the rival trades. *)
+    ; program : string (** Bot-language rules, one statement per line. *)
+    ; variables : string list
+    }
+  [@@deriving sexp_of, bin_io]
+end
+
+module Comparison : sig
+  (** What to backtest alongside the configurable bot for
+      [Sim_result.baseline_ticks]. A variant rather than two options: the
+      baseline modes are mutually exclusive by construction. *)
+  type t =
+    | No_comparison
+    | Dumb_bots of Basic_bots.t
+    | Rival_bot of Rival_bot.t
   [@@deriving sexp_of, bin_io]
 end
 
@@ -85,9 +110,8 @@ module Sim_request : sig
     ; allow_negative_cash : bool
     (** When false, trades that would overdraw cash while growing the
         position are rejected. *)
-    ; basic_bots : Basic_bots.t option
-    (** [Some] also backtests that many random baseline bots over the same
-        resolved window; [None] runs only the configurable bot. *)
+    ; comparison : Comparison.t
+    (** The baseline to backtest over the same resolved window, if any. *)
     }
   [@@deriving sexp_of, bin_io]
 end
@@ -145,12 +169,17 @@ module Sim_result : sig
     ; fills : Fill.t list
     ; sim_start_s : float (** Warmup ends here; shade charts before it. *)
     ; baseline_ticks : Baseline_point.t list
-    (** Averaged baseline metrics per tick; empty when the request's
-        [basic_bots] was [None]. Same grid (warmup included) as [ticks]. *)
+    (** Averaged baseline metrics per tick (a {!Comparison.Rival_bot} is a
+        group of one); empty when the request's [comparison] was
+        [No_comparison]. Same grid (warmup included) as [ticks]. *)
     ; pnl_percentile : float option
     (** Percentile rank (0..100) of the configurable bot's final total PnL
         (realized + unrealized) among the baseline bots' final total PnLs;
-        [None] when the request had no [basic_bots]. *)
+        [None] unless the request compared against [Dumb_bots] — a rank
+        within a group of one rival says nothing. *)
+    ; truncated : bool
+    (** True when the requested lookback reached before the venue's available
+        history, so the simulation starts later than asked. *)
     }
   [@@deriving sexp_of, bin_io]
 
