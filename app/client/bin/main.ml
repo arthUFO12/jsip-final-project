@@ -80,6 +80,32 @@ let css =
     transition: transform 0.12s, border-color 0.12s;
   }
   .card:hover { transform: translateY(-3px); border-color: #3b82f6; }
+  .card-clickable { cursor: pointer; }
+  .modal-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(5, 8, 14, 0.65);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10;
+  }
+  .modal {
+    background: #141926;
+    border: 1px solid #2a3040;
+    border-radius: 12px;
+    padding: 18px 22px;
+    width: 720px;
+    max-width: 90vw;
+    max-height: 85vh;
+    overflow-y: auto;
+  }
+  .modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 12px;
+  }
   .card-title { font-weight: 600; font-size: 14px; line-height: 1.35; }
   .card-slug {
     color: #606a82;
@@ -485,27 +511,40 @@ let button ?(enabled = true) ~class_ ~label effect =
 
 (* ---------- Markets page ---------- *)
 
-let card_view (card : Card.t) =
-  let volume =
-    match card.volume with
-    | None -> "volume unreported"
-    | Some (Contracts contracts) ->
-      let count = Int.to_string_hum ~delimiter:',' (Size.to_int contracts) in
-      [%string "%{count} contracts"]
-    | Some (Notional dollars) ->
-      [%string "%{Price.to_string_dollar dollars} traded"]
+let volume_string (card : Card.t) =
+  match card.volume with
+  | None -> "volume unreported"
+  | Some (Contracts contracts) ->
+    let count = Int.to_string_hum ~delimiter:',' (Size.to_int contracts) in
+    [%string "%{count} contracts"]
+  | Some (Notional dollars) ->
+    [%string "%{Price.to_string_dollar dollars} traded"]
+;;
+
+let card_view ~on_select (card : Card.t) =
+  (* Only history-capable markets can open the detail popup; the others stay
+     inert (no pointer cursor either). *)
+  let attrs =
+    match card.has_price_history with
+    | false -> [ cls "card" ]
+    | true ->
+      [ Vdom.Attr.classes [ "card"; "card-clickable" ]
+      ; on_click (on_select card)
+      ]
   in
   Vdom.Node.div
-    ~attrs:[ cls "card" ]
+    ~attrs
     [ Vdom.Node.div ~attrs:[ cls "card-title" ] [ Vdom.Node.text card.title ]
     ; Vdom.Node.div
         ~attrs:[ cls "card-slug" ]
         [ Vdom.Node.text (Slug.to_string card.slug) ]
-    ; Vdom.Node.div ~attrs:[ cls "volume-badge" ] [ Vdom.Node.text volume ]
+    ; Vdom.Node.div
+        ~attrs:[ cls "volume-badge" ]
+        [ Vdom.Node.text (volume_string card) ]
     ]
 ;;
 
-let category_section (category, cards) =
+let category_section ~on_select (category, cards) =
   Vdom.Node.div
     ~attrs:[ cls "category-section" ]
     [ Vdom.Node.div
@@ -520,11 +559,13 @@ let category_section (category, cards) =
             ~attrs:[ cls "category-name" ]
             [ Vdom.Node.text (Category.to_string category) ]
         ]
-    ; Vdom.Node.div ~attrs:[ cls "card-row" ] (List.map cards ~f:card_view)
+    ; Vdom.Node.div
+        ~attrs:[ cls "card-row" ]
+        (List.map cards ~f:(card_view ~on_select))
     ]
 ;;
 
-let markets_view cards =
+let markets_view cards ~on_select =
   match
     Client_logic.Market_groups.group
       cards
@@ -535,10 +576,11 @@ let markets_view cards =
     Vdom.Node.div
       ~attrs:[ cls "status" ]
       [ Vdom.Node.text "no category has enough markets to show" ]
-  | groups -> Vdom.Node.div (List.map groups ~f:category_section)
+  | groups ->
+    Vdom.Node.div (List.map groups ~f:(category_section ~on_select))
 ;;
 
-let markets_page_view markets =
+let markets_page_view markets ~on_select =
   match markets with
   | None ->
     Vdom.Node.div
@@ -546,7 +588,7 @@ let markets_page_view markets =
       [ Vdom.Node.text "loading markets..." ]
   | Some (Error error) ->
     Vdom.Node.pre [ Vdom.Node.text (Error.to_string_hum error) ]
-  | Some (Ok cards) -> markets_view cards
+  | Some (Ok cards) -> markets_view cards ~on_select
 ;;
 
 (* ---------- Bots page ---------- *)
@@ -1061,7 +1103,9 @@ let dashed ~name ~color points =
   { Chart_series.name; color; dash = true; points }
 ;;
 
-let chart_view ~title ~(series : Chart_series.t list) ~sim_start_s =
+(* [sim_start_s] shades everything before it (the warmup); omit it for charts
+   with no warmup notion, like the market-detail popup. *)
+let chart_view ~title ~(series : Chart_series.t list) ?sim_start_s () =
   let width = 640. in
   let height = 220. in
   let all_points =
@@ -1073,9 +1117,25 @@ let chart_view ~title ~(series : Chart_series.t list) ~sim_start_s =
   let y_range =
     Client_logic.Chart.Range.of_values (List.map all_points ~f:snd)
   in
-  let warmup_width =
-    Client_logic.Chart.scale_x x_range ~extent:width sim_start_s
-    |> Float.clamp_exn ~min:0. ~max:width
+  let warmup_rect =
+    match sim_start_s with
+    | None -> []
+    | Some sim_start_s ->
+      let warmup_width =
+        Client_logic.Chart.scale_x x_range ~extent:width sim_start_s
+        |> Float.clamp_exn ~min:0. ~max:width
+      in
+      [ svg_node
+          "rect"
+          ~attrs:
+            [ Vdom.Attr.create "x" "0"
+            ; Vdom.Attr.create "y" "0"
+            ; Vdom.Attr.create "width" (sprintf "%.1f" warmup_width)
+            ; Vdom.Attr.create "height" (sprintf "%.0f" height)
+            ; Vdom.Attr.create "fill" "#ffffff0a"
+            ]
+          []
+      ]
   in
   let polylines =
     List.map series ~f:(fun { Chart_series.name = _; color; dash; points } ->
@@ -1139,17 +1199,7 @@ let chart_view ~title ~(series : Chart_series.t list) ~sim_start_s =
           [ Vdom.Attr.create "width" (sprintf "%.0f" width)
           ; Vdom.Attr.create "height" (sprintf "%.0f" height)
           ]
-        ([ svg_node
-             "rect"
-             ~attrs:
-               [ Vdom.Attr.create "x" "0"
-               ; Vdom.Attr.create "y" "0"
-               ; Vdom.Attr.create "width" (sprintf "%.1f" warmup_width)
-               ; Vdom.Attr.create "height" (sprintf "%.0f" height)
-               ; Vdom.Attr.create "fill" "#ffffff0a"
-               ]
-             []
-         ]
+        (warmup_rect
          @ polylines
          @ [ axis_label
                ~x:2.
@@ -1439,11 +1489,13 @@ let results_view
                     "dumb bot avg pnl (dollars, shaded region is warmup)"
                   ~series:baseline_pnl
                   ~sim_start_s:result.sim_start_s
+                  ()
               ; chart_view
                   ~title:
                     "dumb bot avg value (dollars, shaded region is warmup)"
                   ~series:baseline_value
                   ~sim_start_s:result.sim_start_s
+                  ()
               ]
           ]
       in
@@ -1525,18 +1577,22 @@ let results_view
                  ~title:"pnl (dollars, shaded region is warmup)"
                  ~series:pnl_series
                  ~sim_start_s:result.sim_start_s
+                 ()
              ; chart_view
                  ~title:"value (dollars, shaded region is warmup)"
                  ~series:value_series
                  ~sim_start_s:result.sim_start_s
+                 ()
              ; chart_view
                  ~title:"market YES prices (dollars)"
                  ~series:price_series
                  ~sim_start_s:result.sim_start_s
+                 ()
              ; chart_view
                  ~title:"inventory (contracts held per market)"
                  ~series:inventory_series
                  ~sim_start_s:result.sim_start_s
+                 ()
              ]
          ]
          @ baseline_section
@@ -2976,6 +3032,143 @@ let arbitrage_page (local_ graph) =
     [ arb_stage_banner ~current:section ~select:select_section; panel ]
 ;;
 
+(* ---------- Market detail popup ---------- *)
+
+module Detail_state = struct
+  type t =
+    | Idle
+    | Loading
+    | Failed of Error.t
+    | Done of Protocol.Market_detail.t
+end
+
+let seconds_per_day = 86_400.
+
+let market_detail_modal (card : Card.t) (detail : Detail_state.t) ~close =
+  let body =
+    match (detail : Detail_state.t) with
+    | Idle | Loading ->
+      Vdom.Node.p
+        ~attrs:[ cls "status" ]
+        [ Vdom.Node.text "loading price history..." ]
+    | Failed error ->
+      Vdom.Node.div
+        ~attrs:[ cls "error-box" ]
+        [ Vdom.Node.text (Error.to_string_hum error) ]
+    | Done { prices; volumes } ->
+      let trailing_volumes =
+        Client_logic.Market_stats.trailing_sum
+          ~window_s:seconds_per_day
+          volumes
+      in
+      let current_price_tile =
+        match List.last prices with
+        | None -> []
+        | Some (_, price) ->
+          [ stat_tile
+              ~label:"current price"
+              ~value:(sprintf "$%.2f" price)
+              ()
+          ]
+      in
+      let volume_24h_tile =
+        match List.last trailing_volumes with
+        | None -> []
+        | Some (_, volume) ->
+          [ stat_tile
+              ~label:"24h volume"
+              ~value:(sprintf "%.0f contracts" volume)
+              ()
+          ]
+      in
+      let stats =
+        Vdom.Node.div
+          ~attrs:[ cls "stats-grid" ]
+          (current_price_tile
+           @ [ stat_tile
+                 ~label:"volatility"
+                 ~value:
+                   (sprintf
+                      "$%.3f"
+                      (Client_logic.Market_stats.volatility
+                         (List.map prices ~f:snd)))
+                 ()
+             ; stat_tile ~label:"total volume" ~value:(volume_string card) ()
+             ]
+           @ volume_24h_tile)
+      in
+      let price_chart =
+        chart_view
+          ~title:"yes price (dollars)"
+          ~series:[ solid ~name:"yes price" ~color:"#60a5fa" prices ]
+          ()
+      in
+      let volume_chart =
+        match trailing_volumes with
+        | [] -> []
+        | _ :: _ ->
+          [ chart_view
+              ~title:"24h volume (contracts)"
+              ~series:
+                [ solid ~name:"24h volume" ~color:"#4ade80" trailing_volumes
+                ]
+              ()
+          ]
+      in
+      Vdom.Node.div ([ stats; price_chart ] @ volume_chart)
+  in
+  Vdom.Node.div
+    ~attrs:[ cls "modal-backdrop"; on_click close ]
+    [ Vdom.Node.div
+      (* Clicks inside the panel must not bubble to the backdrop's close
+         handler. *)
+        ~attrs:[ cls "modal"; on_click Effect.Stop_propagation ]
+        [ Vdom.Node.div
+            ~attrs:[ cls "modal-header" ]
+            [ Vdom.Node.h2
+                ~attrs:[ cls "stage-title" ]
+                [ Vdom.Node.text card.title ]
+            ; button ~class_:"btn-secondary" ~label:"Close" close
+            ]
+        ; body
+        ]
+    ]
+;;
+
+let markets_page markets_result (local_ graph) =
+  let selected, set_selected = Bonsai.state (None : Card.t option) graph in
+  let detail, set_detail = Bonsai.state Detail_state.Idle graph in
+  let dispatch_detail =
+    Rpc_effect.Rpc.dispatcher Protocol.get_market_detail graph
+  in
+  let%arr selected
+  and set_selected
+  and detail
+  and set_detail
+  and dispatch_detail
+  and markets_result in
+  let close =
+    Effect.Many [ set_selected None; set_detail Detail_state.Idle ]
+  in
+  let on_select (card : Card.t) =
+    let open Effect.Let_syntax in
+    let%bind () =
+      Effect.Many
+        [ set_selected (Some card); set_detail Detail_state.Loading ]
+    in
+    let%bind response = dispatch_detail card.slug in
+    match Or_error.join response with
+    | Ok detail -> set_detail (Done detail)
+    | Error error -> set_detail (Failed error)
+  in
+  let modal =
+    match selected with
+    | None -> Vdom.Node.none
+    | Some card -> market_detail_modal card detail ~close
+  in
+  Vdom.Node.div [ markets_page_view markets_result ~on_select; modal ]
+;;
+
 (* ---------- App shell ---------- *)
 
 let fetch_markets (local_ graph) =
@@ -3005,12 +3198,13 @@ let nav_button ~current ~set_page page =
 let app (local_ graph) =
   let page, set_page = Bonsai.state Page.Markets graph in
   let markets_result = fetch_markets graph in
+  let markets = markets_page markets_result graph in
   let bots = bots_page markets_result graph in
   let arbitrage = arbitrage_page graph in
-  let%arr page and set_page and markets_result and bots and arbitrage in
+  let%arr page and set_page and markets and bots and arbitrage in
   let body =
     match page with
-    | Markets -> markets_page_view markets_result
+    | Markets -> markets
     | Bots -> bots
     | Arbitrage -> arbitrage
   in

@@ -4,7 +4,9 @@
  (js_of_ocaml
   (flags
    (:standard --effects=cps))
-  (javascript_files thread_stubs.js temporal_polyfill.js
+  (javascript_files
+   thread_stubs.js
+   temporal_polyfill.js
    temporal_polyfill_setup.js))
  (libraries
   core

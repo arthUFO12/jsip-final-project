@@ -23,6 +23,21 @@ let%expect_test "parse kalshi time series fixture" =
     |}]
 ;;
 
+let%expect_test "parse kalshi per-candle volumes from the same fixture" =
+  let body = In_channel.read_all "example_json/kalshi_time_series.json" in
+  let volumes = Time_series_parser.parse_kalshi_volume_series body in
+  printf "points: %d\n" (List.length volumes);
+  List.iter (List.take volumes 3) ~f:(fun (time, volume) ->
+    print_s [%message "" (time : Time_ns.t) (volume : float)]);
+  [%expect
+    {|
+    points: 5
+    ((time (2026-07-23 02:00:00.000000000Z)) (volume 0))
+    ((time (2026-07-23 11:00:00.000000000Z)) (volume 12))
+    ((time (2026-07-23 13:00:00.000000000Z)) (volume 114509.59))
+    |}]
+;;
+
 let%expect_test "parse polymarket time series fixture" =
   let body =
     In_channel.read_all "example_json/polymarket_time_series.json"

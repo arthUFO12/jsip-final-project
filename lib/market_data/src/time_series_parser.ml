@@ -52,3 +52,17 @@ let parse_polymarket_time_series body =
   |> U.to_list
   |> List.map ~f:polymarket_to_time_series_point
 ;;
+
+let parse_kalshi_volume_series body =
+  let json = Json.from_string body in
+  json
+  |> U.member "candlesticks"
+  |> U.to_list
+  |> List.map ~f:(fun obj ->
+    let time = obj |> U.member "end_period_ts" |> time_of_unix_seconds in
+    (* [volume_fp] is a decimal string of contracts, e.g. "114509.59". *)
+    let volume =
+      obj |> U.member "volume_fp" |> U.to_string |> Float.of_string
+    in
+    time, volume)
+;;

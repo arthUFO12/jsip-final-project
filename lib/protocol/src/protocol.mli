@@ -45,6 +45,18 @@ module Interval : sig
   val name : t -> string
 end
 
+module Market_detail : sig
+  (** Price history and per-candle traded volume for one market, fetched live
+      for the market-detail popup. [volumes] is empty when the venue reports
+      none (Polymarket). Times are epoch seconds; prices dollars; volumes
+      contracts traded per candle. *)
+  type t =
+    { prices : (float * float) list
+    ; volumes : (float * float) list
+    }
+  [@@deriving sexp_of, bin_io]
+end
+
 module Basic_bots : sig
   (** The optional baseline group for a simulation: the server also runs this
       many random reference bots ([Bots.Basic]) over the same markets and
@@ -417,6 +429,12 @@ end
 (** Current (still-open) markets from the server's database seed, in no
     particular order — grouping and ranking are client concerns. *)
 val get_markets : (unit, Market_card.t list Or_error.t) Rpc.Rpc.t
+
+(** Live price (and, for Kalshi, volume) history for one market since its
+    creation — hourly candles for markets younger than 30 days, daily
+    otherwise. Errors on unknown markets and on markets that cannot serve
+    price history. *)
+val get_market_detail : (Slug.t, Market_detail.t Or_error.t) Rpc.Rpc.t
 
 (** The pairs currently in the given status, in review-listing order. *)
 val get_pairs : (Pair_status.t, Pair_card.t list Or_error.t) Rpc.Rpc.t

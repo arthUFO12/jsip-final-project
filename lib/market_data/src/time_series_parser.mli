@@ -11,3 +11,8 @@ open! Core
 
 val parse_kalshi_time_series : string -> Time_series.Point.t list
 val parse_polymarket_time_series : string -> Time_series.Point.t list
+
+(** Per-candle traded volume (contracts, [volume_fp]) from the same Kalshi
+    candlestick body {!parse_kalshi_time_series} reads. Polymarket price
+    history carries no volume, so there is no polymarket equivalent. *)
+val parse_kalshi_volume_series : string -> (Time_ns.t * float) list
