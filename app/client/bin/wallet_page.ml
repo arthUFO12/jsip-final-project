@@ -52,8 +52,18 @@ let wallet_page (local_ graph) =
   let passphrase2, set_passphrase2 = Bonsai.state "" graph in
   let production, set_production = Bonsai.state false graph in
   let unlock_passphrase, set_unlock_passphrase = Bonsai.state "" graph in
+  (* The venue account (cash + positions) behind the unlocked key, and the
+     engaged reason after tripping the kill switch from this page. *)
+  let account, set_account = Bonsai.state_opt graph in
+  let tripped, set_tripped = Bonsai.state_opt graph in
   let dispatch_get =
     Rpc_effect.Rpc.dispatcher Protocol.get_trading_key graph
+  in
+  let dispatch_account =
+    Rpc_effect.Rpc.dispatcher Protocol.get_account graph
+  in
+  let dispatch_trip =
+    Rpc_effect.Rpc.dispatcher Protocol.trip_kill_switch graph
   in
   let dispatch_connect =
     Rpc_effect.Rpc.dispatcher Protocol.connect_trading_key graph
@@ -68,9 +78,13 @@ let wallet_page (local_ graph) =
     Rpc_effect.Rpc.dispatcher Protocol.forget_trading_key graph
   in
   let on_activate =
-    let%map dispatch_get and set_status in
+    let%map dispatch_get and set_status and dispatch_account and set_account in
     let%bind.Effect response = dispatch_get () in
-    set_status (Some (Or_error.join response))
+    let%bind.Effect () = set_status (Some (Or_error.join response)) in
+    (* Errors here just mean "locked"; the card only renders when the key
+       status says unlocked. *)
+    let%bind.Effect account = dispatch_account () in
+    set_account (Some (Or_error.join account))
   in
   Bonsai.Edge.lifecycle ~on_activate graph;
   let%arr status
@@ -89,10 +103,16 @@ let wallet_page (local_ graph) =
   and set_production
   and unlock_passphrase
   and set_unlock_passphrase
+  and account
+  and set_account
+  and tripped
+  and set_tripped
   and dispatch_connect
   and dispatch_unlock
   and dispatch_lock
-  and dispatch_forget in
+  and dispatch_forget
+  and dispatch_account
+  and dispatch_trip in
   let running = Request_status.is_running op in
   (* Every mutation follows the same shape: mark busy, dispatch, land the
      fresh status (clearing any secrets the form was holding) or keep the
@@ -109,6 +129,11 @@ let wallet_page (local_ graph) =
         ; on_ok
         ]
     | Error error -> set_op (Failed error)
+  in
+  let load_account =
+    let open Effect.Let_syntax in
+    let%bind response = dispatch_account () in
+    set_account (Some (Or_error.join response))
   in
   let clear_secrets =
     Effect.Many
@@ -301,7 +326,7 @@ let wallet_page (local_ graph) =
               ~enabled:(not running)
               ~class_:"btn-secondary"
               ~label:"Lock"
-              (run_op (dispatch_lock ()))
+              (run_op ~on_ok:(set_account None) (dispatch_lock ()))
           ]
       | false ->
         Vdom.Node.div
@@ -319,7 +344,9 @@ let wallet_page (local_ graph) =
               ~class_:"btn-primary"
               ~label:"Unlock"
               (run_op
-                 ~on_ok:(set_unlock_passphrase "")
+                 ~on_ok:
+                   (Effect.Many
+                      [ set_unlock_passphrase ""; load_account ])
                  (dispatch_unlock unlock_passphrase))
           ]
     in
@@ -341,8 +368,123 @@ let wallet_page (local_ graph) =
               ~enabled:(not running)
               ~class_:"btn-secondary"
               ~label:"Forget this key (deletes the encrypted file)"
-              (run_op ~on_ok:clear_secrets (dispatch_forget ()))
+              (run_op
+                 ~on_ok:(Effect.Many [ clear_secrets; set_account None ])
+                 (dispatch_forget ()))
           ]
+      ]
+  in
+  (* What the venue says the unlocked key holds — the ground truth the
+     trade log and wallet scoreboard approximate. *)
+  let account_card =
+    let position_row
+      ({ ticker; position; exposure_dollars } :
+        Protocol.Account.Position.t)
+      =
+      Vdom.Node.div
+        ~attrs:[ cls "arb-wallet-entry" ]
+        [ Vdom.Node.span
+            ~attrs:[ cls "wallet-key-hint" ]
+            [ Vdom.Node.text ticker ]
+        ; Vdom.Node.span [ Vdom.Node.text (sprintf "%+d contracts" position) ]
+        ; Vdom.Node.span
+            ~attrs:[ cls "arb-wallet-entry-dollars" ]
+            [ Vdom.Node.text (sprintf "$%.2f exposure" exposure_dollars) ]
+        ]
+    in
+    let body =
+      match account with
+      | None ->
+        Vdom.Node.div
+          ~attrs:[ cls "status" ]
+          [ Vdom.Node.text "loading the venue account..." ]
+      | Some (Error error) -> error_banner ~retry:load_account error
+      | Some (Ok { Protocol.Account.balance_dollars; positions; production })
+        ->
+        let badge =
+          match production with
+          | true ->
+            Vdom.Node.span
+              ~attrs:[ cls "wallet-badge wallet-badge-prod" ]
+              [ Vdom.Node.text "production - real money" ]
+          | false ->
+            Vdom.Node.span
+              ~attrs:[ cls "wallet-badge wallet-badge-demo" ]
+              [ Vdom.Node.text "demo - pretend money" ]
+        in
+        Vdom.Node.div
+          ([ Vdom.Node.div
+               [ Vdom.Node.span
+                   ~attrs:[ cls "arb-wallet-amount arb-wallet-real" ]
+                   [ Vdom.Node.text (sprintf "$%.2f" balance_dollars) ]
+               ; badge
+               ]
+           ; Vdom.Node.div
+               ~attrs:[ cls "wallet-hint" ]
+               [ Vdom.Node.text "available cash on the venue" ]
+           ]
+           @ (match positions with
+              | [] ->
+                [ Vdom.Node.div
+                    ~attrs:[ cls "status" ]
+                    [ Vdom.Node.text "no open positions" ]
+                ]
+              | positions -> List.map positions ~f:position_row)
+           @ [ Vdom.Node.div
+                 ~attrs:[ cls "button-row" ]
+                 [ button
+                     ~class_:"btn-secondary"
+                     ~label:"Refresh"
+                     load_account
+                 ]
+             ])
+    in
+    Vdom.Node.div
+      ~attrs:[ cls "wallet-status-card" ]
+      [ Vdom.Node.div
+          ~attrs:[ cls "list-heading" ]
+          [ Vdom.Node.text "venue account" ]
+      ; body
+      ]
+  in
+  (* One-way from here: the button creates the sentinel file on the server;
+     clearing it back requires shell access to that machine. *)
+  let emergency_card =
+    let trip =
+      let open Effect.Let_syntax in
+      let%bind response = dispatch_trip "tripped from the wallet page" in
+      match Or_error.join response with
+      | Ok reason -> set_tripped (Some reason)
+      | Error error -> set_op (Failed error)
+    in
+    let body =
+      match tripped with
+      | Some reason ->
+        Vdom.Node.div
+          ~attrs:[ cls "arb-onesided" ]
+          [ Vdom.Node.text
+              [%string
+                "KILL SWITCH ENGAGED (%{reason}) — every live order now                  refuses. To resume, delete the trading.disabled file in                  the server's working directory."]
+          ]
+      | None ->
+        Vdom.Node.div
+          [ Vdom.Node.p
+              ~attrs:[ cls "wallet-hint" ]
+              [ Vdom.Node.text
+                  "Stops every live order this server could place,                    immediately, including assisted hedges mid-flow.                    One-way from the browser: resuming requires deleting                    the sentinel file on the server machine."
+              ]
+          ; button
+              ~class_:"btn-danger"
+              ~label:"STOP ALL LIVE TRADING"
+              trip
+          ]
+    in
+    Vdom.Node.div
+      ~attrs:[ cls "wallet-status-card" ]
+      [ Vdom.Node.div
+          ~attrs:[ cls "list-heading" ]
+          [ Vdom.Node.text "emergency stop" ]
+      ; body
       ]
   in
   let body =
@@ -355,7 +497,16 @@ let wallet_page (local_ graph) =
       Vdom.Node.pre [ Vdom.Node.text (Error.to_string_hum error) ]
     | Some (Ok key_status) ->
       (match key_status.Protocol.Trading_key.Status.connected with
-       | true -> status_card key_status
+       | true ->
+         Vdom.Node.div
+           ([ status_card key_status ]
+            @ (match key_status.unlocked with
+               | true -> [ account_card ]
+               | false -> [])
+            @
+            match key_status.live_allowed with
+            | true -> [ emergency_card ]
+            | false -> [])
        | false -> connect_form)
   in
   Vdom.Node.div

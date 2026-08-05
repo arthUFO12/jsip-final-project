@@ -19,3 +19,9 @@ val sentinel_file : string
 
 (** [engaged ()] is [Some reason] when trading must not happen. *)
 val engaged : unit -> string option Deferred.t
+
+(** [trip ~reason] creates the sentinel file with [reason] as its contents —
+    the remote half of the design above: any surface may stop trading, but
+    only someone at the machine can delete the file and resume. Idempotent;
+    tripping an already-tripped switch rewrites the reason. *)
+val trip : reason:string -> unit Deferred.Or_error.t

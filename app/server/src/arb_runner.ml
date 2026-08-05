@@ -114,7 +114,27 @@ let sweep ({ threshold } : Protocol.Sweep_request.t) =
 
 (* The bot's own execution defaults decide what counts as tradable, so the
    page and the paper bot never disagree about a hit. *)
-let execution_defaults = Config.Execution.default
+(* The caps rail every live order runs inside. Overridable once at startup
+   from server flags; [Config.validate]d there so a zero/negative cap kills
+   the server at launch instead of silently disabling a rail. *)
+let execution_config = ref Config.Execution.default
+
+let set_execution_caps ~max_order_dollars ~max_day_dollars =
+  let updated =
+    { !execution_config with
+      Config.Execution.max_dollars_per_order =
+        Price.of_float_dollars max_order_dollars
+    ; max_dollars_per_day = Price.of_float_dollars max_day_dollars
+    }
+  in
+  let open Or_error.Let_syntax in
+  let%map (_ : Config.t) =
+    Config.validate
+      { Config.default with trading = Live; execution = updated }
+  in
+  execution_config := updated
+;;
+
 
 (* The venue's own page for a market — the "actually go do it" link. Kalshi
    groups markets under a series page; Polymarket routes by slug. *)
@@ -174,7 +194,7 @@ let card_of_split
   ; size
   ; dollars = edge *. Float.of_int size
   ; tradable =
-      Float.( >= ) edge (dollars execution_defaults.min_edge) && size > 0
+      Float.( >= ) edge (dollars !execution_config.min_edge) && size > 0
   ; acted = false
   }
 ;;
@@ -455,7 +475,7 @@ let preflight ({ pair_key; manual_is_yes } : Protocol.Preflight_request.t) =
   let%bind spent_today =
     Database.Database_exec.sum_trade_dollars_since (Rails.utc_day_start ())
   in
-  let execution = execution_defaults in
+  let execution = !execution_config in
   let day_room =
     Float.max 0. (cap_dollars execution.max_dollars_per_day -. spent_today)
   in
@@ -670,7 +690,7 @@ let hedge
           in
           let client_order_id = [%string "hedge-%{nonce}"] in
           (match%bind.Deferred
-             Rails.live_refusal ~execution:execution_defaults order
+             Rails.live_refusal ~execution:!execution_config order
            with
            | Some reason ->
              let%bind () =
@@ -771,6 +791,54 @@ let hedge
                 return
                   (Protocol.Hedge_result.Hedged
                      { price = hedge_price; count = filled; fee; unhedged })))))
+;;
+
+let account () =
+  match !live_state with
+  | None ->
+    Deferred.Or_error.error_string
+      "no trading key unlocked - unlock one on the Wallet page"
+  | Some ((_ : Execution.Executor.t), credentials) ->
+    let open Deferred.Or_error.Let_syntax in
+    let%bind balance_dollars = Execution.Kalshi_live.balance credentials in
+    let%bind positions = Execution.Kalshi_live.positions credentials in
+    let production =
+      String.equal
+        (Execution.Kalshi_live.Credentials.host credentials)
+        Execution.Kalshi_live.live_host
+    in
+    return
+      { Protocol.Account.balance_dollars
+      ; positions =
+          List.map
+            positions
+            ~f:(fun { Execution.Kalshi_live.Position.ticker
+                    ; position
+                    ; exposure_dollars
+                    } ->
+              { Protocol.Account.Position.ticker
+              ; position
+              ; exposure_dollars
+              })
+      ; production
+      }
+;;
+
+let trip_kill_switch reason =
+  let open Deferred.Or_error.Let_syntax in
+  let reason =
+    match String.strip reason with
+    | "" -> "tripped from the wallet page"
+    | reason -> reason
+  in
+  let%bind () = Execution.Kill_switch.trip ~reason in
+  (* Confirm by reading the switch back, so the caller shows the truth. *)
+  match%bind.Deferred Execution.Kill_switch.engaged () with
+  | Some engaged_reason -> return engaged_reason
+  | None ->
+    Deferred.Or_error.error_string
+      "kill switch did not engage - check the server's working directory \
+       permissions"
 ;;
 
 let scan () =

@@ -464,6 +464,29 @@ module Trading_key : sig
   end
 end
 
+module Account : sig
+  (** The unlocked trading key's account as the venue reports it — cash and
+      open positions on whichever host (demo or production) the key
+      targets. Only as fresh as the venue's read side. *)
+
+  module Position : sig
+    type t =
+      { ticker : string
+      ; position : int
+        (** Signed contracts: positive long YES, negative NO. *)
+      ; exposure_dollars : float (** The venue's marked exposure. *)
+      }
+    [@@deriving sexp_of, bin_io]
+  end
+
+  type t =
+    { balance_dollars : float
+    ; positions : Position.t list
+    ; production : bool (** Real dollars, not demo. *)
+    }
+  [@@deriving sexp_of, bin_io]
+end
+
 (** Current (still-open) markets from the server's database seed, in no
     particular order — grouping and ranking are client concerns. *)
 val get_markets : (unit, Market_card.t list Or_error.t) Rpc.Rpc.t
@@ -549,3 +572,13 @@ val lock_trading_key : (unit, Trading_key.Status.t Or_error.t) Rpc.Rpc.t
 
 (** Lock, then delete the encrypted key file — full disconnect. *)
 val forget_trading_key : (unit, Trading_key.Status.t Or_error.t) Rpc.Rpc.t
+
+(** The unlocked key's cash and open positions, straight from the venue.
+    Errors when no key is unlocked. *)
+val get_account : (unit, Account.t Or_error.t) Rpc.Rpc.t
+
+(** Engage the kill switch: creates the sentinel file with the given reason
+    so every live order refuses from now on. One-way from the browser —
+    clearing it requires deleting the file on the server machine. Returns
+    the engaged reason as confirmation. *)
+val trip_kill_switch : (string, string Or_error.t) Rpc.Rpc.t

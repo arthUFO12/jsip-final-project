@@ -344,6 +344,24 @@ module Trading_key = struct
   end
 end
 
+module Account = struct
+  module Position = struct
+    type t =
+      { ticker : string
+      ; position : int
+      ; exposure_dollars : float
+      }
+    [@@deriving sexp_of, bin_io]
+  end
+
+  type t =
+    { balance_dollars : float
+    ; positions : Position.t list
+    ; production : bool
+    }
+  [@@deriving sexp_of, bin_io]
+end
+
 let get_markets =
   Rpc.Rpc.create
     ~name:"get-markets"
@@ -503,6 +521,24 @@ let lock_trading_key =
     ~version:0
     ~bin_query:[%bin_type_class: unit]
     ~bin_response:[%bin_type_class: Trading_key.Status.t Or_error.t]
+    ~include_in_error_count:Or_error
+;;
+
+let get_account =
+  Rpc.Rpc.create
+    ~name:"get-account"
+    ~version:0
+    ~bin_query:[%bin_type_class: unit]
+    ~bin_response:[%bin_type_class: Account.t Or_error.t]
+    ~include_in_error_count:Or_error
+;;
+
+let trip_kill_switch =
+  Rpc.Rpc.create
+    ~name:"trip-kill-switch"
+    ~version:0
+    ~bin_query:[%bin_type_class: string]
+    ~bin_response:[%bin_type_class: string Or_error.t]
     ~include_in_error_count:Or_error
 ;;
 

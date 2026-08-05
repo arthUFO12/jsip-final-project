@@ -1096,12 +1096,26 @@ let arbitrage_page (local_ graph) =
          in
          (match Or_error.join response with
           | Error error ->
+            (* A transport/server error is NOT a refusal: the order may
+               have been sent before the connection dropped. Render it as
+               Failed with the uncertainty spelled out, never as
+               "nothing was sent". *)
             set_hedge_dialog
               (Hedge_dialog.Finished
                  { edge
                  ; result =
-                     Protocol.Hedge_result.Refused
-                       (Error.to_string_hum error)
+                     Protocol.Hedge_result.Failed
+                       { error =
+                           Other "connection lost - outcome unknown"
+                       ; detail =
+                           [%string
+                             "the request errored in flight, so the hedge \
+                              may or may not have been placed. Check your \
+                              Kalshi account (or the server's trade log) \
+                              before retrying: \
+                              %{Error.to_string_hum error}"]
+                       ; unhedged = count
+                       }
                  })
           | Ok result ->
             Effect.Many

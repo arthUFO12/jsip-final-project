@@ -233,6 +233,10 @@ let implementations =
           Arb_runner.lock_trading_key ())
       ; Rpc.Rpc.implement Protocol.forget_trading_key (fun () () ->
           Arb_runner.forget_trading_key ())
+      ; Rpc.Rpc.implement Protocol.get_account (fun () () ->
+          Arb_runner.account ())
+      ; Rpc.Rpc.implement Protocol.trip_kill_switch (fun () reason ->
+          Arb_runner.trip_kill_switch reason)
       ]
     ~on_unknown_rpc:`Close_connection
     ~on_exception:Log_on_background_exn
@@ -265,7 +269,15 @@ let http_handler ~client_js ~client_css_dir =
     ~on_unknown_url:`Not_found
 ;;
 
-let serve ~port ~db_name ~client_js ~client_css_dir ~allow_live =
+let serve
+  ~port
+  ~db_name
+  ~client_js
+  ~client_css_dir
+  ~allow_live
+  ~max_order_dollars
+  ~max_day_dollars
+  =
   let open Deferred.Or_error.Let_syntax in
   (* The web server's only live path (assisted hedges) exists solely behind
      this launch flag: a routine restart cannot go live by accident, and a
@@ -273,6 +285,14 @@ let serve ~port ~db_name ~client_js ~client_css_dir ~allow_live =
      either source — [KALSHI_*] env vars right now, or the Wallet page's
      encrypted key unlocked later; env credentials are optional so a
      [-allow-live] server can start clean and wait for the unlock. *)
+  let%bind () =
+    Deferred.return
+      (Arb_runner.set_execution_caps ~max_order_dollars ~max_day_dollars)
+  in
+  printf
+    "spending caps: $%.2f per order, $%.2f per UTC day\n"
+    max_order_dollars
+    max_day_dollars;
   Arb_runner.set_live_allowed allow_live;
   let%bind () =
     match allow_live with
@@ -371,6 +391,19 @@ let serve_command =
           ~doc:
             "DIR directory holding tokens.css and app.css (default \
              app/client/static)"
+      and max_order_dollars =
+        flag
+          "-max-order-dollars"
+          (optional_with_default 25. float)
+          ~doc:
+            "DOLLARS per-order spending cap for live trading (default 25)"
+      and max_day_dollars =
+        flag
+          "-max-day-dollars"
+          (optional_with_default 100. float)
+          ~doc:
+            "DOLLARS per-UTC-day spending cap for live trading (default \
+             100)"
       and allow_live =
         flag
           "-allow-live"
@@ -381,7 +414,15 @@ let serve_command =
              order runs inside the spending caps, behind the kill switch, \
              and lands in the audit log"
       in
-      fun () -> serve ~port ~db_name ~client_js ~client_css_dir ~allow_live]
+      fun () ->
+        serve
+          ~port
+          ~db_name
+          ~client_js
+          ~client_css_dir
+          ~allow_live
+          ~max_order_dollars
+          ~max_day_dollars]
 ;;
 
 (* Dispatches [get-markets] against a running server the same way the browser

@@ -346,6 +346,21 @@ body {
 }
 .btn-secondary:hover:not(:disabled) { border-color: var(--accent); color: var(--ink); }
 .btn-secondary:disabled { opacity: 0.35; cursor: default; }
+/* The emergency stop — sober, unmistakable, never decorative. */
+.btn-danger {
+  border: 1px solid var(--neg-border);
+  border-radius: var(--radius-s);
+  background: var(--neg-bg);
+  color: var(--neg-strong);
+  padding: 10px 22px;
+  font-size: var(--text-base);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  transition: border-color var(--ease-normal), color var(--ease-normal);
+}
+.btn-danger:hover { border-color: var(--neg); color: var(--neg); }
+.btn-danger:focus-visible { outline: 2px solid var(--neg); outline-offset: 2px; }
 .btn-primary:focus-visible, .btn-secondary:focus-visible,
 .nav-button:focus-visible, .suggestion:focus-visible {
   outline: 2px solid var(--accent);

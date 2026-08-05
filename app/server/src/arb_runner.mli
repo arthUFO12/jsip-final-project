@@ -54,6 +54,14 @@ val enable_live : Execution.Kalshi_live.Credentials.t -> unit
     browser can never talk a paper server into going live. *)
 val set_live_allowed : bool -> unit
 
+(** Override the spending caps from server flags, validated as a live
+    config — zero or negative caps are refused so a rail cannot be
+    disabled by flag typo. Call once at startup, before serving. *)
+val set_execution_caps
+  :  max_order_dollars:float
+  -> max_day_dollars:float
+  -> unit Or_error.t
+
 (** Backs {!Protocol.get_execution_capability}. *)
 val capability : unit -> Protocol.Execution_capability.t Deferred.Or_error.t
 
@@ -99,6 +107,14 @@ val hedge
   -> Protocol.Hedge_result.t Deferred.Or_error.t
 
 (** Backs {!Protocol.get_wallet}: the paper-vs-acted score and its entries. *)
+(** The unlocked key's cash and open positions from the venue; errors when
+    no key is unlocked. *)
+val account : unit -> Protocol.Account.t Deferred.Or_error.t
+
+(** Engage the kill switch with a reason (browser-initiated, one-way);
+    returns the engaged reason as confirmation. *)
+val trip_kill_switch : string -> string Deferred.Or_error.t
+
 val wallet : unit -> Protocol.Wallet.t Deferred.Or_error.t
 
 (** Backs {!Protocol.mark_acted}: freeze one booked pair as really traded and
