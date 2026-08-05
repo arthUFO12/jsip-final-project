@@ -56,8 +56,8 @@ let%expect_test "upsert adds new names; re-saving moves a bot to the end" =
   show bots;
   [%expect
     {|
-    alpha: sell 1 save_act no
     beta: every 2h buy 1 save_act yes
+    alpha: sell 1 save_act no
     |}]
 ;;
 

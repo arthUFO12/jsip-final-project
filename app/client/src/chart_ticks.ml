@@ -7,7 +7,8 @@ let multiples_within (range : Chart.Range.t) ~step =
     Float.iround_down_exn ((range.hi -. first +. (step /. 2.)) /. step) + 1
   in
   List.init (max 0 count) ~f:(fun i -> first +. (Float.of_int i *. step))
-  |> List.filter ~f:(fun value -> Float.O.(value <= range.hi +. (step /. 100.)))
+  |> List.filter ~f:(fun value ->
+    Float.O.(value <= range.hi +. (step /. 100.)))
 ;;
 
 let y_ticks (range : Chart.Range.t) ~max_count =
@@ -33,17 +34,22 @@ let hour = 3600.
 let day = 24. *. hour
 
 let time_steps =
-  [ hour; 3. *. hour; 6. *. hour; 12. *. hour; day; 2. *. day; 7. *. day
-  ; 14. *. day; 30. *. day
+  [ hour
+  ; 3. *. hour
+  ; 6. *. hour
+  ; 12. *. hour
+  ; day
+  ; 2. *. day
+  ; 7. *. day
+  ; 14. *. day
+  ; 30. *. day
   ]
 ;;
 
 let time_label ~step time_s =
   let time = Time_ns.of_span_since_epoch (Time_ns.Span.of_sec time_s) in
   let date = Time_ns.to_date time ~zone:Timezone.utc in
-  let day_part =
-    [%string "%{Date.month date#Month} %{Date.day date#Int}"]
-  in
+  let day_part = [%string "%{Date.month date#Month} %{Date.day date#Int}"] in
   match Float.O.(step >= day) with
   | true -> day_part
   | false ->

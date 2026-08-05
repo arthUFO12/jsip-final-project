@@ -16,12 +16,7 @@ let%expect_test "endpoints survive and spikes are kept" =
      min-max bucketing must not. *)
   let points =
     List.init 100 ~f:(fun i ->
-      let y =
-        match i with
-        | 25 -> 50.
-        | 75 -> -50.
-        | _ -> 0.
-      in
+      let y = match i with 25 -> 50. | 75 -> -50. | _ -> 0. in
       Float.of_int i, y)
   in
   print (Downsample.downsample points ~max_points:8);

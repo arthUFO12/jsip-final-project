@@ -12,8 +12,8 @@ module Status = struct
 end
 
 (* NIST SP 800-132 floor is 1000; OWASP's 2024 recommendation for
-   PBKDF2-HMAC-SHA256 is 600k. Local unlock latency (~1s) is acceptable for
-   a once-per-session action. *)
+   PBKDF2-HMAC-SHA256 is 600k. Local unlock latency (~1s) is acceptable for a
+   once-per-session action. *)
 let kdf_iterations = 600_000
 let derived_key_length = 32l
 let salt_length = 16
@@ -99,8 +99,7 @@ let save ~path ~key_id ~private_key_pem ~passphrase ~production () =
     | false ->
       Deferred.Or_error.error_s
         [%message
-          "passphrase too short"
-            ~minimum:(minimum_passphrase_length : int)]
+          "passphrase too short" ~minimum:(minimum_passphrase_length : int)]
   in
   (* Prove the key signs for the chosen host before anything hits disk — a
      typo'd PEM should fail here, not at the first order. *)
@@ -141,9 +140,13 @@ let save ~path ~key_id ~private_key_pem ~passphrase ~production () =
     }
   in
   Monitor.try_with_or_error ~name:"write wallet file" (fun () ->
-    let%bind.Deferred () = Unix.mkdir ~p:() ~perm:0o700 (Filename.dirname path) in
     let%bind.Deferred () =
-      Writer.save path ~contents:(Sexp.to_string_hum (On_disk.sexp_of_t on_disk))
+      Unix.mkdir ~p:() ~perm:0o700 (Filename.dirname path)
+    in
+    let%bind.Deferred () =
+      Writer.save
+        path
+        ~contents:(Sexp.to_string_hum (On_disk.sexp_of_t on_disk))
     in
     Unix.chmod path ~perm:0o600)
 ;;
@@ -156,11 +159,14 @@ let read_on_disk ~path =
       Reader.file_contents path)
   in
   (* Human-adjacent input off disk: parse defensively. *)
-  match Or_error.try_with (fun () -> On_disk.t_of_sexp (Sexp.of_string contents)) with
+  match
+    Or_error.try_with (fun () -> On_disk.t_of_sexp (Sexp.of_string contents))
+  with
   | Ok on_disk -> return on_disk
   | Error error ->
     Deferred.Or_error.error_s
-      [%message "wallet file did not parse" (path : string) (error : Error.t)]
+      [%message
+        "wallet file did not parse" (path : string) (error : Error.t)]
 ;;
 
 let status ~path () =
@@ -196,7 +202,8 @@ let unlock ~path ~passphrase () =
     Gcm.authenticate_decrypt
       ~key
       ~nonce
-      ~adata:(adata ~production:on_disk.production ~key_hint:on_disk.key_hint)
+      ~adata:
+        (adata ~production:on_disk.production ~key_hint:on_disk.key_hint)
       ciphertext
   with
   | None ->

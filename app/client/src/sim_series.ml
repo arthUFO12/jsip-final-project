@@ -27,9 +27,8 @@ let create (result : Protocol.Sim_result.t) ~max_points =
   let ticks =
     List.map result.ticks ~f:(fun (tick : Protocol.Tick_point.t) ->
       ( tick
-      , Portfolio.value
-          ~inventory:tick.inventory
-          ~yes_prices:tick.yes_prices ))
+      , Portfolio.value ~inventory:tick.inventory ~yes_prices:tick.yes_prices
+      ))
   in
   let tick_series name f =
     series
@@ -48,7 +47,8 @@ let create (result : Protocol.Sim_result.t) ~max_points =
         (Slug.to_string slug)
         (List.filter_map result.ticks ~f:(fun tick ->
            List.Assoc.find (field tick) slug ~equal:Slug.equal
-           |> Option.map ~f:(fun value -> tick.Protocol.Tick_point.time_s, value))))
+           |> Option.map ~f:(fun value ->
+             tick.Protocol.Tick_point.time_s, value))))
   in
   let baseline name f =
     series
@@ -81,7 +81,8 @@ let create (result : Protocol.Sim_result.t) ~max_points =
       ]
   ; value =
       [ tick_series "cash" (fun tick (_ : float) -> tick.cash)
-      ; tick_series "portfolio value" (fun (_ : Protocol.Tick_point.t) p -> p)
+      ; tick_series "portfolio value" (fun (_ : Protocol.Tick_point.t) p ->
+          p)
       ; tick_series "total value" (fun tick p -> tick.cash +. p)
       ]
   ; prices = per_slug (fun tick -> tick.yes_prices)
@@ -91,8 +92,7 @@ let create (result : Protocol.Sim_result.t) ~max_points =
           (Slug.to_string slug)
           (List.filter_map result.ticks ~f:(fun tick ->
              List.Assoc.find tick.inventory slug ~equal:Slug.equal
-             |> Option.map ~f:(fun count ->
-               tick.time_s, Float.of_int count))))
+             |> Option.map ~f:(fun count -> tick.time_s, Float.of_int count))))
   ; baseline_pnl
   ; baseline_value
   }

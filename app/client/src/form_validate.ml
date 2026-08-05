@@ -32,8 +32,7 @@ let trade_probability text =
   | Some value ->
     (match Float.O.(value > 0. && value <= 1.) with
      | true -> Ok value
-     | false ->
-       Error "trade probability must be above 0 and at most 1")
+     | false -> Error "trade probability must be above 0 and at most 1")
 ;;
 
 let match_threshold text =

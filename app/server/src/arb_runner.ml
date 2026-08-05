@@ -135,7 +135,6 @@ let set_execution_caps ~max_order_dollars ~max_day_dollars =
   execution_config := updated
 ;;
 
-
 (* The venue's own page for a market — the "actually go do it" link. Kalshi
    groups markets under a series page; Polymarket routes by slug. *)
 let venue_url (stub : Market_stub.t) =
@@ -232,9 +231,9 @@ let edge_card ~legs ({ Matcher.Candidate.left; right } as candidate) =
    by the upsert. *)
 let book_edge (card : Protocol.Edge_card.t) =
   let open Deferred.Or_error.Let_syntax in
-  (* The sighting goes into the append-only history first — the wallet
-     upsert below overwrites, so this row is the only durable record that
-     the edge existed at this moment. *)
+  (* The sighting goes into the append-only history first — the wallet upsert
+     below overwrites, so this row is the only durable record that the edge
+     existed at this moment. *)
   let%bind () =
     Database.Database_exec.append_arb_observation
       { Arb_observation.at = Time_ns.now ()
@@ -581,10 +580,10 @@ let log_hedge_cancel ~(order : Execution.Order.t) ~client_order_id ~outcome =
 let status_poll_attempts = 3
 let status_poll_interval = Time_ns.Span.of_sec 1.
 
-(* The create response's synchronous fill count lags the venue's read side
-   by a beat, so a "partial" may already be fully executed. Give the order a
-   few polls to say so; otherwise cancel the remainder and take the cancel's
-   own [reduced_by] as the authoritative unfilled count. Never errors — the
+(* The create response's synchronous fill count lags the venue's read side by
+   a beat, so a "partial" may already be fully executed. Give the order a few
+   polls to say so; otherwise cancel the remainder and take the cancel's own
+   [reduced_by] as the authoritative unfilled count. Never errors — the
    fallback is the synchronous count, with the uncertainty logged. *)
 let reconcile_partial_fill
   credentials
@@ -596,9 +595,7 @@ let reconcile_partial_fill
   =
   let open Deferred.Let_syntax in
   let rec poll attempt =
-    match%bind
-      Execution.Kalshi_live.order_status credentials ~order_id
-    with
+    match%bind Execution.Kalshi_live.order_status credentials ~order_id with
     | Ok "executed" -> return `Executed
     | Ok status ->
       (match attempt >= status_poll_attempts with
@@ -607,8 +604,8 @@ let reconcile_partial_fill
          let%bind () = Clock_ns.after status_poll_interval in
          poll (attempt + 1))
     | Error (_ : Error.t) ->
-      (* The read side 404s for a moment after creation; retry like a
-         resting order. *)
+      (* The read side 404s for a moment after creation; retry like a resting
+         order. *)
       (match attempt >= status_poll_attempts with
        | true -> return (`Still "unreadable")
        | false ->
@@ -620,9 +617,7 @@ let reconcile_partial_fill
     (* The remainder filled while we watched — no cancel to send. *)
     return size
   | `Still status ->
-    (match%bind
-       Execution.Kalshi_live.cancel_order credentials ~order_id
-     with
+    (match%bind Execution.Kalshi_live.cancel_order credentials ~order_id with
      | Ok reduced_by ->
        let%bind () =
          log_hedge_cancel
@@ -630,7 +625,8 @@ let reconcile_partial_fill
            ~client_order_id
            ~outcome:
              [%string
-               "canceled remainder: removed %{reduced_by#Int} (order was                 %{status})"]
+               "canceled remainder: removed %{reduced_by#Int} (order \
+                was                 %{status})"]
        in
        (* What the cancel could not remove had filled. *)
        return (Int.max synchronous_filled (size - reduced_by))
@@ -641,7 +637,8 @@ let reconcile_partial_fill
            ~client_order_id
            ~outcome:
              [%string
-               "CANCEL FAILED - remainder may still be resting:                 %{Error.to_string_hum error}"]
+               "CANCEL FAILED - remainder may still be \
+                resting:                 %{Error.to_string_hum error}"]
        in
        return synchronous_filled)
 ;;
@@ -757,9 +754,9 @@ let hedge
                        ~outcome:[%string "accepted: filled %{filled#Int}"]
                        ~dollars:(Rails.order_dollars order))
                 in
-                (* A remainder resting on the book is not a hedge the
-                   user can count on; reconcile against the venue (poll,
-                   then cancel) so [unhedged] is definitive. *)
+                (* A remainder resting on the book is not a hedge the user
+                   can count on; reconcile against the venue (poll, then
+                   cancel) so [unhedged] is definitive. *)
                 let%bind filled =
                   match filled < size, fill.venue_order_id with
                   | false, _ | true, None -> return filled
@@ -778,8 +775,8 @@ let hedge
                   match filled = Size.to_int fill.filled_size with
                   | true -> dollars fill.fee
                   | false ->
-                    (* Reconciliation changed the count; re-estimate the
-                       fee at the fill price. *)
+                    (* Reconciliation changed the count; re-estimate the fee
+                       at the fill price. *)
                     dollars
                       (Size.multiply_by_price
                          (Size.of_int filled)
@@ -825,10 +822,13 @@ let account () =
       ; positions =
           List.map
             positions
-            ~f:(fun { Execution.Kalshi_live.Position.ticker
-                    ; position
-                    ; exposure_dollars
-                    } ->
+            ~f:
+              (fun
+                { Execution.Kalshi_live.Position.ticker
+                ; position
+                ; exposure_dollars
+                }
+              ->
               { Protocol.Account.Position.ticker
               ; position
               ; exposure_dollars

@@ -52,8 +52,9 @@ let nearest points ~x =
     done;
     let insertion = !lo in
     let candidates =
-      List.filter [ insertion - 1; insertion ] ~f:(fun i ->
-        i >= 0 && i < length)
+      List.filter
+        [ insertion - 1; insertion ]
+        ~f:(fun i -> i >= 0 && i < length)
     in
     List.min_elt candidates ~compare:(fun a b ->
       Float.compare

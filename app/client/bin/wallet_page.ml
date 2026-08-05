@@ -1,5 +1,5 @@
-(* The Wallet page: connect, unlock, lock, or forget the encrypted
-   Kalshi trading key. *)
+(* The Wallet page: connect, unlock, lock, or forget the encrypted Kalshi
+   trading key. *)
 
 open! Core
 open! Types
@@ -78,7 +78,10 @@ let wallet_page (local_ graph) =
     Rpc_effect.Rpc.dispatcher Protocol.forget_trading_key graph
   in
   let on_activate =
-    let%map dispatch_get and set_status and dispatch_account and set_account in
+    let%map dispatch_get
+    and set_status
+    and dispatch_account
+    and set_account in
     let%bind.Effect response = dispatch_get () in
     let%bind.Effect () = set_status (Some (Or_error.join response)) in
     (* Errors here just mean "locked"; the card only renders when the key
@@ -159,8 +162,7 @@ let wallet_page (local_ graph) =
         ; Vdom.Attr.type_ (if password then "password" else "text")
         ; Vdom.Attr.placeholder placeholder
         ; Vdom.Attr.value value
-        ; Vdom.Attr.on_input (fun (_ : _ Js_of_ocaml.Js.t) text ->
-            set text)
+        ; Vdom.Attr.on_input (fun (_ : _ Js_of_ocaml.Js.t) text -> set text)
         ]
       ()
   in
@@ -207,8 +209,7 @@ let wallet_page (local_ graph) =
           (Vdom.Node.textarea
              ~attrs:
                [ cls "wallet-pem"
-               ; Vdom.Attr.placeholder
-                   "-----BEGIN PRIVATE KEY-----\n..."
+               ; Vdom.Attr.placeholder "-----BEGIN PRIVATE KEY-----\n..."
                ; Vdom.Attr.value pem
                ; Vdom.Attr.on_input (fun (_ : _ Js_of_ocaml.Js.t) text ->
                    set_pem text)
@@ -228,10 +229,7 @@ let wallet_page (local_ graph) =
              ~placeholder:"same passphrase"
              passphrase2
              set_passphrase2)
-      ; (match
-           passphrases_match
-           || String.is_empty passphrase2
-         with
+      ; (match passphrases_match || String.is_empty passphrase2 with
          | true -> Vdom.Node.none
          | false ->
            Vdom.Node.div
@@ -312,9 +310,8 @@ let wallet_page (local_ graph) =
         Vdom.Node.div
           ~attrs:[ cls "wallet-state-line wallet-locked" ]
           [ Vdom.Node.text
-              "Locked - and this server was started without -allow-live, \
-               so it cannot trade at all. Restart it with the flag to \
-               unlock."
+              "Locked - and this server was started without -allow-live, so \
+               it cannot trade at all. Restart it with the flag to unlock."
           ]
     in
     let unlock_row =
@@ -345,8 +342,7 @@ let wallet_page (local_ graph) =
               ~label:"Unlock"
               (run_op
                  ~on_ok:
-                   (Effect.Many
-                      [ set_unlock_passphrase ""; load_account ])
+                   (Effect.Many [ set_unlock_passphrase ""; load_account ])
                  (dispatch_unlock unlock_passphrase))
           ]
     in
@@ -374,19 +370,19 @@ let wallet_page (local_ graph) =
           ]
       ]
   in
-  (* What the venue says the unlocked key holds — the ground truth the
-     trade log and wallet scoreboard approximate. *)
+  (* What the venue says the unlocked key holds — the ground truth the trade
+     log and wallet scoreboard approximate. *)
   let account_card =
     let position_row
-      ({ ticker; position; exposure_dollars } :
-        Protocol.Account.Position.t)
+      ({ ticker; position; exposure_dollars } : Protocol.Account.Position.t)
       =
       Vdom.Node.div
         ~attrs:[ cls "arb-wallet-entry" ]
         [ Vdom.Node.span
             ~attrs:[ cls "wallet-key-hint" ]
             [ Vdom.Node.text ticker ]
-        ; Vdom.Node.span [ Vdom.Node.text (sprintf "%+d contracts" position) ]
+        ; Vdom.Node.span
+            [ Vdom.Node.text (sprintf "%+d contracts" position) ]
         ; Vdom.Node.span
             ~attrs:[ cls "arb-wallet-entry-dollars" ]
             [ Vdom.Node.text (sprintf "$%.2f exposure" exposure_dollars) ]
@@ -464,19 +460,24 @@ let wallet_page (local_ graph) =
           ~attrs:[ cls "arb-onesided" ]
           [ Vdom.Node.text
               [%string
-                "KILL SWITCH ENGAGED (%{reason}) — every live order now                  refuses. To resume, delete the trading.disabled file in                  the server's working directory."]
+                "KILL SWITCH ENGAGED (%{reason}) — every live order \
+                 now                  refuses. To resume, delete the \
+                 trading.disabled file in                  the server's \
+                 working directory."]
           ]
       | None ->
         Vdom.Node.div
           [ Vdom.Node.p
               ~attrs:[ cls "wallet-hint" ]
               [ Vdom.Node.text
-                  "Stops every live order this server could place,                    immediately, including assisted hedges mid-flow.                    One-way from the browser: resuming requires deleting                    the sentinel file on the server machine."
+                  "Stops every live order this server could \
+                   place,                    immediately, including \
+                   assisted hedges mid-flow.                    One-way \
+                   from the browser: resuming requires \
+                   deleting                    the sentinel file on the \
+                   server machine."
               ]
-          ; button
-              ~class_:"btn-danger"
-              ~label:"STOP ALL LIVE TRADING"
-              trip
+          ; button ~class_:"btn-danger" ~label:"STOP ALL LIVE TRADING" trip
           ]
     in
     Vdom.Node.div
@@ -516,4 +517,3 @@ let wallet_page (local_ graph) =
     ; op_status
     ]
 ;;
-

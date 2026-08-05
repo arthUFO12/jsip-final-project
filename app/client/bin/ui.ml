@@ -1,7 +1,7 @@
-(* Shared view building blocks: attribute helpers, the standard
-   [button], suggestion lists, market chips, and stat tiles. Meant to
-   be [open]ed by the page modules, so the view code that moved here
-   from main.ml reads exactly as before the split. *)
+(* Shared view building blocks: attribute helpers, the standard [button],
+   suggestion lists, market chips, and stat tiles. Meant to be [open]ed by
+   the page modules, so the view code that moved here from main.ml reads
+   exactly as before the split. *)
 
 open! Core
 open! Types
@@ -36,6 +36,15 @@ let suggestion_list suggestions ~on_pick =
            [ Vdom.Node.text suggestion ]))
 ;;
 
+(* Keeps a market-chip name to roughly one row of the rules layout. *)
+let max_title_length = 60
+
+let truncate_title title =
+  match String.length title > max_title_length with
+  | false -> title
+  | true -> String.prefix title max_title_length ^ "..."
+;;
+
 (* Without [on_remove] the chips are a plain listing — no dead ✕ buttons. *)
 let chips ?on_remove selected =
   Vdom.Node.div
@@ -50,9 +59,21 @@ let chips ?on_remove selected =
                [ Vdom.Node.text "✕" ]
            ]
        in
-       Vdom.Node.div
-         ~attrs:[ cls "chip" ]
-         (Vdom.Node.text (Slug.to_string card.slug) :: remove)))
+       let name_and_ticker =
+         Vdom.Node.div
+           ~attrs:[ cls "chip-lines" ]
+           [ Vdom.Node.div
+               [ Vdom.Node.text
+                   [%string "name: %{truncate_title card.title}"]
+               ]
+           ; Vdom.Node.div
+               ~attrs:[ cls "chip-ticker" ]
+               [ Vdom.Node.text
+                   [%string "ticker: %{Slug.to_string card.slug}"]
+               ]
+           ]
+       in
+       Vdom.Node.div ~attrs:[ cls "chip" ] (name_and_ticker :: remove)))
 ;;
 
 let stat_tile ?value_class ~label ~value () =
@@ -100,14 +121,13 @@ let error_box error =
     [ Vdom.Node.text (Error.to_string_hum error) ]
 ;;
 
-(* A failure the user can act on: the message plus an optional retry of
-   the request that failed, and an optional dismiss. *)
+(* A failure the user can act on: the message plus an optional retry of the
+   request that failed, and an optional dismiss. *)
 let error_banner ?retry ?dismiss error =
   let retry_button =
     match retry with
     | None -> []
-    | Some retry ->
-      [ button ~class_:"btn-secondary" ~label:"Retry" retry ]
+    | Some retry -> [ button ~class_:"btn-secondary" ~label:"Retry" retry ]
   in
   let dismiss_button =
     match dismiss with
@@ -140,9 +160,10 @@ let num_input ?error ~value ~set_value () =
         ~attrs:
           [ Vdom.Attr.classes
               ("num-input"
-               :: (match error with
-                   | None -> []
-                   | Some (_ : string) -> [ "input-invalid" ]))
+               ::
+               (match error with
+                | None -> []
+                | Some (_ : string) -> [ "input-invalid" ]))
           ; Vdom.Attr.value value
           ; Vdom.Attr.on_input (fun (_ : _ Js_of_ocaml.Js.t) text ->
               set_value text)
@@ -151,4 +172,3 @@ let num_input ?error ~value ~set_value () =
     ; field_error error
     ]
 ;;
-

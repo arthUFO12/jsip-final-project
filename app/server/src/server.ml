@@ -244,8 +244,7 @@ let implementations =
 
 let http_handler ~client_js ~client_css_dir =
   (* [tokens.css] must precede [app.css]: the component rules consume the
-     custom properties the token sheet defines. Both load before the
-     bundle. *)
+     custom properties the token sheet defines. Both load before the bundle. *)
   let css_asset file =
     Cohttp_static_handler.Asset.local
       Cohttp_static_handler.Asset.Kind.css
@@ -396,15 +395,13 @@ let serve_command =
         flag
           "-max-order-dollars"
           (optional_with_default 25. float)
-          ~doc:
-            "DOLLARS per-order spending cap for live trading (default 25)"
+          ~doc:"DOLLARS per-order spending cap for live trading (default 25)"
       and max_day_dollars =
         flag
           "-max-day-dollars"
           (optional_with_default 100. float)
           ~doc:
-            "DOLLARS per-UTC-day spending cap for live trading (default \
-             100)"
+            "DOLLARS per-UTC-day spending cap for live trading (default 100)"
       and allow_live =
         flag
           "-allow-live"
@@ -815,16 +812,15 @@ let check_hedge_command =
   Command.async_or_error
     ~summary:
       "run the whole assisted-hedge path (preflight, rails, placement, \
-       reconciliation, audit) against Kalshi's DEMO environment; the \
-       manual Polymarket leg is pretend"
+       reconciliation, audit) against Kalshi's DEMO environment; the manual \
+       Polymarket leg is pretend"
     [%map_open.Command
       let db =
         flag
           "-db"
           (optional_with_default "arbiter.db" string)
           ~doc:
-            "FILE sqlite database with an approved pair (default \
-             arbiter.db)"
+            "FILE sqlite database with an approved pair (default arbiter.db)"
       and pair_key =
         flag
           "-pair-key"
@@ -845,9 +841,9 @@ let check_hedge_command =
           "-real"
           no_arg
           ~doc:
-            " REAL MONEY: hedge on production instead of demo. KALSHI_* \
-             env vars must hold production credentials; the spending caps \
-             and kill switch still apply."
+            " REAL MONEY: hedge on production instead of demo. KALSHI_* env \
+             vars must hold production credentials; the spending caps and \
+             kill switch still apply."
       in
       fun () -> check_hedge ~db ~pair_key ~count ~manual_price_cents ~real]
 ;;

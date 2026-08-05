@@ -9,9 +9,9 @@ open Ui
 
 (* ---------- Arbitrage page ---------- *)
 
-(* Every background request on this page shares {!Ui.Request_status}, so
-   each has a [Failed] arm its panel must render — sweep, scan, and
-   auto-review used to map failures back to [Idle], silently. *)
+(* Every background request on this page shares {!Ui.Request_status}, so each
+   has a [Failed] arm its panel must render — sweep, scan, and auto-review
+   used to map failures back to [Idle], silently. *)
 module Sweep_state = struct
   type t = Protocol.Sweep_summary.t Request_status.t [@@deriving sexp_of]
 end
@@ -242,8 +242,7 @@ let arb_pair_row ~tab ~decide (pair : Protocol.Pair_card.t) =
 let arb_auto_panel ~auto_state ~auto_threshold ~set_auto_threshold ~run =
   let running = Request_status.is_running auto_state in
   let threshold_error =
-    Result.error
-      (Client_logic.Form_validate.match_threshold auto_threshold)
+    Result.error (Client_logic.Form_validate.match_threshold auto_threshold)
   in
   let status =
     match (auto_state : Auto_state.t) with
@@ -891,7 +890,9 @@ let arbitrage_page (local_ graph) =
   let hedge_dialog, set_hedge_dialog =
     Bonsai.state Hedge_dialog.Closed graph
   in
-  let sweep_state, set_sweep_state = Bonsai.state Request_status.Idle graph in
+  let sweep_state, set_sweep_state =
+    Bonsai.state Request_status.Idle graph
+  in
   let scan_state, set_scan_state = Bonsai.state Request_status.Idle graph in
   let llm_state, set_llm_state = Bonsai.state Request_status.Idle graph in
   let auto_state, set_auto_state = Bonsai.state Request_status.Idle graph in
@@ -1096,24 +1097,21 @@ let arbitrage_page (local_ graph) =
          in
          (match Or_error.join response with
           | Error error ->
-            (* A transport/server error is NOT a refusal: the order may
-               have been sent before the connection dropped. Render it as
-               Failed with the uncertainty spelled out, never as
-               "nothing was sent". *)
+            (* A transport/server error is NOT a refusal: the order may have
+               been sent before the connection dropped. Render it as Failed
+               with the uncertainty spelled out, never as "nothing was sent". *)
             set_hedge_dialog
               (Hedge_dialog.Finished
                  { edge
                  ; result =
                      Protocol.Hedge_result.Failed
-                       { error =
-                           Other "connection lost - outcome unknown"
+                       { error = Other "connection lost - outcome unknown"
                        ; detail =
                            [%string
                              "the request errored in flight, so the hedge \
                               may or may not have been placed. Check your \
                               Kalshi account (or the server's trade log) \
-                              before retrying: \
-                              %{Error.to_string_hum error}"]
+                              before retrying: %{Error.to_string_hum error}"]
                        ; unhedged = count
                        }
                  })
@@ -1238,12 +1236,12 @@ let arbitrage_page (local_ graph) =
       [ Vdom.Node.p
           ~attrs:[ cls "arb-disclaimer" ]
           [ Vdom.Node.text
-              "Polymarket's app is not available to US persons, so this \
-               app never auto-trades Polymarket. From the US you can still \
-               scan both venues to see what arbitrage exists, and place \
-               the Kalshi leg through this app (connect a key on the \
-               Wallet page); any Polymarket leg is yours to take or skip, \
-               on your own eligibility."
+              "Polymarket's app is not available to US persons, so this app \
+               never auto-trades Polymarket. From the US you can still scan \
+               both venues to see what arbitrage exists, and place the \
+               Kalshi leg through this app (connect a key on the Wallet \
+               page); any Polymarket leg is yours to take or skip, on your \
+               own eligibility."
           ]
       ]
   in
@@ -1259,4 +1257,3 @@ let arbitrage_page (local_ graph) =
     ; panel
     ]
 ;;
-

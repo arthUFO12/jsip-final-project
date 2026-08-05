@@ -42,9 +42,7 @@ let%expect_test "warmup must fit inside the lookback window" =
   [%expect {| () |}];
   print_s
     [%sexp
-      (Form_validate.warmup_within_lookback
-         ~warmup_hours:48
-         ~lookback_days:2
+      (Form_validate.warmup_within_lookback ~warmup_hours:48 ~lookback_days:2
        : string option)];
   [%expect {| ("warmup must be shorter than the lookback window") |}]
 ;;

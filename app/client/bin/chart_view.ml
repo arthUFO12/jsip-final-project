@@ -12,9 +12,9 @@ open! Bonsai_web
 open Ui
 
 (* ViewBox geometry, shared with the design kit's chart card: a 640 x 260
-   frame whose plot area leaves room for y labels left and time labels
-   below. The svg renders at 100% width; hover math maps client pixels
-   back through this box. *)
+   frame whose plot area leaves room for y labels left and time labels below.
+   The svg renders at 100% width; hover math maps client pixels back through
+   this box. *)
 let view_w = 640.
 let view_h = 260.
 let plot_x = 40.
@@ -27,7 +27,8 @@ let x_tick_count = 3
 module Chart_series = struct
   type t =
     { name : string
-    ; index : int (** 0-based; picks the [series-<n>] class, cycled past 5. *)
+    ; index : int
+    (** 0-based; picks the [series-<n>] class, cycled past 5. *)
     ; dash : bool (** Dashed marks the averaged dumb-bot baseline. *)
     ; points : (float * float) list
     }
@@ -139,30 +140,28 @@ let warmup_band ~x_range sim_start_s =
 ;;
 
 let polylines ~x_range ~y_range (series : Chart_series.t list) =
-  List.map
-    series
-    ~f:(fun { Chart_series.name = _; index; dash; points } ->
-      svg_node
-        "polyline"
-        ~attrs:
-          [ Vdom.Attr.classes
-              ([ "chart-line"; series_class index ]
-               @ if dash then [ "dashed" ] else [])
-          ; Vdom.Attr.create
-              "points"
-              (Client_logic.Chart.polyline
-                 points
-                 ~x_range
-                 ~y_range
-                 ~width:plot_w
-                 ~height:plot_h)
-          ]
-        [])
+  List.map series ~f:(fun { Chart_series.name = _; index; dash; points } ->
+    svg_node
+      "polyline"
+      ~attrs:
+        [ Vdom.Attr.classes
+            ([ "chart-line"; series_class index ]
+             @ if dash then [ "dashed" ] else [])
+        ; Vdom.Attr.create
+            "points"
+            (Client_logic.Chart.polyline
+               points
+               ~x_range
+               ~y_range
+               ~width:plot_w
+               ~height:plot_h)
+        ]
+      [])
 ;;
 
-(* The hover layer: a crosshair snapped to the nearest point's x, a dot
-   per series, and one tooltip listing every series' value there — value
-   first, name second, per the legend's inverted hierarchy. *)
+(* The hover layer: a crosshair snapped to the nearest point's x, a dot per
+   series, and one tooltip listing every series' value there — value first,
+   name second, per the legend's inverted hierarchy. *)
 let hover_overlay ~x_range ~y_range ~(series : Chart_series.t list) hover =
   match hover with
   | None -> [], Vdom.Node.none
@@ -239,9 +238,7 @@ let hover_overlay ~x_range ~y_range ~(series : Chart_series.t list) hover =
            (Vdom.Node.div
               ~attrs:[ cls "chart-tooltip-time" ]
               [ Vdom.Node.text
-                  (Client_logic.Chart_ticks.time_label
-                     ~step:3600.
-                     snapped_x)
+                  (Client_logic.Chart_ticks.time_label ~step:3600. snapped_x)
               ]
             :: List.map
                  dots
@@ -282,12 +279,11 @@ let on_chart_mousemove ~x_range ~set_hover =
            Float.clamp_exn (x_view -. plot_x) ~min:0. ~max:plot_w
          in
          set_hover
-           (Some
-              (Client_logic.Chart.unscale_x x_range ~extent:plot_w x_plot))))
+           (Some (Client_logic.Chart.unscale_x x_range ~extent:plot_w x_plot))))
 ;;
 
-(* [sim_start_s] shades everything before it (the warmup); omit it for
-   charts with no warmup notion, like the market-detail popup.
+(* [sim_start_s] shades everything before it (the warmup); omit it for charts
+   with no warmup notion, like the market-detail popup.
 
    [hover] is the caller's page-level hover cell — [(title, data_x)] —
    threaded through every chart on the page; each chart keys on its own
@@ -303,8 +299,7 @@ let chart_view
   =
   let hover =
     match hover with
-    | Some (hovered_title, x) when String.equal hovered_title title ->
-      Some x
+    | Some (hovered_title, x) when String.equal hovered_title title -> Some x
     | Some ((_ : string), (_ : float)) | None -> None
   in
   let set_hover value =
@@ -323,8 +318,7 @@ let chart_view
       ]
     | true ->
       let all_points =
-        List.concat_map series ~f:(fun { Chart_series.points; _ } ->
-          points)
+        List.concat_map series ~f:(fun { Chart_series.points; _ } -> points)
       in
       let x_range =
         Client_logic.Chart.Range.of_values (List.map all_points ~f:fst)
@@ -342,8 +336,9 @@ let chart_view
             ; Vdom.Attr.create "viewBox" "0 0 640 260"
             ; on_chart_mousemove ~x_range ~set_hover
             ; Vdom.Attr.on_mouseleave
-                (fun (_ : Js_of_ocaml.Dom_html.mouseEvent Js_of_ocaml.Js.t) ->
-                  set_hover None)
+                (fun
+                    (_ : Js_of_ocaml.Dom_html.mouseEvent Js_of_ocaml.Js.t) ->
+                   set_hover None)
             ]
           (warmup_band ~x_range sim_start_s
            @ gridlines_and_ticks ~x_range ~y_range

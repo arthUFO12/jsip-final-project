@@ -1,8 +1,8 @@
 (** Chart series assembly for the backtest results page: one pass over a
     {!Protocol.Sim_result.t} into named [(time, value)] series, portfolio
-    value computed via {!Portfolio.value} once per tick, every series
-    already cut to the point budget by {!Downsample}. Colors and dashing
-    stay in the view layer — this is data only. *)
+    value computed via {!Portfolio.value} once per tick, every series already
+    cut to the point budget by {!Downsample}. Colors and dashing stay in the
+    view layer — this is data only. *)
 
 open! Core
 

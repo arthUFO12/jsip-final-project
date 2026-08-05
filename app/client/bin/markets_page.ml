@@ -1,6 +1,5 @@
-(* The Markets page: the category-grouped browser, the market detail
-   popup, and the shared [fetch_markets] whose result the Bots page
-   reuses. *)
+(* The Markets page: the category-grouped browser, the market detail popup,
+   and the shared [fetch_markets] whose result the Bots page reuses. *)
 
 open! Core
 open! Types
@@ -54,14 +53,13 @@ let category_section ~on_select (category, cards) =
     [ Vdom.Node.div
         ~attrs:[ cls "category-header" ]
         [ Vdom.Node.div
-          (* The dot's color comes from the stylesheet's per-category
-             [cat-*] tokens. *)
+          (* The dot's color comes from the stylesheet's per-category [cat-*]
+             tokens. *)
             ~attrs:
               [ Vdom.Attr.classes
                   [ "category-dot"
                   ; [%string
-                      "cat-%{String.lowercase (Category.to_string \
-                       category)}"]
+                      "cat-%{String.lowercase (Category.to_string category)}"]
                   ]
               ]
             []
@@ -186,8 +184,7 @@ let market_detail_modal
         | _ :: _ ->
           [ chart_view
               ~title:"24h volume (contracts)"
-              ~series:
-                [ solid ~name:"24h volume" ~index:1 trailing_volumes ]
+              ~series:[ solid ~name:"24h volume" ~index:1 trailing_volumes ]
               ~hover
               ~set_hover
               ()
@@ -265,4 +262,3 @@ let fetch_markets (local_ graph) =
   Bonsai.Edge.lifecycle ~on_activate graph;
   result
 ;;
-

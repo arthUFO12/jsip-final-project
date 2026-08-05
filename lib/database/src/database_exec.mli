@@ -165,14 +165,16 @@ val list_wallet_entries : unit -> Wallet_entry.t list Deferred.Or_error.t
 (*_ The live-trading audit trail: append-only — nothing can update or delete
     a row. See {!Types.Trade_log_entry}. *)
 
-(** The append-only edge-sighting history behind real arb PnL-over-time:
-    one row per tradable edge per scan; never updated or deleted. *)
+(** The append-only edge-sighting history behind real arb PnL-over-time: one
+    row per tradable edge per scan; never updated or deleted. *)
 val create_arb_observation_table : unit -> unit Deferred.Or_error.t
 
 val append_arb_observation : Arb_observation.t -> unit Deferred.Or_error.t
 
 (** All sightings, oldest first. *)
-val list_arb_observations : unit -> Arb_observation.t list Deferred.Or_error.t
+val list_arb_observations
+  :  unit
+  -> Arb_observation.t list Deferred.Or_error.t
 
 val create_trade_log_table : unit -> unit Deferred.Or_error.t
 val append_trade_log : Trade_log_entry.t -> unit Deferred.Or_error.t

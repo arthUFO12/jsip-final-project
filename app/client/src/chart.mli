@@ -21,12 +21,12 @@ end
 val scale_x : Range.t -> extent:float -> float -> float
 val scale_y : Range.t -> extent:float -> float -> float
 
-(** Inverse of {!scale_x}: a pixel offset back to its data value, for
-    mapping a hover position onto the series. *)
+(** Inverse of {!scale_x}: a pixel offset back to its data value, for mapping
+    a hover position onto the series. *)
 val unscale_x : Range.t -> extent:float -> float -> float
 
-(** The point whose x is closest to [x], by binary search — [points] must
-    be sorted by x ascending, as chart series are. [None] on empty. *)
+(** The point whose x is closest to [x], by binary search — [points] must be
+    sorted by x ascending, as chart series are. [None] on empty. *)
 val nearest : (float * float) array -> x:float -> (float * float) option
 
 (** [(x, y)] data points as an SVG [polyline] [points] attribute within a

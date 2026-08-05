@@ -1,19 +1,19 @@
 (** Per-field validation for the client's numeric text inputs, one function
     per field so each carries its own bounds and message. [Ok] holds the
-    parsed value the request wants; [Error] holds the message rendered
-    under the field ([(value, string) Result.t] rather than [Or_error.t] —
-    these are display strings, not errors to propagate). Bounds mirror the
-    server's so a request that validates here is never rejected there for
-    range reasons. *)
+    parsed value the request wants; [Error] holds the message rendered under
+    the field ([(value, string) Result.t] rather than [Or_error.t] — these
+    are display strings, not errors to propagate). Bounds mirror the server's
+    so a request that validates here is never rejected there for range
+    reasons. *)
 
 open! Core
 
 val lookback_days : string -> (int, string) Result.t
 val warmup_hours : string -> (int, string) Result.t
 
-(** The server also requires warmup strictly inside the lookback window;
-    call with both fields' parsed values. [Some message] renders under the
-    warmup field. *)
+(** The server also requires warmup strictly inside the lookback window; call
+    with both fields' parsed values. [Some message] renders under the warmup
+    field. *)
 val warmup_within_lookback
   :  warmup_hours:int
   -> lookback_days:int

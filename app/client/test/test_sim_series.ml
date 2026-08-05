@@ -1,5 +1,4 @@
-(* Tests for {!Client_logic.Sim_series} assembly on a small synthetic
-   result. *)
+(* Tests for {!Client_logic.Sim_series} assembly on a small synthetic result. *)
 
 open! Core
 open Types
@@ -10,8 +9,7 @@ let tick ~time_s ~cash ~realized ~unrealized ~yes_prices ~inventory =
   ; cash
   ; realized
   ; unrealized
-  ; yes_prices =
-      List.map yes_prices ~f:(fun (s, p) -> Slug.of_string s, p)
+  ; yes_prices = List.map yes_prices ~f:(fun (s, p) -> Slug.of_string s, p)
   ; inventory = List.map inventory ~f:(fun (s, n) -> Slug.of_string s, n)
   }
 ;;
@@ -57,16 +55,17 @@ let result : Protocol.Sim_result.t =
         }
       ]
   ; pnl_percentile = Some 80.
+  ; truncated = false
   }
 ;;
 
 let%expect_test "series assemble with portfolio marked per tick" =
   let series = Sim_series.create result ~max_points:800 in
   print_s [%sexp (series : Sim_series.t)];
-  (* Portfolio at t=120: long 1 aaa at 0.4 (+0.4), short 2 bbb at
-     1 - 0.3 (+1.4) = 1.8; total value = cash + portfolio. Slug "bbb" has
-     no inventory entry at t=60, and no price at t=0 — both degrade,
-     nothing raises. *)
+  (* Portfolio at t=120: long 1 aaa at 0.4 (+0.4), short 2 bbb at 1 - 0.3
+     (+1.4) = 1.8; total value = cash + portfolio. Slug "bbb" has no
+     inventory entry at t=60, and no price at t=0 — both degrade, nothing
+     raises. *)
   [%expect
     {|
     ((pnl
@@ -103,7 +102,7 @@ let%expect_test "no baseline means empty baseline series" =
   in
   print_s
     [%sexp
-      (List.length series.baseline_pnl, List.length series.baseline_value
+      ((List.length series.baseline_pnl, List.length series.baseline_value)
        : int * int)];
   [%expect {| (0 0) |}]
 ;;

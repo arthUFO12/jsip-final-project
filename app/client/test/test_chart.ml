@@ -52,8 +52,7 @@ let%expect_test "unscale_x inverts scale_x" =
 let%expect_test "nearest snaps to the closest x, ends included" =
   let points = [| 0., 10.; 5., 20.; 10., 30. |] in
   List.iter [ -3.; 2.4; 2.6; 5.; 9.; 40. ] ~f:(fun x ->
-    print_s
-      [%sexp (Chart.nearest points ~x : (float * float) option)]);
+    print_s [%sexp (Chart.nearest points ~x : (float * float) option)]);
   [%expect
     {|
     ((0 10))

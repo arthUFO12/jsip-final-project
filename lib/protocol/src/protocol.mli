@@ -466,23 +466,22 @@ module Trading_key : sig
     type t =
       { connected : bool (** an encrypted key file exists on the server *)
       ; unlocked : bool
-        (** credentials are decrypted in server memory; live executor
-            installed *)
+      (** credentials are decrypted in server memory; live executor installed *)
       ; key_hint : string option
-        (** e.g. ["cc2a..5e86"] — enough to recognize, never the whole id *)
+      (** e.g. ["cc2a..5e86"] — enough to recognize, never the whole id *)
       ; production : bool
-        (** the stored key targets the real-money host, not demo *)
+      (** the stored key targets the real-money host, not demo *)
       ; live_allowed : bool
-        (** the server was started with [-allow-live]; without it, unlock
-            refuses and the UI says why *)
+      (** the server was started with [-allow-live]; without it, unlock
+          refuses and the UI says why *)
       }
     [@@deriving sexp_of, bin_io]
   end
 
   module Connect_request : sig
     (** The one message that carries secrets, browser → server only.
-        [production] chooses the host the key will sign for — demo unless
-        the user explicitly says otherwise. *)
+        [production] chooses the host the key will sign for — demo unless the
+        user explicitly says otherwise. *)
     type t =
       { key_id : string
       ; private_key_pem : string
@@ -495,14 +494,14 @@ end
 
 module Account : sig
   (** The unlocked trading key's account as the venue reports it — cash and
-      open positions on whichever host (demo or production) the key
-      targets. Only as fresh as the venue's read side. *)
+      open positions on whichever host (demo or production) the key targets.
+      Only as fresh as the venue's read side. *)
 
   module Position : sig
     type t =
       { ticker : string
       ; position : int
-        (** Signed contracts: positive long YES, negative NO. *)
+      (** Signed contracts: positive long YES, negative NO. *)
       ; exposure_dollars : float (** The venue's marked exposure. *)
       }
     [@@deriving sexp_of, bin_io]
@@ -588,11 +587,13 @@ val get_trading_key : (unit, Trading_key.Status.t Or_error.t) Rpc.Rpc.t
     then unlock it if the server allows live trading. The only RPC whose
     request carries secrets. *)
 val connect_trading_key
-  : (Trading_key.Connect_request.t, Trading_key.Status.t Or_error.t) Rpc.Rpc.t
+  : ( Trading_key.Connect_request.t
+      , Trading_key.Status.t Or_error.t )
+      Rpc.Rpc.t
 
 (** Decrypt the stored key with the passphrase (the query) and install the
-    live executor. Refused on a server started without [-allow-live], or
-    with a wrong passphrase. *)
+    live executor. Refused on a server started without [-allow-live], or with
+    a wrong passphrase. *)
 val unlock_trading_key : (string, Trading_key.Status.t Or_error.t) Rpc.Rpc.t
 
 (** Drop the decrypted credentials and the live executor from server memory.
@@ -608,6 +609,6 @@ val get_account : (unit, Account.t Or_error.t) Rpc.Rpc.t
 
 (** Engage the kill switch: creates the sentinel file with the given reason
     so every live order refuses from now on. One-way from the browser —
-    clearing it requires deleting the file on the server machine. Returns
-    the engaged reason as confirmation. *)
+    clearing it requires deleting the file on the server machine. Returns the
+    engaged reason as confirmation. *)
 val trip_kill_switch : (string, string Or_error.t) Rpc.Rpc.t

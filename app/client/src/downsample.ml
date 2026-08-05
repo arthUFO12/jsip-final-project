@@ -3,8 +3,7 @@ open! Core
 let downsample points ~max_points =
   (match max_points < 4 with
    | true ->
-     raise_s
-       [%message "downsample budget too small" (max_points : int)]
+     raise_s [%message "downsample budget too small" (max_points : int)]
    | false -> ());
   let n = List.length points in
   match n <= max_points with

@@ -28,9 +28,11 @@ let%expect_test "degenerate ranges yield no ticks" =
   [%expect {| () |}]
 ;;
 
-let%expect_test "time ticks pick day steps and UTC labels for a two-week span" =
-  (* Two weeks starting 2026-07-02T00:00Z (a day boundary, so it is also
-     the first tick). *)
+let%expect_test "time ticks pick day steps and UTC labels for a two-week \
+                 span"
+  =
+  (* Two weeks starting 2026-07-02T00:00Z (a day boundary, so it is also the
+     first tick). *)
   let lo = 1_782_950_400. in
   let hi = lo +. (14. *. 86_400.) in
   print_s

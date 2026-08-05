@@ -238,9 +238,9 @@ let list_wallet_entries =
     {| SELECT * FROM arb_wallet ORDER BY dollars DESC |}
 ;;
 
-(* Edge sightings: append-only like the trade log, so scan history
-   survives — the wallet's upsert overwrites unacted rows and cannot chart
-   PnL over time. *)
+(* Edge sightings: append-only like the trade log, so scan history survives —
+   the wallet's upsert overwrites unacted rows and cannot chart PnL over
+   time. *)
 let create_arb_observation_table =
   let open Caqti_request.Infix in
   (Caqti_type.unit ->. Caqti_type.unit)

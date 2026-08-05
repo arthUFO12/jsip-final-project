@@ -6,12 +6,12 @@
 
 open! Core
 
-(** [downsample points ~max_points] returns [points] unchanged when it has
-    at most [max_points] elements. Otherwise the result keeps the first and
-    last points exactly, plus each interior bucket's y-minimum and
-    y-maximum in x order — never more than [max_points] points in total.
-    Raises when [max_points < 4] (two endpoints + one min-max pair is the
-    smallest useful budget). *)
+(** [downsample points ~max_points] returns [points] unchanged when it has at
+    most [max_points] elements. Otherwise the result keeps the first and last
+    points exactly, plus each interior bucket's y-minimum and y-maximum in x
+    order — never more than [max_points] points in total. Raises when
+    [max_points < 4] (two endpoints + one min-max pair is the smallest useful
+    budget). *)
 val downsample
   :  (float * float) list
   -> max_points:int
