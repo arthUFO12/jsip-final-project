@@ -1,0 +1,54 @@
+<!-- @dsCard group="Data Display" -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Arb pair rows & tabs</title>
+<link rel="stylesheet" href="../tokens.css">
+<link rel="stylesheet" href="../kit.css">
+<!-- Review panel: status tabs over pair rows (score · title+venue ↔ title+venue,
+     optional LLM rationale, per-tab actions). DOM byte-matches main.ml
+     arb_pair_row / arb_review_panel. Class names are API. -->
+</head>
+<body>
+  <div class="page" style="padding-top:24px">
+    <div class="arb-panel">
+      <h2 class="arb-panel-title">2 · Review</h2>
+      <p class="arb-panel-hint">The gate: only approve a pair if both markets settle on exactly the same event — same threshold, same deadline.</p>
+      <div class="arb-tabs">
+        <button class="btn-primary">Proposed</button>
+        <button class="btn-secondary">Approved</button>
+        <button class="btn-secondary">Rejected</button>
+      </div>
+      <div>
+        <div class="arb-pair">
+          <div class="arb-pair-titles">
+            <span class="arb-score">0.87</span>
+            <span>Fed cuts rates in March 2026?</span><span class="arb-venue">Kalshi</span>
+            <span class="arb-link">↔</span>
+            <span>Will the Fed cut interest rates at the March meeting?</span><span class="arb-venue">Polymarket</span>
+          </div>
+          <div class="arb-llm">llm: both settle on the FOMC's March 2026 rate decision — same event, same deadline</div>
+          <div class="arb-pair-actions">
+            <button class="btn-primary">Approve</button>
+            <button class="btn-secondary">Reject</button>
+          </div>
+        </div>
+        <div class="arb-pair">
+          <div class="arb-pair-titles">
+            <span class="arb-score">0.44</span>
+            <span>Bitcoin above $100k this year?</span><span class="arb-venue">Kalshi</span>
+            <span class="arb-link">↔</span>
+            <span>Bitcoin all-time high in 2026?</span><span class="arb-venue">Polymarket</span>
+          </div>
+          <div class="arb-pair-actions">
+            <button class="btn-primary">Approve</button>
+            <button class="btn-secondary">Reject</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

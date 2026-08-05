@@ -1,0 +1,38 @@
+<!-- @dsCard group="Charts" -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chart states</title>
+<link rel="stylesheet" href="../tokens.css">
+<link rel="stylesheet" href="../kit.css">
+<!-- Empty / single-series / grid variants. A single series gets NO legend box —
+     the title names it. Class names are API. -->
+</head>
+<body>
+  <div class="page" style="padding-top:24px">
+    <div class="charts-grid">
+      <div class="chart-box">
+        <h3 class="chart-title">inventory (contracts held per market)</h3>
+        <div class="chart-empty">not enough data to draw — the bot made no trades</div>
+      </div>
+      <div class="chart-box">
+        <h3 class="chart-title">market YES prices (dollars)</h3>
+        <!-- single series: no legend; the title carries identity -->
+        <svg class="chart-svg" viewBox="0 0 640 260" role="img" aria-label="YES price over time">
+          <line class="chart-gridline" x1="40" y1="8"   x2="632" y2="8"></line>
+          <line class="chart-gridline" x1="40" y1="120" x2="632" y2="120"></line>
+          <line class="chart-gridline" x1="40" y1="232" x2="632" y2="232"></line>
+          <text class="chart-tick" x="34" y="12"  text-anchor="end">$1.00</text>
+          <text class="chart-tick" x="34" y="124" text-anchor="end">$0.50</text>
+          <text class="chart-tick" x="34" y="236" text-anchor="end">$0.00</text>
+          <text class="chart-tick" x="60"  y="252" text-anchor="middle">Jul 1</text>
+          <text class="chart-tick" x="612" y="252" text-anchor="middle">Jul 15</text>
+          <g class="series-1"><polyline class="chart-line" points="40,140 120,132 200,136 280,120 360,110 440,118 520,98 600,92 632,88"></polyline></g>
+        </svg>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

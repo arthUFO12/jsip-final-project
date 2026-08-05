@@ -1,0 +1,128 @@
+/* Arbiter design tokens — the ONLY file that defines colors, spacing,
+ * radii, type, and elevation. Every visual decision is a custom property
+ * here; app.css (and the design kit's kit.css) consume these and never
+ * hard-code hex.
+ *
+ * Dark-only by design. Direction: "dark fintech, but inviting" — deep
+ * navy surfaces, a sky→violet brand gradient, soft elevation and glow.
+ * The chart series slots are accessibility-validated; keep any
+ * replacement palette passing:
+ *   node design/kit/validate_palette.mjs "<slot1,...,slot5>" --mode dark --surface "#11172a"
+ */
+
+:root {
+  /* ── Surfaces (back to front) ─────────────────────────────── */
+  --bg-base: #090c15;          /* page background */
+  --bg-glow: #1b2547;          /* sky glow behind the header */
+  --bg-glow-2: #251b45;        /* violet glow, lower left */
+  --panel: #141a2c;            /* cards, tiles, nav pills, secondary buttons */
+  --panel-deep: #11172a;       /* inputs, list columns, chart boxes, arb panels */
+  --panel-raised: #171e33;     /* explainers, stage chips, wallet cards, dialogs */
+  --panel-top: #1a2138;        /* gradient top edge of raised surfaces */
+  --chip-bg: #1a2440;          /* selected-market chips */
+  --overlay: rgba(4, 6, 12, 0.72); /* modal backdrop scrim */
+
+  /* ── Borders & dividers ───────────────────────────────────── */
+  --border: #2c3450;           /* default control border */
+  --border-soft: #232b44;      /* card/panel border */
+  --border-chip: #31406b;
+  --divider: #1c2338;          /* row separators, suggestion dividers */
+
+  /* ── Ink (text) ───────────────────────────────────────────── */
+  --ink: #edf0f7;              /* primary */
+  --ink-body: #a8b4d4;         /* body copy in panels, summaries */
+  --ink-soft: #b2bad0;         /* nav + secondary-button labels */
+  --ink-muted: #8a93ad;        /* hints, labels, legends */
+  --ink-faint: #626d89;        /* slugs, axis labels */
+  --ink-ghost: #4b546e;        /* arrows, decorative glyphs */
+  --ink-list: #ccd4e6;         /* suggestion rows */
+
+  /* ── Brand ────────────────────────────────────────────────── */
+  --brand-a: #7dd3fc;          /* sky — gradient start (text/badges) */
+  --brand-b: #c084fc;          /* violet — gradient end */
+  --brand-strong-a: #0ea5e9;   /* gradient start (filled buttons) */
+  --brand-strong-b: #8b5cf6;   /* gradient end (filled buttons) */
+  --accent: #7dd3fc;           /* focus rings, hover borders, active outlines */
+  --accent-alt: #60a5fa;       /* market-card hover border */
+
+  /* ── Elevation & glow ─────────────────────────────────────── */
+  --edge-light: inset 0 1px 0 rgba(237, 240, 247, 0.045);
+  --shadow-soft: 0 2px 10px rgba(2, 4, 10, 0.35);
+  --shadow-raised: 0 6px 22px -6px rgba(2, 4, 10, 0.55);
+  --shadow-lift:
+    0 14px 34px -14px rgba(14, 165, 233, 0.28),
+    0 8px 22px -8px rgba(2, 4, 10, 0.6);
+  --glow-primary: 0 4px 18px -4px rgba(99, 102, 241, 0.55);
+  --focus-glow: 0 0 0 3px rgba(125, 211, 252, 0.22);
+
+  /* ── Status (UI state, never chart series) ────────────────── */
+  --pos: #4ade80;
+  --pos-bg: #0d2b1e;
+  --pos-border: #1a5b38;
+  --neg: #f87171;
+  --neg-strong: #fca5a5;
+  --neg-bg: #2b1520;
+  --neg-border: #7f1d1d;
+  --warn: #fbbf24;
+  --warn-strong: #fcd34d;
+  --warn-bg: #2b2113;
+  --warn-border: #7c5806;
+  --demo-border: #155e75;      /* demo-key badge */
+
+  /* ── Chart series (validated — see header comment) ────────── */
+  --series-1: #3987e5;         /* blue */
+  --series-2: #199e70;         /* teal */
+  --series-3: #9085e9;         /* violet */
+  --series-4: #c98500;         /* amber */
+  --series-5: #d55181;         /* magenta */
+
+  /* ── Chart chrome ─────────────────────────────────────────── */
+  --chart-surface: var(--panel-deep);
+  --gridline: #1d2440;         /* recessive hairlines */
+  --axis-ink: var(--ink-faint);
+  --warmup-fill: #ffffff08;    /* shaded warmup band */
+  --crosshair: #8a93ad;
+
+  /* ── Category accents (12, fixed) ─────────────────────────── */
+  --cat-elections: #c084fc;
+  --cat-politics: #f472b6;
+  --cat-sports: #4ade80;
+  --cat-culture: #fbbf24;
+  --cat-crypto: #f97316;
+  --cat-commodities: #eab308;
+  --cat-climate: #34d399;
+  --cat-economy: #60a5fa;
+  --cat-mentions: #a78bfa;
+  --cat-finance: #38bdf8;
+  --cat-tech: #22d3ee;
+  --cat-miscellaneous: #94a3b8;
+
+  /* ── Shape ────────────────────────────────────────────────── */
+  --radius-s: 9px;             /* inputs, buttons, error boxes */
+  --radius-m: 12px;            /* rows, explainers, wallet entries */
+  --radius-l: 16px;            /* cards, panels, dialogs */
+  --radius-pill: 999px;        /* nav pills, chips, badges */
+
+  /* ── Space scale ──────────────────────────────────────────── */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 26px;
+  --space-7: 32px;
+
+  /* ── Type ─────────────────────────────────────────────────── */
+  --font-ui: system-ui, "Segoe UI", -apple-system, sans-serif;
+  --font-mono: ui-monospace, "Cascadia Mono", "SF Mono", monospace;
+  --text-xs: 11px;
+  --text-s: 12px;
+  --text-m: 13px;
+  --text-base: 14px;
+  --text-l: 15px;
+  --text-title: 38px;
+
+  /* ── Motion ───────────────────────────────────────────────── */
+  --ease-fast: 0.14s cubic-bezier(0.2, 0.6, 0.3, 1);
+  --ease-normal: 0.18s cubic-bezier(0.2, 0.6, 0.3, 1);
+}

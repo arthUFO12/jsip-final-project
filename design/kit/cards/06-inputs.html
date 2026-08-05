@@ -1,0 +1,55 @@
+<!-- @dsCard group="Forms" -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Inputs & validation</title>
+<link rel="stylesheet" href="../tokens.css">
+<link rel="stylesheet" href="../kit.css">
+<!-- All input variants incl. the NEW validation states (.input-invalid + .field-error).
+     Class names are API — restyle, never rename. -->
+<style> body { padding: 24px; max-width: 560px; } .ds-label { color: var(--ink-faint); font-size: 11px; font-family: var(--font-mono); margin: 22px 0 8px; } .ds-label:first-child { margin-top: 0; } </style>
+</head>
+<body>
+  <p class="ds-label">.search-input</p>
+  <input class="search-input" placeholder="search markets...">
+
+  <p class="ds-label">.control-label + .num-input</p>
+  <div>
+    <label class="control-label">lookback (days)</label>
+    <input class="num-input" value="14">
+  </div>
+
+  <p class="ds-label">NEW: invalid field — .input-invalid + .field-error (visible reason, not just a disabled button)</p>
+  <div>
+    <label class="control-label">starting cash ($)</label>
+    <input class="num-input input-invalid" value="-50">
+    <div class="field-error">must be a whole number greater than 0</div>
+  </div>
+
+  <p class="ds-label">.interval-select</p>
+  <div>
+    <label class="control-label">interval</label>
+    <select class="interval-select"><option>Minute</option><option selected>Hour</option><option>Day</option></select>
+  </div>
+
+  <p class="ds-label">.checkbox + label</p>
+  <div>
+    <label class="control-label">allow negative cash</label>
+    <input class="checkbox" type="checkbox" checked>
+  </div>
+
+  <p class="ds-label">.arb-key-input (password) — API key / passphrase entry</p>
+  <div class="arb-controls">
+    <label class="control-label">your Anthropic API key</label>
+    <input class="arb-key-input" type="password" placeholder="sk-ant-... (blank = server's own key)">
+  </div>
+
+  <p class="ds-label">.wallet-row + .wallet-pem — labeled column rows, PEM textarea</p>
+  <div class="wallet-row">
+    <label class="wallet-label">RSA private key (paste the whole .pem file Kalshi gave you)</label>
+    <textarea class="wallet-pem" placeholder="-----BEGIN PRIVATE KEY-----&#10;..."></textarea>
+  </div>
+</body>
+</html>

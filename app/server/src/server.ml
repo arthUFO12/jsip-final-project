@@ -223,18 +223,44 @@ let implementations =
           Arb_runner.wallet ())
       ; Rpc.Rpc.implement Protocol.mark_acted (fun () pair_key ->
           Arb_runner.mark_acted pair_key)
+      ; Rpc.Rpc.implement Protocol.get_trading_key (fun () () ->
+          Arb_runner.trading_key_status ())
+      ; Rpc.Rpc.implement Protocol.connect_trading_key (fun () request ->
+          Arb_runner.connect_trading_key request)
+      ; Rpc.Rpc.implement Protocol.unlock_trading_key (fun () passphrase ->
+          Arb_runner.unlock_trading_key passphrase)
+      ; Rpc.Rpc.implement Protocol.lock_trading_key (fun () () ->
+          Arb_runner.lock_trading_key ())
+      ; Rpc.Rpc.implement Protocol.forget_trading_key (fun () () ->
+          Arb_runner.forget_trading_key ())
+      ; Rpc.Rpc.implement Protocol.get_account (fun () () ->
+          Arb_runner.account ())
+      ; Rpc.Rpc.implement Protocol.trip_kill_switch (fun () reason ->
+          Arb_runner.trip_kill_switch reason)
       ]
     ~on_unknown_rpc:`Close_connection
     ~on_exception:Log_on_background_exn
 ;;
 
-let http_handler ~client_js =
+let http_handler ~client_js ~client_css_dir =
+  (* [tokens.css] must precede [app.css]: the component rules consume the
+     custom properties the token sheet defines. Both load before the
+     bundle. *)
+  let css_asset file =
+    Cohttp_static_handler.Asset.local
+      Cohttp_static_handler.Asset.Kind.css
+      (Cohttp_static_handler.Asset.What_to_serve.file
+         ~path:(client_css_dir ^/ file)
+         ~relative_to:`Cwd)
+  in
   Cohttp_static_handler.Single_page_handler.create_handler
     (Cohttp_static_handler.Single_page_handler.default_with_body_div
        ~div_id:"app")
     ~title:"Arbiter"
     ~assets:
-      [ Cohttp_static_handler.Asset.local
+      [ css_asset "tokens.css"
+      ; css_asset "app.css"
+      ; Cohttp_static_handler.Asset.local
           Cohttp_static_handler.Asset.Kind.javascript
           (Cohttp_static_handler.Asset.What_to_serve.file
              ~path:client_js
@@ -243,24 +269,50 @@ let http_handler ~client_js =
     ~on_unknown_url:`Not_found
 ;;
 
-let serve ~port ~db_name ~client_js ~allow_live =
+let serve
+  ~port
+  ~db_name
+  ~client_js
+  ~client_css_dir
+  ~allow_live
+  ~max_order_dollars
+  ~max_day_dollars
+  =
   let open Deferred.Or_error.Let_syntax in
   (* The web server's only live path (assisted hedges) exists solely behind
      this launch flag: a routine restart cannot go live by accident, and a
-     paper server hides every execution affordance. *)
+     paper server hides every execution affordance. Credentials come from
+     either source — [KALSHI_*] env vars right now, or the Wallet page's
+     encrypted key unlocked later; env credentials are optional so a
+     [-allow-live] server can start clean and wait for the unlock. *)
+  let%bind () =
+    Deferred.return
+      (Arb_runner.set_execution_caps ~max_order_dollars ~max_day_dollars)
+  in
+  printf
+    "spending caps: $%.2f per order, $%.2f per UTC day\n"
+    max_order_dollars
+    max_day_dollars;
+  Arb_runner.set_live_allowed allow_live;
   let%bind () =
     match allow_live with
     | false -> return ()
     | true ->
-      let%bind credentials =
-        Execution.Kalshi_live.Credentials.load_from_env ()
-      in
-      Arb_runner.enable_live credentials;
-      printf
-        "LIVE EXECUTION ENABLED (host %s) - assisted hedges will move real \
-         money\n"
-        (Execution.Kalshi_live.Credentials.host credentials);
-      return ()
+      (match%bind.Deferred
+         Execution.Kalshi_live.Credentials.load_from_env ()
+       with
+       | Ok credentials ->
+         Arb_runner.enable_live credentials;
+         printf
+           "LIVE EXECUTION ENABLED (host %s) - assisted hedges will move \
+            real money\n"
+           (Execution.Kalshi_live.Credentials.host credentials);
+         return ()
+       | Error (_ : Error.t) ->
+         printf
+           "live execution ALLOWED but locked - connect/unlock a trading \
+            key on the Wallet page (no KALSHI_* env credentials found)\n";
+         return ())
   in
   (* Caqti's sqlite URI reads a relative path as a host component, so anchor
      the file to the working directory first — same as the arbitrage CLI's
@@ -275,6 +327,7 @@ let serve ~port ~db_name ~client_js ~allow_live =
   let%bind () = Database_exec.create_pair_stub_table () in
   let%bind () = Database_exec.create_arb_wallet_table () in
   let%bind () = Database_exec.create_trade_log_table () in
+  let%bind () = Database_exec.create_arb_observation_table () in
   (* Before the seed's purge: rescue any pair legs still in the catalog into
      their snapshot table, or the rotation may evict them. *)
   let%bind () = Database_exec.backfill_pair_stubs () in
@@ -290,7 +343,7 @@ let serve ~port ~db_name ~client_js ~allow_live =
         (Or_error.error_string
            "kalshi historical cutoff was not set by the startup fetch")
   in
-  let handler = http_handler ~client_js in
+  let handler = http_handler ~client_js ~client_css_dir in
   let%bind.Deferred (_ : (Socket.Address.Inet.t, int) Cohttp_async.Server.t) =
     Rpc_websocket.Rpc.serve
       ~where_to_listen:(Tcp.Where_to_listen.of_port port)
@@ -332,6 +385,26 @@ let serve_command =
              "_build/default/app/client/bin/main.bc.js"
              string)
           ~doc:"PATH compiled client bundle (default from dune's _build)"
+      and client_css_dir =
+        flag
+          "-client-css-dir"
+          (optional_with_default "app/client/static" string)
+          ~doc:
+            "DIR directory holding tokens.css and app.css (default \
+             app/client/static)"
+      and max_order_dollars =
+        flag
+          "-max-order-dollars"
+          (optional_with_default 25. float)
+          ~doc:
+            "DOLLARS per-order spending cap for live trading (default 25)"
+      and max_day_dollars =
+        flag
+          "-max-day-dollars"
+          (optional_with_default 100. float)
+          ~doc:
+            "DOLLARS per-UTC-day spending cap for live trading (default \
+             100)"
       and allow_live =
         flag
           "-allow-live"
@@ -342,7 +415,15 @@ let serve_command =
              order runs inside the spending caps, behind the kill switch, \
              and lands in the audit log"
       in
-      fun () -> serve ~port ~db_name ~client_js ~allow_live]
+      fun () ->
+        serve
+          ~port
+          ~db_name
+          ~client_js
+          ~client_css_dir
+          ~allow_live
+          ~max_order_dollars
+          ~max_day_dollars]
 ;;
 
 (* Dispatches [get-markets] against a running server the same way the browser
@@ -640,6 +721,137 @@ let check_sim_command =
           ~basic_max_size]
 ;;
 
+(* The live-testing verb: exercise the entire assisted-hedge path — pair
+   resolution, preflight, rails, placement, reconciliation, audit — against
+   Kalshi's DEMO environment by default. Mirrors the arbitrage CLI's
+   check-trade, but goes through Arb_runner rather than the venue directly,
+   so what it proves is the exact code path the browser's dialog uses. The
+   manual (Polymarket) leg is pretend: only the Kalshi hedge is placed. *)
+let check_hedge ~db ~pair_key ~count ~manual_price_cents ~real =
+  let open Deferred.Or_error.Let_syntax in
+  let%bind cwd = Deferred.ok (Sys.getcwd ()) in
+  let db = if Filename.is_absolute db then db else cwd ^/ db in
+  let%bind () = Deferred.return (Database_exec.init_database db) in
+  let%bind () = Database_exec.create_market_stub_table () in
+  let%bind () = Database_exec.create_pair_proposal_table () in
+  let%bind () = Database_exec.create_pair_stub_table () in
+  let%bind () = Database_exec.create_arb_wallet_table () in
+  let%bind () = Database_exec.create_trade_log_table () in
+  let%bind () = Database_exec.create_arb_observation_table () in
+  let host =
+    match real with
+    | true -> Execution.Kalshi_live.live_host
+    | false -> Execution.Kalshi_live.demo_host
+  in
+  (match real with
+   | true ->
+     printf "REAL MONEY: hedging on production; worst case is count x ask\n"
+   | false -> printf "demo environment - pretend money\n");
+  printf
+    "note: this writes real rows to the audit log and wallet in %s; use a \
+     scratch -db to keep your main wallet clean\n"
+    db;
+  let%bind credentials =
+    Execution.Kalshi_live.Credentials.load_from_env ~host ()
+  in
+  Arb_runner.set_live_allowed true;
+  Arb_runner.enable_live credentials;
+  let%bind pair_key =
+    match pair_key with
+    | Some key -> return key
+    | None ->
+      (match%bind Arbitrage.Bot.candidates_of_approved () with
+       | [] ->
+         Deferred.Or_error.error_string
+           "no approved pairs in the store - run a sweep and approve one \
+            first, or pass -pair-key"
+       | { left; right } :: (_ : Arbitrage.Matcher.Candidate.t list) ->
+         let ids =
+           List.sort
+             ~compare:String.compare
+             [ Market_id.to_string left.market_id
+             ; Market_id.to_string right.market_id
+             ]
+         in
+         return (String.concat ids ~sep:"|"))
+  in
+  printf "pair: %s\n" pair_key;
+  let%bind preflight =
+    Arb_runner.preflight
+      { Protocol.Preflight_request.pair_key; manual_is_yes = true }
+  in
+  printf !"preflight: %{sexp: Protocol.Preflight.t}\n" preflight;
+  match preflight.hedgeable <= 0 with
+  | true ->
+    printf
+      "not hedgeable right now (kill switch, caps, or no depth) - stopping \
+       before placement\n";
+    return ()
+  | false ->
+    let count = Int.min count preflight.hedgeable in
+    let now_ms =
+      Time_ns.to_int_ns_since_epoch (Time_ns.now ()) / 1_000_000
+    in
+    let%bind result =
+      Arb_runner.hedge
+        { Protocol.Hedge_request.pair_key
+        ; nonce = [%string "check-%{now_ms#Int}"]
+        ; manual_venue = "Polymarket"
+        ; manual_is_yes = true
+        ; manual_price_cents
+        ; manual_count = count
+        ; max_hedge_price_cents = preflight.ask_cents + 2
+        }
+    in
+    printf !"hedge result: %{sexp: Protocol.Hedge_result.t}\n" result;
+    let%bind entries = Database_exec.list_trade_log 5 in
+    printf "audit log (newest first):\n";
+    List.iter entries ~f:(fun entry ->
+      printf !"  %{sexp: Trade_log_entry.t}\n" entry);
+    return ()
+;;
+
+let check_hedge_command =
+  Command.async_or_error
+    ~summary:
+      "run the whole assisted-hedge path (preflight, rails, placement, \
+       reconciliation, audit) against Kalshi's DEMO environment; the \
+       manual Polymarket leg is pretend"
+    [%map_open.Command
+      let db =
+        flag
+          "-db"
+          (optional_with_default "arbiter.db" string)
+          ~doc:
+            "FILE sqlite database with an approved pair (default \
+             arbiter.db)"
+      and pair_key =
+        flag
+          "-pair-key"
+          (optional string)
+          ~doc:"KEY the pair to hedge (default: first approved pair)"
+      and count =
+        flag
+          "-count"
+          (optional_with_default 1 int)
+          ~doc:"N contracts for the pretend manual leg (default 1)"
+      and manual_price_cents =
+        flag
+          "-manual-price-cents"
+          (optional_with_default 50 int)
+          ~doc:"CENTS pretend fill price of the manual leg (default 50)"
+      and real =
+        flag
+          "-real"
+          no_arg
+          ~doc:
+            " REAL MONEY: hedge on production instead of demo. KALSHI_* \
+             env vars must hold production credentials; the spending caps \
+             and kill switch still apply."
+      in
+      fun () -> check_hedge ~db ~pair_key ~count ~manual_price_cents ~real]
+;;
+
 let command =
   Command.group
     ~summary:"The Arbiter web app server"
@@ -648,6 +860,7 @@ let command =
     ; "check-arb", check_arb_command
     ; "check-detail", check_detail_command
     ; "check-sim", check_sim_command
+    ; "check-hedge", check_hedge_command
     ]
 ;;
 

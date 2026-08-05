@@ -18,27 +18,8 @@ let legacy_order_path order_id =
   [%string "/trade-api/v2/portfolio/orders/%{order_id}"]
 ;;
 
-(* PSS salts are random, and there is no mirage-crypto-rng-unix in the switch
-   to plumb entropy automatically — so seed Fortuna from the kernel once, on
-   the first signature. *)
-let rng_seed_length = 32
-
-let initialize_rng =
-  lazy
-    (let seed =
-       In_channel.with_file "/dev/urandom" ~f:(fun channel ->
-         let buf = Bytes.create rng_seed_length in
-         match
-           In_channel.really_input channel ~buf ~pos:0 ~len:rng_seed_length
-         with
-         | Some () -> Bytes.to_string buf
-         | None -> raise_s [%message "unexpected end of /dev/urandom"])
-     in
-     Mirage_crypto_rng.set_default_generator
-       (Mirage_crypto_rng.create
-          ~seed:(Cstruct.of_string seed)
-          (module Mirage_crypto_rng.Fortuna)))
-;;
+let balance_path = "/trade-api/v2/portfolio/balance"
+let positions_path = "/trade-api/v2/portfolio/positions"
 
 module Pss_sha256 = Mirage_crypto_pk.Rsa.PSS (Mirage_crypto.Hash.SHA256)
 
@@ -119,7 +100,7 @@ let signing_input ~timestamp_ms ~verb ~path =
 ;;
 
 let sign ~(credentials : Credentials.t) ~timestamp_ms ~verb ~path =
-  force initialize_rng;
+  Entropy.ensure ();
   Pss_sha256.sign
     ~key:credentials.private_key
     (`Message (Cstruct.of_string (signing_input ~timestamp_ms ~verb ~path)))
@@ -401,10 +382,115 @@ let cancel_order (credentials : Credentials.t) ~order_id =
           (order_id : string)]
 ;;
 
+(* Kalshi reports money as integer cents on the portfolio read endpoints;
+   accept the fixed-point string form too in case those migrate like the
+   order surface did. *)
+let cents_field json ~field =
+  match Yojson.Safe.Util.member field json with
+  | `Int cents -> Some (Float.of_int cents /. 100.)
+  | `Float cents -> Some (cents /. 100.)
+  | `String text -> Some (Float.of_string text)
+  | _ -> None
+;;
+
+let parse_balance_response body =
+  Or_error.tag
+    (Or_error.try_with (fun () ->
+       let json = Yojson.Safe.from_string body in
+       match cents_field json ~field:"balance" with
+       | Some dollars -> dollars
+       | None ->
+         raise_s [%message "no balance field in response" (body : string)]))
+    ~tag:"could not parse kalshi balance response"
+;;
+
+let balance (credentials : Credentials.t) =
+  let open Deferred.Or_error.Let_syntax in
+  let%bind status, response_body =
+    signed_request
+      credentials
+      ~verb:"GET"
+      ~path:balance_path
+      ~name:"kalshi get balance"
+      ()
+  in
+  match status with
+  | #Cohttp.Code.success_status ->
+    Deferred.return (parse_balance_response response_body)
+  | status ->
+    Deferred.Or_error.error_s
+      [%message
+        "kalshi get-balance failed"
+          (Cohttp.Code.string_of_status status : string)
+          (response_body : string)]
+;;
+
+module Position = struct
+  type t =
+    { ticker : string
+    ; position : int (** Signed contracts: positive long YES, negative NO. *)
+    ; exposure_dollars : float
+    }
+  [@@deriving sexp_of]
+end
+
+let parse_positions_response body =
+  Or_error.tag
+    (Or_error.try_with (fun () ->
+       let json = Yojson.Safe.from_string body in
+       match Yojson.Safe.Util.member "market_positions" json with
+       | `Null -> []
+       | positions ->
+         Yojson.Safe.Util.to_list positions
+         |> List.filter_map ~f:(fun entry ->
+           let ticker =
+             Yojson.Safe.Util.to_string
+               (Yojson.Safe.Util.member "ticker" entry)
+           in
+           let position =
+             Yojson.Safe.Util.to_int
+               (Yojson.Safe.Util.member "position" entry)
+           in
+           let exposure_dollars =
+             Option.value
+               (cents_field entry ~field:"market_exposure")
+               ~default:0.
+           in
+           (* The venue keeps closed rows around at position 0; the caller
+              wants holdings. *)
+           match position = 0 with
+           | true -> None
+           | false -> Some { Position.ticker; position; exposure_dollars })))
+    ~tag:"could not parse kalshi positions response"
+;;
+
+let positions (credentials : Credentials.t) =
+  let open Deferred.Or_error.Let_syntax in
+  let%bind status, response_body =
+    signed_request
+      credentials
+      ~verb:"GET"
+      ~path:positions_path
+      ~name:"kalshi get positions"
+      ()
+  in
+  match status with
+  | #Cohttp.Code.success_status ->
+    Deferred.return (parse_positions_response response_body)
+  | status ->
+    Deferred.Or_error.error_s
+      [%message
+        "kalshi get-positions failed"
+          (Cohttp.Code.string_of_status status : string)
+          (response_body : string)]
+;;
+
 module For_testing = struct
   let signing_input = signing_input
   let sign = sign
   let verify = verify
   let order_body = order_body
   let parse_order_response = parse_order_response
+  let parse_balance_response = parse_balance_response
+  let parse_positions_response = parse_positions_response
 end

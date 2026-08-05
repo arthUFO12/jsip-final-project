@@ -1,0 +1,48 @@
+<!-- @dsCard group="Data Display" -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Fills table</title>
+<link rel="stylesheet" href="../tokens.css">
+<link rel="stylesheet" href="../kit.css">
+<!-- Trade log: time / action (+ rule reason subtext) / status; collapsed past 10
+     rows behind .fills-toggle. Wrapped in .fills-table-wrap (NEW) so narrow
+     screens scroll the table, not the page. Class names are API. -->
+</head>
+<body>
+  <div class="page" style="padding-top:24px">
+    <div class="fills-table-wrap">
+      <table class="fills-table">
+        <tr><th>time</th><th>action</th><th>status</th></tr>
+        <tr>
+          <td>2026-07-14 13:00:00Z</td>
+          <td>#1 buy 1 yes on KXFEDDECISION-26MAR-C25
+            <div class="fill-reason">every 2h buy 1 fed_mar yes</div></td>
+          <td class="fill-accepted">accepted</td>
+        </tr>
+        <tr>
+          <td>2026-07-14 15:00:00Z</td>
+          <td>#2 buy 1 yes on KXFEDDECISION-26MAR-C25
+            <div class="fill-reason">every 2h buy 1 fed_mar yes</div></td>
+          <td class="fill-accepted">accepted</td>
+        </tr>
+        <tr>
+          <td>2026-07-14 17:00:00Z</td>
+          <td>#3 sell 2 yes on KXBTC-26DEC-100K
+            <div class="fill-reason">when $momentum &gt; 0.05 sell 2 btc_100k yes</div></td>
+          <td class="fill-rejected">REJECTED: insufficient inventory</td>
+        </tr>
+        <tr>
+          <td>2026-07-14 19:00:00Z</td>
+          <td>#4 buy 1 yes on KXFEDDECISION-26MAR-C25
+            <div class="fill-reason">every 2h buy 1 fed_mar yes</div></td>
+          <td class="fill-accepted">accepted</td>
+        </tr>
+      </table>
+    </div>
+    <div class="fills-toggle"><button class="btn-secondary">show all 42 trades</button></div>
+  </div>
+</body>
+</html>

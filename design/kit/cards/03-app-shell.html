@@ -1,0 +1,30 @@
+<!-- @dsCard group="Shell & Navigation" -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>App shell</title>
+<link rel="stylesheet" href="../tokens.css">
+<link rel="stylesheet" href="../kit.css">
+<!-- DOM below byte-matches the app (main.ml `app`): header → nav pills → page frame.
+     Class names are API — restyle, never rename. -->
+</head>
+<body>
+  <div>
+    <div class="header">
+      <h1 class="title">Arbiter</h1>
+      <p class="subtitle">live Kalshi markets, grouped by category and ranked by volume — and a bot builder to trade them</p>
+    </div>
+    <div class="nav">
+      <button class="nav-button nav-button-active">Markets</button>
+      <button class="nav-button">Bots</button>
+      <button class="nav-button">Arbitrage</button>
+      <button class="nav-button">Wallet</button>
+    </div>
+    <div class="page">
+      <div class="status">loading markets...</div>
+    </div>
+  </div>
+</body>
+</html>

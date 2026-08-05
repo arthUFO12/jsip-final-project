@@ -1,0 +1,75 @@
+<!-- @dsCard group="Charts" -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chart anatomy (new design)</title>
+<link rel="stylesheet" href="../tokens.css">
+<link rel="stylesheet" href="../kit.css">
+<!-- The NEW chart design the revamp ships (the old chart had no axes, grid, or
+     hover). Anatomy, all styled by tokens:
+       · responsive SVG: viewBox 0 0 640 260, width 100%
+       · recessive gridlines + 1-2-5 y ticks, time-labeled x ticks
+       · shaded warmup band at the left
+       · 2px series lines, classed series-1..5 (identity via `color`,
+         stroke/keys inherit currentColor); dashed = dumb-bot baseline
+       · hover: crosshair snapped to nearest x + ONE tooltip listing every
+         series at that x — value leads, name follows, line-style key
+     The series palette MUST pass the validator on the chart surface: this page
+     runs it in the console (open devtools → console.table). To re-check a
+     candidate by hand:
+       node validate_palette.mjs "<hex,...>" --mode dark --surface "#10151f"
+     Class names are API — restyle, never rename. -->
+</head>
+<body data-palette="#3987e5,#199e70,#9085e9,#c98500,#d55181" data-mode="dark" data-surface="#10151f">
+  <div class="page" style="padding-top:24px;max-width:720px">
+    <div class="chart-box">
+      <h3 class="chart-title">pnl (dollars, shaded region is warmup)</h3>
+      <div class="legend">
+        <div class="legend-item series-1"><span class="legend-key"></span>realized</div>
+        <div class="legend-item series-2"><span class="legend-key"></span>unrealized</div>
+        <div class="legend-item series-3"><span class="legend-key"></span>total</div>
+        <div class="legend-item series-1"><span class="legend-key dashed"></span>dumb-bot avg</div>
+      </div>
+      <svg class="chart-svg" viewBox="0 0 640 260" role="img" aria-label="pnl over time">
+        <!-- warmup band -->
+        <rect class="chart-warmup" x="40" y="8" width="70" height="224"></rect>
+        <!-- gridlines + y ticks (1-2-5 nice steps) -->
+        <line class="chart-gridline" x1="40" y1="8"   x2="632" y2="8"></line>
+        <line class="chart-gridline" x1="40" y1="64"  x2="632" y2="64"></line>
+        <line class="chart-gridline" x1="40" y1="120" x2="632" y2="120"></line>
+        <line class="chart-baseline" x1="40" y1="176" x2="632" y2="176"></line>
+        <line class="chart-gridline" x1="40" y1="232" x2="632" y2="232"></line>
+        <text class="chart-tick" x="34" y="12"  text-anchor="end">$15</text>
+        <text class="chart-tick" x="34" y="68"  text-anchor="end">$10</text>
+        <text class="chart-tick" x="34" y="124" text-anchor="end">$5</text>
+        <text class="chart-tick" x="34" y="180" text-anchor="end">$0</text>
+        <text class="chart-tick" x="34" y="236" text-anchor="end">-$5</text>
+        <!-- x time ticks -->
+        <text class="chart-tick" x="60"  y="252" text-anchor="middle">Jul 1</text>
+        <text class="chart-tick" x="336" y="252" text-anchor="middle">Jul 8</text>
+        <text class="chart-tick" x="612" y="252" text-anchor="middle">Jul 15</text>
+        <!-- series (2px lines; dashed = baseline) -->
+        <g class="series-1"><polyline class="chart-line" points="40,176 110,176 180,168 250,150 320,155 380,138 450,130 520,118 590,110 632,104"></polyline></g>
+        <g class="series-2"><polyline class="chart-line" points="40,176 110,176 180,182 250,190 320,178 380,186 450,196 520,184 590,178 632,172"></polyline></g>
+        <g class="series-3"><polyline class="chart-line" points="40,176 110,176 180,174 250,164 320,157 380,148 450,150 520,126 590,112 632,100"></polyline></g>
+        <g class="series-1"><polyline class="chart-line dashed" points="40,176 110,176 180,178 250,174 320,176 380,180 450,178 520,182 590,180 632,182"></polyline></g>
+        <!-- hover layer: crosshair snapped to nearest x + dots on each series -->
+        <line class="chart-crosshair" x1="380" y1="8" x2="380" y2="232"></line>
+        <g class="series-1"><circle class="chart-hover-dot" cx="380" cy="138" r="3.5"></circle></g>
+        <g class="series-2"><circle class="chart-hover-dot" cx="380" cy="186" r="3.5"></circle></g>
+        <g class="series-3"><circle class="chart-hover-dot" cx="380" cy="148" r="3.5"></circle></g>
+      </svg>
+      <!-- ONE tooltip, every series at that x; value leads, name follows -->
+      <div class="chart-tooltip" style="left:400px;top:96px">
+        <div class="chart-tooltip-time">Jul 9, 14:00 UTC</div>
+        <div class="chart-tooltip-row series-1"><span class="legend-key"></span><span class="chart-tooltip-value">$6.80</span><span class="chart-tooltip-name">realized</span></div>
+        <div class="chart-tooltip-row series-2"><span class="legend-key"></span><span class="chart-tooltip-value">-$0.90</span><span class="chart-tooltip-name">unrealized</span></div>
+        <div class="chart-tooltip-row series-3"><span class="legend-key"></span><span class="chart-tooltip-value">$5.90</span><span class="chart-tooltip-name">total</span></div>
+      </div>
+    </div>
+  </div>
+  <script type="module" src="../validate_palette.mjs"></script>
+</body>
+</html>

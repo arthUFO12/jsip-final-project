@@ -130,6 +130,14 @@ val list_wallet_entries
 
 (** Creates the append-only [trade_log] audit table if it does not already
     exist. No update/delete statements exist for it, by design. *)
+val create_arb_observation_table : (unit, unit, [ `Zero ]) Caqti_request.t
+
+val append_arb_observation
+  : (Types.Arb_observation.t, unit, [ `Zero ]) Caqti_request.t
+
+val list_arb_observations
+  : (unit, Types.Arb_observation.t, [ `Many | `One | `Zero ]) Caqti_request.t
+
 val create_trade_log_table : (unit, unit, [ `Zero ]) Caqti_request.t
 
 val append_trade_log

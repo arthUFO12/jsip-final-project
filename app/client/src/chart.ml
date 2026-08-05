@@ -33,6 +33,35 @@ let fraction (range : Range.t) value =
 let scale_x range ~extent value = fraction range value *. extent
 let scale_y range ~extent value = (1. -. fraction range value) *. extent
 
+let unscale_x (range : Range.t) ~extent value =
+  range.lo +. (value /. extent *. (range.hi -. range.lo))
+;;
+
+let nearest points ~x =
+  match Array.length points with
+  | 0 -> None
+  | length ->
+    (* First index whose x is >= [x]; [length] when none is. *)
+    let lo = ref 0
+    and hi = ref length in
+    while !lo < !hi do
+      let mid = (!lo + !hi) / 2 in
+      match Float.O.(fst points.(mid) < x) with
+      | true -> lo := mid + 1
+      | false -> hi := mid
+    done;
+    let insertion = !lo in
+    let candidates =
+      List.filter [ insertion - 1; insertion ] ~f:(fun i ->
+        i >= 0 && i < length)
+    in
+    List.min_elt candidates ~compare:(fun a b ->
+      Float.compare
+        (Float.abs (fst points.(a) -. x))
+        (Float.abs (fst points.(b) -. x)))
+    |> Option.map ~f:(fun i -> points.(i))
+;;
+
 let polyline points ~x_range ~y_range ~width ~height =
   List.map points ~f:(fun (x, y) ->
     let x = scale_x x_range ~extent:width x in

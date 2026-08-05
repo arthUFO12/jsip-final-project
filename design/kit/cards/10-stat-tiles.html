@@ -1,0 +1,39 @@
+<!-- @dsCard group="Data Display" -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Stat tiles</title>
+<link rel="stylesheet" href="../tokens.css">
+<link rel="stylesheet" href="../kit.css">
+<!-- Results-page stat tiles: balances in plain ink, signed returns colored,
+     inventory tile in mono, percentile as an ordinal.
+     DOM byte-matches main.ml final_stats. Class names are API. -->
+</head>
+<body>
+  <div class="page" style="padding-top:24px">
+    <div class="stats-grid">
+      <div class="stat-tile"><div class="stat-label">cash</div><div class="stat-value">$82.10</div></div>
+      <div class="stat-tile"><div class="stat-label">portfolio value</div><div class="stat-value">$31.75</div></div>
+      <div class="stat-tile"><div class="stat-label">total value</div><div class="stat-value">$113.85</div></div>
+      <div class="stat-tile"><div class="stat-label">total returns</div><div class="stat-value stat-pos">$13.85</div></div>
+      <div class="stat-tile"><div class="stat-label">realized</div><div class="stat-value stat-pos">$9.60</div></div>
+      <div class="stat-tile"><div class="stat-label">unrealized</div><div class="stat-value stat-neg">$-4.25</div></div>
+      <div class="stat-tile">
+        <div class="stat-label">inventory</div>
+        <div class="stat-inventory">
+          <div>fed_mar +12</div>
+          <div>btc_100k -3</div>
+        </div>
+      </div>
+      <div class="stat-tile"><div class="stat-label">pnl percentile</div><div class="stat-value">87th</div></div>
+    </div>
+    <div class="list-heading">dumb bot average</div>
+    <div class="stats-grid">
+      <div class="stat-tile"><div class="stat-label">avg cash</div><div class="stat-value">$96.42</div></div>
+      <div class="stat-tile"><div class="stat-label">avg total returns</div><div class="stat-value stat-neg">$-1.28</div></div>
+    </div>
+  </div>
+</body>
+</html>

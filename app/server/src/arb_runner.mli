@@ -45,12 +45,51 @@ val sweep
 val scan : unit -> Protocol.Scan_report.t Deferred.Or_error.t
 
 (** Installs the server's one live executor. Called at startup by [server.ml]
-    iff [-allow-live] was passed and Kalshi credentials loaded; never called
-    on a paper server. *)
+    iff [-allow-live] was passed and Kalshi credentials loaded, and by the
+    trading-key unlock path under the same flag; never on a paper server. *)
 val enable_live : Execution.Kalshi_live.Credentials.t -> unit
+
+(** Records whether the operator launched with [-allow-live]. Called once at
+    startup by [server.ml]; {!unlock_trading_key} refuses without it, so a
+    browser can never talk a paper server into going live. *)
+val set_live_allowed : bool -> unit
+
+(** Override the spending caps from server flags, validated as a live
+    config — zero or negative caps are refused so a rail cannot be
+    disabled by flag typo. Call once at startup, before serving. *)
+val set_execution_caps
+  :  max_order_dollars:float
+  -> max_day_dollars:float
+  -> unit Or_error.t
 
 (** Backs {!Protocol.get_execution_capability}. *)
 val capability : unit -> Protocol.Execution_capability.t Deferred.Or_error.t
+
+(** Backs {!Protocol.get_trading_key}: what the encrypted wallet file and the
+    in-memory executor say right now. Never carries secrets. *)
+val trading_key_status : unit -> Protocol.Trading_key.Status.t Deferred.Or_error.t
+
+(** Backs {!Protocol.connect_trading_key}: validate the pasted key, encrypt
+    it at rest ({!Execution.Wallet_store.save}), and — on a [-allow-live]
+    server — unlock it immediately. *)
+val connect_trading_key
+  :  Protocol.Trading_key.Connect_request.t
+  -> Protocol.Trading_key.Status.t Deferred.Or_error.t
+
+(** Backs {!Protocol.unlock_trading_key}: decrypt with the passphrase and
+    install the live executor. Refuses without [-allow-live]. *)
+val unlock_trading_key
+  :  string
+  -> Protocol.Trading_key.Status.t Deferred.Or_error.t
+
+(** Backs {!Protocol.lock_trading_key}: drop the executor and decrypted
+    credentials from memory; the encrypted file stays. *)
+val lock_trading_key : unit -> Protocol.Trading_key.Status.t Deferred.Or_error.t
+
+(** Backs {!Protocol.forget_trading_key}: lock, then delete the file. *)
+val forget_trading_key
+  :  unit
+  -> Protocol.Trading_key.Status.t Deferred.Or_error.t
 
 (** Backs {!Protocol.preflight_hedge}: the advisory rails numbers for
     assisted execution's step 1. *)
@@ -68,6 +107,14 @@ val hedge
   -> Protocol.Hedge_result.t Deferred.Or_error.t
 
 (** Backs {!Protocol.get_wallet}: the paper-vs-acted score and its entries. *)
+(** The unlocked key's cash and open positions from the venue; errors when
+    no key is unlocked. *)
+val account : unit -> Protocol.Account.t Deferred.Or_error.t
+
+(** Engage the kill switch with a reason (browser-initiated, one-way);
+    returns the engaged reason as confirmation. *)
+val trip_kill_switch : string -> string Deferred.Or_error.t
+
 val wallet : unit -> Protocol.Wallet.t Deferred.Or_error.t
 
 (** Backs {!Protocol.mark_acted}: freeze one booked pair as really traded and

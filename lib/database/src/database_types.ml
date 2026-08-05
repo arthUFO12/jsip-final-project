@@ -160,6 +160,26 @@ let wallet_entry_type =
   T.custom ~encode ~decode representation
 ;;
 
+let arb_observation_type =
+  let representation =
+    T.(t2 (t2 T.int64 T.string) (t3 T.float T.int T.float))
+  in
+  let encode ({ at; pair_key; edge; size; dollars } : Arb_observation.t) =
+    Ok ((time_ns_to_int64 at, pair_key), (edge, size, dollars))
+  in
+  let decode ((at_int, pair_key), (edge, size, dollars)) =
+    Ok
+      ({ Arb_observation.at = int64_to_time_ns at_int
+       ; pair_key
+       ; edge
+       ; size
+       ; dollars
+       }
+       : Arb_observation.t)
+  in
+  T.custom ~encode ~decode representation
+;;
+
 let trade_log_entry_type =
   let representation =
     T.(

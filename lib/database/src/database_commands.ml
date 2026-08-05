@@ -238,6 +238,36 @@ let list_wallet_entries =
     {| SELECT * FROM arb_wallet ORDER BY dollars DESC |}
 ;;
 
+(* Edge sightings: append-only like the trade log, so scan history
+   survives — the wallet's upsert overwrites unacted rows and cannot chart
+   PnL over time. *)
+let create_arb_observation_table =
+  let open Caqti_request.Infix in
+  (Caqti_type.unit ->. Caqti_type.unit)
+    {|
+  CREATE TABLE IF NOT EXISTS arb_observations (
+      at BIGINT NOT NULL,
+      pair_key TEXT NOT NULL,
+      edge FLOAT NOT NULL,
+      size INT NOT NULL,
+      dollars FLOAT NOT NULL
+    )
+  |}
+;;
+
+let append_arb_observation =
+  let open Caqti_request.Infix in
+  (Database_types.arb_observation_type ->. T.unit)
+    {| INSERT INTO arb_observations (at, pair_key, edge, size, dollars)
+       VALUES (?, ?, ?, ?, ?) |}
+;;
+
+let list_arb_observations =
+  let open Caqti_request.Infix in
+  (Caqti_type.unit ->* Database_types.arb_observation_type)
+    {| SELECT * FROM arb_observations ORDER BY at ASC |}
+;;
+
 (* The live-trading audit trail: append-only by construction — no UPDATE or
    DELETE statement exists for it anywhere in this module. *)
 let create_trade_log_table =

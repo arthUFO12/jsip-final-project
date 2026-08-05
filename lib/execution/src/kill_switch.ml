@@ -14,3 +14,8 @@ let engaged () =
        Some [%string "%{sentinel_file} exists in the working directory"]
      | false -> None)
 ;;
+
+let trip ~reason =
+  Monitor.try_with_or_error ~name:"trip kill switch" (fun () ->
+    Writer.save sentinel_file ~contents:(reason ^ "\n"))
+;;

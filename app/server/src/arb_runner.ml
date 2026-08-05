@@ -114,7 +114,27 @@ let sweep ({ threshold } : Protocol.Sweep_request.t) =
 
 (* The bot's own execution defaults decide what counts as tradable, so the
    page and the paper bot never disagree about a hit. *)
-let execution_defaults = Config.Execution.default
+(* The caps rail every live order runs inside. Overridable once at startup
+   from server flags; [Config.validate]d there so a zero/negative cap kills
+   the server at launch instead of silently disabling a rail. *)
+let execution_config = ref Config.Execution.default
+
+let set_execution_caps ~max_order_dollars ~max_day_dollars =
+  let updated =
+    { !execution_config with
+      Config.Execution.max_dollars_per_order =
+        Price.of_float_dollars max_order_dollars
+    ; max_dollars_per_day = Price.of_float_dollars max_day_dollars
+    }
+  in
+  let open Or_error.Let_syntax in
+  let%map (_ : Config.t) =
+    Config.validate
+      { Config.default with trading = Live; execution = updated }
+  in
+  execution_config := updated
+;;
+
 
 (* The venue's own page for a market — the "actually go do it" link. Kalshi
    groups markets under a series page; Polymarket routes by slug. *)
@@ -174,7 +194,7 @@ let card_of_split
   ; size
   ; dollars = edge *. Float.of_int size
   ; tradable =
-      Float.( >= ) edge (dollars execution_defaults.min_edge) && size > 0
+      Float.( >= ) edge (dollars !execution_config.min_edge) && size > 0
   ; acted = false
   }
 ;;
@@ -211,6 +231,19 @@ let edge_card ~legs ({ Matcher.Candidate.left; right } as candidate) =
    whole opportunity would have locked in. Frozen (acted) rows are left alone
    by the upsert. *)
 let book_edge (card : Protocol.Edge_card.t) =
+  let open Deferred.Or_error.Let_syntax in
+  (* The sighting goes into the append-only history first — the wallet
+     upsert below overwrites, so this row is the only durable record that
+     the edge existed at this moment. *)
+  let%bind () =
+    Database.Database_exec.append_arb_observation
+      { Arb_observation.at = Time_ns.now ()
+      ; pair_key = card.pair_key
+      ; edge = card.edge
+      ; size = card.size
+      ; dollars = card.dollars
+      }
+  in
   Database.Database_exec.upsert_wallet_entry
     { Wallet_entry.pair_key = card.pair_key
     ; summary =
@@ -280,6 +313,99 @@ let enable_live credentials =
   live_state := Some (Execution.Executor.live credentials, credentials)
 ;;
 
+(* Whether the operator launched with [-allow-live] — recorded at startup so
+   the wallet-unlock RPC honors the same gate as env-credential startup: a
+   browser can never talk a paper server into going live. *)
+let live_allowed = ref false
+let set_live_allowed allowed = live_allowed := allowed
+let wallet_path () = Execution.Wallet_store.default_path ()
+
+let trading_key_status () =
+  let%map status = Execution.Wallet_store.status ~path:(wallet_path ()) () in
+  let unlocked = Option.is_some !live_state in
+  match status with
+  | Execution.Wallet_store.Status.Not_connected ->
+    Ok
+      { Protocol.Trading_key.Status.connected = false
+      ; unlocked
+      ; key_hint = None
+      ; production = false
+      ; live_allowed = !live_allowed
+      }
+  | Execution.Wallet_store.Status.Connected { key_hint; production } ->
+    Ok
+      { Protocol.Trading_key.Status.connected = true
+      ; unlocked
+      ; key_hint = Some key_hint
+      ; production
+      ; live_allowed = !live_allowed
+      }
+;;
+
+let connect_trading_key
+  { Protocol.Trading_key.Connect_request.key_id
+  ; private_key_pem
+  ; passphrase
+  ; production
+  }
+  =
+  let open Deferred.Or_error.Let_syntax in
+  let path = wallet_path () in
+  let%bind () =
+    Execution.Wallet_store.save
+      ~path
+      ~key_id
+      ~private_key_pem
+      ~passphrase
+      ~production
+      ()
+  in
+  (* Connecting also unlocks when the launch flag allows it — the user just
+     typed the passphrase; asking again immediately would be pure friction.
+     On a paper server the key is stored but stays locked, and the status
+     tells the UI why. *)
+  let%bind () =
+    match !live_allowed with
+    | false -> return ()
+    | true ->
+      let%bind credentials =
+        Execution.Wallet_store.unlock ~path ~passphrase ()
+      in
+      enable_live credentials;
+      return ()
+  in
+  trading_key_status ()
+;;
+
+let unlock_trading_key passphrase =
+  let open Deferred.Or_error.Let_syntax in
+  let%bind () =
+    match !live_allowed with
+    | true -> return ()
+    | false ->
+      Deferred.Or_error.error_string
+        "this server was started without -allow-live, so it cannot trade; \
+         restart it with the flag to unlock"
+  in
+  let%bind credentials =
+    Execution.Wallet_store.unlock ~path:(wallet_path ()) ~passphrase ()
+  in
+  enable_live credentials;
+  trading_key_status ()
+;;
+
+let lock_trading_key () =
+  live_state := None;
+  trading_key_status ()
+;;
+
+let forget_trading_key () =
+  let open Deferred.Or_error.Let_syntax in
+  live_state := None;
+  let%bind () = Execution.Wallet_store.forget ~path:(wallet_path ()) () in
+  trading_key_status ()
+;;
+
 let capability () =
   match !live_state with
   | None ->
@@ -288,7 +414,8 @@ let capability () =
       ; reason =
           Some
             "server was not started with -allow-live (and Kalshi \
-             credentials)"
+             credentials); connect and unlock a trading key on the Wallet \
+             page of a -allow-live server"
       }
   | Some
       ((_ : Execution.Executor.t), (_ : Execution.Kalshi_live.Credentials.t))
@@ -361,7 +488,7 @@ let preflight ({ pair_key; manual_is_yes } : Protocol.Preflight_request.t) =
   let%bind spent_today =
     Database.Database_exec.sum_trade_dollars_since (Rails.utc_day_start ())
   in
-  let execution = execution_defaults in
+  let execution = !execution_config in
   let day_room =
     Float.max 0. (cap_dollars execution.max_dollars_per_day -. spent_today)
   in
@@ -427,6 +554,98 @@ let log_manual_leg
     }
 ;;
 
+(* Remainder-cancel rows get their own audit action so the daily spend sum
+   (which filters on action='place') never counts them. *)
+let log_hedge_cancel ~(order : Execution.Order.t) ~client_order_id ~outcome =
+  let entry =
+    { Trade_log_entry.at = Time_ns.now ()
+    ; venue = Venue.to_string (Execution.Order.venue order)
+    ; market_id = order.market.market_id
+    ; action = "cancel"
+    ; client_order_id = Some client_order_id
+    ; outcome
+    ; detail = "remainder cleanup after a partial assisted hedge"
+    ; dollars = 0.
+    }
+  in
+  match%map.Deferred Database.Database_exec.append_trade_log entry with
+  | Ok () -> ()
+  | Error error ->
+    Core.eprint_s
+      [%message
+        "TRADE LOG WRITE FAILED - audit trail is incomplete"
+          (entry : Trade_log_entry.t)
+          (error : Error.t)]
+;;
+
+let status_poll_attempts = 3
+let status_poll_interval = Time_ns.Span.of_sec 1.
+
+(* The create response's synchronous fill count lags the venue's read side
+   by a beat, so a "partial" may already be fully executed. Give the order a
+   few polls to say so; otherwise cancel the remainder and take the cancel's
+   own [reduced_by] as the authoritative unfilled count. Never errors — the
+   fallback is the synchronous count, with the uncertainty logged. *)
+let reconcile_partial_fill
+  credentials
+  ~(order : Execution.Order.t)
+  ~client_order_id
+  ~order_id
+  ~size
+  ~synchronous_filled
+  =
+  let open Deferred.Let_syntax in
+  let rec poll attempt =
+    match%bind
+      Execution.Kalshi_live.order_status credentials ~order_id
+    with
+    | Ok "executed" -> return `Executed
+    | Ok status ->
+      (match attempt >= status_poll_attempts with
+       | true -> return (`Still status)
+       | false ->
+         let%bind () = Clock_ns.after status_poll_interval in
+         poll (attempt + 1))
+    | Error (_ : Error.t) ->
+      (* The read side 404s for a moment after creation; retry like a
+         resting order. *)
+      (match attempt >= status_poll_attempts with
+       | true -> return (`Still "unreadable")
+       | false ->
+         let%bind () = Clock_ns.after status_poll_interval in
+         poll (attempt + 1))
+  in
+  match%bind poll 1 with
+  | `Executed ->
+    (* The remainder filled while we watched — no cancel to send. *)
+    return size
+  | `Still status ->
+    (match%bind
+       Execution.Kalshi_live.cancel_order credentials ~order_id
+     with
+     | Ok reduced_by ->
+       let%bind () =
+         log_hedge_cancel
+           ~order
+           ~client_order_id
+           ~outcome:
+             [%string
+               "canceled remainder: removed %{reduced_by#Int} (order was                 %{status})"]
+       in
+       (* What the cancel could not remove had filled. *)
+       return (Int.max synchronous_filled (size - reduced_by))
+     | Error error ->
+       let%bind () =
+         log_hedge_cancel
+           ~order
+           ~client_order_id
+           ~outcome:
+             [%string
+               "CANCEL FAILED - remainder may still be resting:                 %{Error.to_string_hum error}"]
+       in
+       return synchronous_filled)
+;;
+
 let hedge
   ({ pair_key
    ; nonce
@@ -484,7 +703,7 @@ let hedge
           in
           let client_order_id = [%string "hedge-%{nonce}"] in
           (match%bind.Deferred
-             Rails.live_refusal ~execution:execution_defaults order
+             Rails.live_refusal ~execution:!execution_config order
            with
            | Some reason ->
              let%bind () =
@@ -538,21 +757,34 @@ let hedge
                        ~outcome:[%string "accepted: filled %{filled#Int}"]
                        ~dollars:(Rails.order_dollars order))
                 in
-                (* A remainder resting on the book is not a hedge the user
-                   can count on; cancel it so [unhedged] is definitive. *)
-                let%bind () =
+                (* A remainder resting on the book is not a hedge the
+                   user can count on; reconcile against the venue (poll,
+                   then cancel) so [unhedged] is definitive. *)
+                let%bind filled =
                   match filled < size, fill.venue_order_id with
+                  | false, _ | true, None -> return filled
                   | true, Some order_id ->
-                    (match%map.Deferred
-                       Execution.Kalshi_live.cancel_order
+                    Deferred.ok
+                      (reconcile_partial_fill
                          credentials
+                         ~order
+                         ~client_order_id
                          ~order_id
-                     with
-                     | Ok (_ : int) | Error (_ : Error.t) -> Ok ())
-                  | false, _ | true, None -> return ()
+                         ~size
+                         ~synchronous_filled:filled)
                 in
                 let unhedged = manual_count - filled in
-                let fee = dollars fill.fee in
+                let fee =
+                  match filled = Size.to_int fill.filled_size with
+                  | true -> dollars fill.fee
+                  | false ->
+                    (* Reconciliation changed the count; re-estimate the
+                       fee at the fill price. *)
+                    dollars
+                      (Size.multiply_by_price
+                         (Size.of_int filled)
+                         (Execution.Fees.taker_fee Kalshi fill.price))
+                in
                 let hedge_price = dollars fill.price in
                 let%bind () =
                   match filled > 0 with
@@ -572,6 +804,54 @@ let hedge
                 return
                   (Protocol.Hedge_result.Hedged
                      { price = hedge_price; count = filled; fee; unhedged })))))
+;;
+
+let account () =
+  match !live_state with
+  | None ->
+    Deferred.Or_error.error_string
+      "no trading key unlocked - unlock one on the Wallet page"
+  | Some ((_ : Execution.Executor.t), credentials) ->
+    let open Deferred.Or_error.Let_syntax in
+    let%bind balance_dollars = Execution.Kalshi_live.balance credentials in
+    let%bind positions = Execution.Kalshi_live.positions credentials in
+    let production =
+      String.equal
+        (Execution.Kalshi_live.Credentials.host credentials)
+        Execution.Kalshi_live.live_host
+    in
+    return
+      { Protocol.Account.balance_dollars
+      ; positions =
+          List.map
+            positions
+            ~f:(fun { Execution.Kalshi_live.Position.ticker
+                    ; position
+                    ; exposure_dollars
+                    } ->
+              { Protocol.Account.Position.ticker
+              ; position
+              ; exposure_dollars
+              })
+      ; production
+      }
+;;
+
+let trip_kill_switch reason =
+  let open Deferred.Or_error.Let_syntax in
+  let reason =
+    match String.strip reason with
+    | "" -> "tripped from the wallet page"
+    | reason -> reason
+  in
+  let%bind () = Execution.Kill_switch.trip ~reason in
+  (* Confirm by reading the switch back, so the caller shows the truth. *)
+  match%bind.Deferred Execution.Kill_switch.engaged () with
+  | Some engaged_reason -> return engaged_reason
+  | None ->
+    Deferred.Or_error.error_string
+      "kill switch did not engage - check the server's working directory \
+       permissions"
 ;;
 
 let scan () =

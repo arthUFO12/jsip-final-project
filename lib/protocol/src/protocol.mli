@@ -455,6 +455,67 @@ module Scan_report : sig
   [@@deriving sexp_of, bin_io]
 end
 
+module Trading_key : sig
+  (** The web half of the connect-your-wallet flow. The browser sends venue
+      credentials exactly once, in {!Connect_request} over the localhost
+      socket; the server encrypts them at rest ({!Execution.Wallet_store})
+      and everything it ever sends back is a {!Status} — which carries a
+      recognition hint, never the key id in full and never the PEM. *)
+
+  module Status : sig
+    type t =
+      { connected : bool (** an encrypted key file exists on the server *)
+      ; unlocked : bool
+        (** credentials are decrypted in server memory; live executor
+            installed *)
+      ; key_hint : string option
+        (** e.g. ["cc2a..5e86"] — enough to recognize, never the whole id *)
+      ; production : bool
+        (** the stored key targets the real-money host, not demo *)
+      ; live_allowed : bool
+        (** the server was started with [-allow-live]; without it, unlock
+            refuses and the UI says why *)
+      }
+    [@@deriving sexp_of, bin_io]
+  end
+
+  module Connect_request : sig
+    (** The one message that carries secrets, browser → server only.
+        [production] chooses the host the key will sign for — demo unless
+        the user explicitly says otherwise. *)
+    type t =
+      { key_id : string
+      ; private_key_pem : string
+      ; passphrase : string
+      ; production : bool
+      }
+    [@@deriving sexp_of, bin_io]
+  end
+end
+
+module Account : sig
+  (** The unlocked trading key's account as the venue reports it — cash and
+      open positions on whichever host (demo or production) the key
+      targets. Only as fresh as the venue's read side. *)
+
+  module Position : sig
+    type t =
+      { ticker : string
+      ; position : int
+        (** Signed contracts: positive long YES, negative NO. *)
+      ; exposure_dollars : float (** The venue's marked exposure. *)
+      }
+    [@@deriving sexp_of, bin_io]
+  end
+
+  type t =
+    { balance_dollars : float
+    ; positions : Position.t list
+    ; production : bool (** Real dollars, not demo. *)
+    }
+  [@@deriving sexp_of, bin_io]
+end
+
 (** Current (still-open) markets from the server's database seed, in no
     particular order — grouping and ranking are client concerns. *)
 val get_markets : (unit, Market_card.t list Or_error.t) Rpc.Rpc.t
@@ -519,3 +580,34 @@ val mark_acted : (string, Wallet.t Or_error.t) Rpc.Rpc.t
     requested markets. Errors carry parse locations / validation context
     verbatim for display on the rules page. *)
 val run_simulation : (Sim_request.t, Sim_result.t Or_error.t) Rpc.Rpc.t
+
+(** Where the trading key stands: connected? unlocked? demo or production? *)
+val get_trading_key : (unit, Trading_key.Status.t Or_error.t) Rpc.Rpc.t
+
+(** Validate, encrypt, and store a pasted key, replacing any previous one —
+    then unlock it if the server allows live trading. The only RPC whose
+    request carries secrets. *)
+val connect_trading_key
+  : (Trading_key.Connect_request.t, Trading_key.Status.t Or_error.t) Rpc.Rpc.t
+
+(** Decrypt the stored key with the passphrase (the query) and install the
+    live executor. Refused on a server started without [-allow-live], or
+    with a wrong passphrase. *)
+val unlock_trading_key : (string, Trading_key.Status.t Or_error.t) Rpc.Rpc.t
+
+(** Drop the decrypted credentials and the live executor from server memory.
+    The encrypted file stays; {!unlock_trading_key} brings it back. *)
+val lock_trading_key : (unit, Trading_key.Status.t Or_error.t) Rpc.Rpc.t
+
+(** Lock, then delete the encrypted key file — full disconnect. *)
+val forget_trading_key : (unit, Trading_key.Status.t Or_error.t) Rpc.Rpc.t
+
+(** The unlocked key's cash and open positions, straight from the venue.
+    Errors when no key is unlocked. *)
+val get_account : (unit, Account.t Or_error.t) Rpc.Rpc.t
+
+(** Engage the kill switch: creates the sentinel file with the given reason
+    so every live order refuses from now on. One-way from the browser —
+    clearing it requires deleting the file on the server machine. Returns
+    the engaged reason as confirmation. *)
+val trip_kill_switch : (string, string Or_error.t) Rpc.Rpc.t

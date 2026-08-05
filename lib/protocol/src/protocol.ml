@@ -340,6 +340,47 @@ module Scan_report = struct
   [@@deriving sexp_of, bin_io]
 end
 
+module Trading_key = struct
+  module Status = struct
+    type t =
+      { connected : bool
+      ; unlocked : bool
+      ; key_hint : string option
+      ; production : bool
+      ; live_allowed : bool
+      }
+    [@@deriving sexp_of, bin_io]
+  end
+
+  module Connect_request = struct
+    type t =
+      { key_id : string
+      ; private_key_pem : string
+      ; passphrase : string
+      ; production : bool
+      }
+    [@@deriving sexp_of, bin_io]
+  end
+end
+
+module Account = struct
+  module Position = struct
+    type t =
+      { ticker : string
+      ; position : int
+      ; exposure_dollars : float
+      }
+    [@@deriving sexp_of, bin_io]
+  end
+
+  type t =
+    { balance_dollars : float
+    ; positions : Position.t list
+    ; production : bool
+    }
+  [@@deriving sexp_of, bin_io]
+end
+
 let get_markets =
   Rpc.Rpc.create
     ~name:"get-markets"
@@ -463,5 +504,68 @@ let run_simulation =
     ~version:6
     ~bin_query:[%bin_type_class: Sim_request.t]
     ~bin_response:[%bin_type_class: Sim_result.t Or_error.t]
+    ~include_in_error_count:Or_error
+;;
+
+let get_trading_key =
+  Rpc.Rpc.create
+    ~name:"get-trading-key"
+    ~version:0
+    ~bin_query:[%bin_type_class: unit]
+    ~bin_response:[%bin_type_class: Trading_key.Status.t Or_error.t]
+    ~include_in_error_count:Or_error
+;;
+
+let connect_trading_key =
+  Rpc.Rpc.create
+    ~name:"connect-trading-key"
+    ~version:0
+    ~bin_query:[%bin_type_class: Trading_key.Connect_request.t]
+    ~bin_response:[%bin_type_class: Trading_key.Status.t Or_error.t]
+    ~include_in_error_count:Or_error
+;;
+
+let unlock_trading_key =
+  Rpc.Rpc.create
+    ~name:"unlock-trading-key"
+    ~version:0
+    ~bin_query:[%bin_type_class: string]
+    ~bin_response:[%bin_type_class: Trading_key.Status.t Or_error.t]
+    ~include_in_error_count:Or_error
+;;
+
+let lock_trading_key =
+  Rpc.Rpc.create
+    ~name:"lock-trading-key"
+    ~version:0
+    ~bin_query:[%bin_type_class: unit]
+    ~bin_response:[%bin_type_class: Trading_key.Status.t Or_error.t]
+    ~include_in_error_count:Or_error
+;;
+
+let get_account =
+  Rpc.Rpc.create
+    ~name:"get-account"
+    ~version:0
+    ~bin_query:[%bin_type_class: unit]
+    ~bin_response:[%bin_type_class: Account.t Or_error.t]
+    ~include_in_error_count:Or_error
+;;
+
+let trip_kill_switch =
+  Rpc.Rpc.create
+    ~name:"trip-kill-switch"
+    ~version:0
+    ~bin_query:[%bin_type_class: string]
+    ~bin_response:[%bin_type_class: string Or_error.t]
+    ~include_in_error_count:Or_error
+;;
+
+let forget_trading_key =
+  Rpc.Rpc.create
+    ~name:"forget-trading-key"
+    ~version:0
+    ~bin_query:[%bin_type_class: unit]
+    ~bin_response:[%bin_type_class: Trading_key.Status.t Or_error.t]
     ~include_in_error_count:Or_error
 ;;

@@ -1,0 +1,68 @@
+<!-- @dsCard group="Data Display" -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Wallet panels</title>
+<link rel="stylesheet" href="../tokens.css">
+<link rel="stylesheet" href="../kit.css">
+<!-- Two wallets: the arb page's fun scoreboard (pretend vs banked) and the
+     Wallet page's key status card. DOM byte-matches main.ml arb_wallet_view /
+     wallet_page status_card. Class names are API. -->
+<style> body { padding: 24px; } .ds-label { color: var(--ink-faint); font-size: 11px; font-family: var(--font-mono); margin: 22px 0 8px; } .ds-label:first-child { margin-top: 0; } </style>
+</head>
+<body>
+  <p class="ds-label">.arb-wallet — the scoreboard (paper vs banked)</p>
+  <div class="arb-wallet">
+    <div class="arb-wallet-scores">
+      <div>
+        <div class="arb-wallet-amount arb-wallet-paper">$212.40</div>
+        <div class="arb-wallet-label">pretend winnings — every arb found, fees included</div>
+      </div>
+      <div>
+        <div class="arb-wallet-amount arb-wallet-real">$36.80</div>
+        <div class="arb-wallet-label">banked by really trading</div>
+      </div>
+    </div>
+    <p class="arb-wallet-hint">🏦 Every tradable edge a scan finds is booked here at edge × depth, as if you'd taken all of it. Use a card's "trade it" links to place the legs for real, then hit "I traded this" to move the money from make-believe to banked.</p>
+    <div class="arb-wallet-entry">
+      <span>Fed March cut: YES Kalshi / NO Polymarket</span>
+      <span class="arb-acted-badge">✓ traded</span>
+      <span class="arb-wallet-entry-dollars">$36.80</span>
+    </div>
+    <div class="arb-wallet-entry">
+      <span>BTC 100k: YES Polymarket / NO Kalshi</span>
+      <span class="arb-wallet-entry-dollars">$175.60</span>
+    </div>
+  </div>
+
+  <p class="ds-label">.wallet-status-card — key connected, locked (demo)</p>
+  <div class="wallet-status-card">
+    <div>
+      <span class="wallet-key-hint">cc2a…9105</span>
+      <span class="wallet-badge wallet-badge-demo">demo - pretend money</span>
+    </div>
+    <div class="wallet-state-line wallet-locked">Locked - enter your passphrase to unlock trading for this server session.</div>
+    <div class="arb-controls">
+      <input class="arb-key-input" type="password" placeholder="passphrase">
+      <button class="btn-primary">Unlock</button>
+    </div>
+    <div class="button-row">
+      <button class="btn-secondary">Forget this key (deletes the encrypted file)</button>
+    </div>
+  </div>
+
+  <p class="ds-label">.wallet-status-card — unlocked (production)</p>
+  <div class="wallet-status-card">
+    <div>
+      <span class="wallet-key-hint">88f1…c2ea</span>
+      <span class="wallet-badge wallet-badge-prod">production - real money</span>
+    </div>
+    <div class="wallet-state-line wallet-unlocked">Unlocked - this server can sign orders with your key until it restarts or you lock it.</div>
+    <div class="button-row">
+      <button class="btn-secondary">Lock</button>
+    </div>
+  </div>
+</body>
+</html>

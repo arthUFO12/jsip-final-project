@@ -1,13 +1,12 @@
 (* The web app's client half: a Bonsai single-page app served by
-   [app/server]. The Markets page renders the category-grouped market
-   browser; the Bots page is a three-stage bot builder — pick markets (search
-   with autocomplete), write rules (editor with autocomplete and window
-   controls), run and study the results (fills, pnl and price charts). Market
-   data arrives over {!Protocol.get_markets}; backtests run server-side via
-   {!Protocol.run_simulation}. *)
+   [app/server]. The pages live beside this file — {!Markets_page},
+   {!Bots_page}, {!Arb_page}, {!Wallet_page} — over the shared view
+   helpers in {!Ui} and the chart renderer in {!Chart_view}. This
+   file holds the page enum and the shell that swaps pages; the
+   stylesheet is a static asset ([app/client/static]) served by the
+   server alongside the bundle. *)
 
 open! Core
-open Types
 open Bonsai_web
 open Bonsai.Let_syntax
 module Card = Protocol.Market_card
@@ -478,18 +477,21 @@ let css =
   .manual-note { color: #fbbf24; margin: 6px 0; }
 |}
 ;;
+open Ui
 
 module Page = struct
   type t =
     | Markets
     | Bots
     | Arbitrage
+    | Wallet
   [@@deriving sexp_of, compare, equal, enumerate]
 
   let name = function
     | Markets -> "Markets"
     | Bots -> "Bots"
     | Arbitrage -> "Arbitrage"
+    | Wallet -> "Wallet"
   ;;
 end
 
@@ -3760,20 +3762,29 @@ let nav_button ~current ~set_page page =
 
 let app (local_ graph) =
   let page, set_page = Bonsai.state Page.Markets graph in
-  let markets_result = fetch_markets graph in
-  let markets = markets_page markets_result graph in
-  let bots = bots_page markets_result graph in
-  let arbitrage = arbitrage_page graph in
-  let%arr page and set_page and markets and bots and arbitrage in
+  let markets_result = Markets_page.fetch_markets graph in
+  (* Only the active page's computation is alive: [match%sub] deactivates
+     the other branches (their models are retained, so wizard state
+     survives page flips) and [Bonsai.delay] defers even building a page's
+     graph until its first visit. Re-entering a page re-fires its
+     [on_activate] refresh — matching the arb page's own
+     refresh-on-section-entry behavior. *)
   let body =
-    match page with
-    | Markets -> markets
-    | Bots -> bots
-    | Arbitrage -> arbitrage
+    match%sub page with
+    | Markets -> Markets_page.markets_page markets_result graph
+    | Bots ->
+      Bonsai.delay graph ~f:(fun graph ->
+        Bots_page.bots_page markets_result graph)
+    | Arbitrage ->
+      Bonsai.delay graph ~f:(fun graph -> Arb_page.arbitrage_page graph)
+    | Wallet ->
+      Bonsai.delay graph ~f:(fun graph -> Wallet_page.wallet_page graph)
   in
+  let%arr page
+  and set_page
+  and body in
   Vdom.Node.div
-    [ Vdom.Node.create "style" [ Vdom.Node.text css ]
-    ; Vdom.Node.div
+    [ Vdom.Node.div
         ~attrs:[ cls "header" ]
         [ Vdom.Node.h1 ~attrs:[ cls "title" ] [ Vdom.Node.text "Arbiter" ]
         ; Vdom.Node.p
