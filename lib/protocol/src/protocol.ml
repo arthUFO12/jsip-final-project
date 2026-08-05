@@ -7,6 +7,26 @@ let epoch_seconds time =
 ;;
 
 module Market_card = struct
+  module Volume = struct
+    (* [Types.Volume.t] carries a microcent [Price.t], which overflows the
+       browser's 32-bit ints past ~$21 — so notionals cross the wire as
+       float dollars, per the money convention in the mli header. *)
+    type t =
+      | Contracts of int
+      | Notional_dollars of float
+    [@@deriving sexp_of, bin_io, compare, equal]
+
+    let of_domain : Types.Volume.t -> t = function
+      | Contracts size -> Contracts (Size.to_int size)
+      | Notional price -> Notional_dollars (Price.to_dollar_float price)
+    ;;
+
+    let to_float = function
+      | Contracts count -> Float.of_int count
+      | Notional_dollars dollars -> dollars
+    ;;
+  end
+
   type t =
     { slug : Slug.t
     ; title : string
@@ -20,7 +40,7 @@ module Market_card = struct
     { slug = stub.slug
     ; title = stub.title
     ; category = stub.category
-    ; volume = stub.volume
+    ; volume = Option.map stub.volume ~f:Volume.of_domain
     ; has_price_history = Option.is_some stub.series_ticker
     }
   ;;

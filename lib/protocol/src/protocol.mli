@@ -19,6 +19,23 @@ open Types
 val epoch_seconds : Time_ns.t -> float
 
 module Market_card : sig
+  module Volume : sig
+    (** Client-safe mirror of {!Types.Volume.t}: js_of_ocaml ints are 32
+        bits, and a microcent {!Types.Price.t} overflows them past ~$21 —
+        so notional volumes cross the wire as float dollars, per the money
+        convention above. *)
+    type t =
+      | Contracts of int
+      | Notional_dollars of float
+    [@@deriving sexp_of, bin_io, compare, equal]
+
+    val of_domain : Types.Volume.t -> t
+
+    (** For volume ranking: contract counts and dollar notionals on one
+        (incomparable but orderable) axis, as {!Types.Volume.to_float}. *)
+    val to_float : t -> float
+  end
+
   (** What the market-browser page needs to render one market — a
       display-focused projection of {!Market_stub.t}. *)
   type t =

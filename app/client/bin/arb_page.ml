@@ -443,7 +443,6 @@ let arb_edge_view
   ~assist
   (edge : Protocol.Edge_card.t)
   =
-  let money value = sprintf "$%.2f" value in
   (* One row per leg, venue chip first: the two titles are the same event
      worded by different venues, so without the chips up front the card reads
      as one market listed twice. The link is the venue's own order book —
@@ -550,7 +549,7 @@ let arb_wallet_view (wallet : Protocol.Wallet.t Or_error.t option) =
       Vdom.Node.div
         [ Vdom.Node.div
             ~attrs:[ Vdom.Attr.classes [ "arb-wallet-amount"; class_ ] ]
-            [ Vdom.Node.text (sprintf "$%.2f" amount) ]
+            [ Vdom.Node.text (money amount) ]
         ; Vdom.Node.div
             ~attrs:[ cls "arb-wallet-label" ]
             [ Vdom.Node.text label ]
@@ -569,7 +568,7 @@ let arb_wallet_view (wallet : Protocol.Wallet.t Or_error.t option) =
             | false -> [])
          @ [ Vdom.Node.span
                ~attrs:[ cls "arb-wallet-entry-dollars" ]
-               [ Vdom.Node.text (sprintf "$%.2f" card.dollars) ]
+               [ Vdom.Node.text (money card.dollars) ]
            ])
     in
     Vdom.Node.div
@@ -602,7 +601,6 @@ let arb_hedge_dialog_view
   ~set_count
   ~fire
   =
-  let money value = sprintf "$%.2f" value in
   let box children = Vdom.Node.div ~attrs:[ cls "arb-dialog" ] children in
   let warning text =
     Vdom.Node.p ~attrs:[ cls "arb-disclaimer" ] [ Vdom.Node.text text ]

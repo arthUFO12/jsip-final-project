@@ -87,13 +87,28 @@ let stat_tile ?value_class ~label ~value () =
     ]
 ;;
 
+(* Dollar amounts everywhere in the UI: thousands grouped, two decimals,
+   and the sign ahead of the currency symbol ([money (-3.5)] is "-$3.50",
+   not "$-3.50"). *)
+let money value =
+  let sign = match Float.(value < 0.) with true -> "-" | false -> "" in
+  let magnitude =
+    Float.to_string_hum
+      (Float.abs value)
+      ~decimals:2
+      ~delimiter:','
+      ~strip_zero:false
+  in
+  [%string "%{sign}$%{magnitude}"]
+;;
+
 (* Returns and their parts are signed quantities, so their value carries the
    direction color; balances (cash, portfolio, total) stay in plain ink. *)
 let signed_stat_tile ~label value =
   let value_class =
     match Float.(value < 0.) with true -> "stat-neg" | false -> "stat-pos"
   in
-  stat_tile ~label ~value:(sprintf "$%.2f" value) ~value_class ()
+  stat_tile ~label ~value:(money value) ~value_class ()
 ;;
 
 (* The one lifecycle every background request shares. Pages alias it with
@@ -165,6 +180,9 @@ let num_input ?error ~value ~set_value () =
                 | None -> []
                 | Some (_ : string) -> [ "input-invalid" ]))
           ; Vdom.Attr.value value
+            (* Numeric on-screen keyboard on touch devices; no effect on
+               desktop. *)
+          ; Vdom.Attr.create "inputmode" "decimal"
           ; Vdom.Attr.on_input (fun (_ : _ Js_of_ocaml.Js.t) text ->
               set_value text)
           ]

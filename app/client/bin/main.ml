@@ -37,17 +37,33 @@ let nav_button ~current ~set_page page =
     [ Vdom.Node.text (Page.name page) ]
 ;;
 
+let set_document_title =
+  Effect.of_sync_fun (fun title ->
+    Js_of_ocaml.Dom_html.document##.title := Js_of_ocaml.Js.string title)
+;;
+
 let app (local_ graph) =
   let page, set_page = Bonsai.state Page.Markets graph in
-  let markets_result = Markets_page.fetch_markets graph in
-  (* Only the active page's computation is alive: [match%sub] deactivates the
-     other branches (their models are retained, so wizard state survives page
-     flips) and [Bonsai.delay] defers even building a page's graph until its
-     first visit. Re-entering a page re-fires its [on_activate] refresh —
-     matching the arb page's own refresh-on-section-entry behavior. *)
+  let markets_result, refetch_markets = Markets_page.fetch_markets graph in
+  (* Keep the browser tab labeled with the page being viewed; fires on the
+     first frame too, replacing the bundle's default title. *)
+  Bonsai.Edge.on_change
+    ~equal:Page.equal
+    page
+    ~callback:
+      (Bonsai.return (fun page ->
+         set_document_title [%string "Arbiter — %{Page.name page}"]))
+    graph;
+  (* Only the active page's computation is alive: [match%sub] deactivates
+     the other branches (their models are retained, so wizard state
+     survives page flips) and [Bonsai.delay] defers even building a page's
+     graph until its first visit. Re-entering a page re-fires its
+     [on_activate] refresh — matching the arb page's own
+     refresh-on-section-entry behavior. *)
   let body =
     match%sub page with
-    | Markets -> Markets_page.markets_page markets_result graph
+    | Markets ->
+      Markets_page.markets_page markets_result ~refetch:refetch_markets graph
     | Bots ->
       Bonsai.delay graph ~f:(fun graph ->
         Bots_page.bots_page markets_result graph)
