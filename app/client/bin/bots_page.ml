@@ -793,10 +793,7 @@ let rules_view
         ]
     ; (match error with
        | None -> Vdom.Node.none
-       | Some error ->
-         Vdom.Node.div
-           ~attrs:[ cls "error-box" ]
-           [ Vdom.Node.text (Error.to_string_hum error) ])
+       | Some error -> error_box error)
     ; Vdom.Node.div
         ~attrs:[ cls "rules-layout" ]
         [ config_column
@@ -923,7 +920,6 @@ let final_stats (final : Protocol.Tick_point.t) ~pnl_percentile =
     final
   in
   let portfolio = Client_logic.Portfolio.value ~inventory ~yes_prices in
-  let money value = sprintf "$%.2f" value in
   let inventory_tile =
     let held = List.filter inventory ~f:(fun (_, count) -> count <> 0) in
     let lines =
@@ -973,7 +969,6 @@ let baseline_stats
   ({ time_s = _; cash; realized; unrealized; portfolio_value } :
     Protocol.Baseline_point.t)
   =
-  let money value = sprintf "$%.2f" value in
   Vdom.Node.div
     ~attrs:[ cls "stats-grid" ]
     [ stat_tile ~label:"avg cash" ~value:(money cash) ()

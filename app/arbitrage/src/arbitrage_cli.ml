@@ -123,9 +123,19 @@ let review_command =
          return ()
        in
        let list (status : Pair_proposal.Status.t) =
+         let%bind summary = Review.summary () in
+         let { Review.Summary.proposed; approved; rejected } = summary in
+         printf
+           "arbitrage found so far: %d pair(s) — %d approved, %d awaiting \
+            review, %d rejected\n"
+           (Review.Summary.total summary)
+           approved
+           proposed
+           rejected;
          let%bind listed = Review.list_by_status status in
          printf
-           !"%d %{sexp: Pair_proposal.Status.t} pair(s):\n"
+           !"%d %{sexp: Pair_proposal.Status.t} pair(s), most likely \
+             first — highest match score at the top:\n"
            (List.length listed)
            status;
          List.iter listed ~f:(fun entry ->

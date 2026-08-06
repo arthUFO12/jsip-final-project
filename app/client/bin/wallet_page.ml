@@ -385,7 +385,7 @@ let wallet_page (local_ graph) =
             [ Vdom.Node.text (sprintf "%+d contracts" position) ]
         ; Vdom.Node.span
             ~attrs:[ cls "arb-wallet-entry-dollars" ]
-            [ Vdom.Node.text (sprintf "$%.2f exposure" exposure_dollars) ]
+            [ Vdom.Node.text [%string "%{money exposure_dollars} exposure"] ]
         ]
     in
     let body =
@@ -412,7 +412,7 @@ let wallet_page (local_ graph) =
           ([ Vdom.Node.div
                [ Vdom.Node.span
                    ~attrs:[ cls "arb-wallet-amount arb-wallet-real" ]
-                   [ Vdom.Node.text (sprintf "$%.2f" balance_dollars) ]
+                   [ Vdom.Node.text (money balance_dollars) ]
                ; badge
                ]
            ; Vdom.Node.div
@@ -494,8 +494,7 @@ let wallet_page (local_ graph) =
       Vdom.Node.div
         ~attrs:[ cls "status" ]
         [ Vdom.Node.text "checking for a connected key..." ]
-    | Some (Error error) ->
-      Vdom.Node.pre [ Vdom.Node.text (Error.to_string_hum error) ]
+    | Some (Error error) -> error_box error
     | Some (Ok key_status) ->
       (match key_status.Protocol.Trading_key.Status.connected with
        | true ->

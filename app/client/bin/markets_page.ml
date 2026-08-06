@@ -89,15 +89,22 @@ let markets_view cards ~on_select =
     Vdom.Node.div (List.map groups ~f:(category_section ~on_select))
 ;;
 
-let markets_page_view markets ~on_select =
+let markets_page_view markets ~on_select ~refetch =
   match markets with
   | None ->
     Vdom.Node.div
       ~attrs:[ cls "status" ]
       [ Vdom.Node.text "loading markets..." ]
-  | Some (Error error) ->
-    Vdom.Node.pre [ Vdom.Node.text (Error.to_string_hum error) ]
-  | Some (Ok cards) -> markets_view cards ~on_select
+  | Some (Error error) -> error_banner ~retry:refetch error
+  | Some (Ok cards) ->
+    (* Markets are fetched once per app load, so give the user a way to
+       pick up newly listed markets without reloading the whole page. *)
+    Vdom.Node.div
+      [ markets_view cards ~on_select
+      ; Vdom.Node.div
+          ~attrs:[ cls "button-row" ]
+          [ button ~class_:"btn-secondary" ~label:"Refresh markets" refetch ]
+      ]
 ;;
 
 (* ---------- Market detail popup ---------- *)
@@ -141,7 +148,7 @@ let market_detail_modal
         | Some (_, price) ->
           [ stat_tile
               ~label:"current price"
-              ~value:(sprintf "$%.2f" price)
+              ~value:(money price)
               ()
           ]
       in
@@ -151,7 +158,11 @@ let market_detail_modal
         | Some (_, volume) ->
           [ stat_tile
               ~label:"24h volume"
-              ~value:(sprintf "%.0f contracts" volume)
+              ~value:
+                (let count =
+                   Float.to_string_hum volume ~decimals:0 ~delimiter:','
+                 in
+                 [%string "%{count} contracts"])
               ()
           ]
       in
@@ -211,7 +222,7 @@ let market_detail_modal
     ]
 ;;
 
-let markets_page markets_result (local_ graph) =
+let markets_page markets_result ~refetch (local_ graph) =
   let selected, set_selected = Bonsai.state (None : Card.t option) graph in
   let detail, set_detail = Bonsai.state Detail_state.Idle graph in
   (* One hover cell for the modal's charts, keyed by chart title. *)
@@ -226,7 +237,8 @@ let markets_page markets_result (local_ graph) =
   and hover
   and set_hover
   and dispatch_detail
-  and markets_result in
+  and markets_result
+  and refetch in
   let close =
     Effect.Many [ set_selected None; set_detail Detail_state.Idle ]
   in
@@ -246,20 +258,26 @@ let markets_page markets_result (local_ graph) =
     | None -> Vdom.Node.none
     | Some card -> market_detail_modal card detail ~close ~hover ~set_hover
   in
-  Vdom.Node.div [ markets_page_view markets_result ~on_select; modal ]
+  Vdom.Node.div
+    [ markets_page_view markets_result ~on_select ~refetch; modal ]
 ;;
 
 (* ---------- Markets data fetch ---------- *)
 
+(* Returns the fetch result alongside the fetch effect itself, so a failed
+   initial load can offer Retry instead of demanding a page reload. *)
 let fetch_markets (local_ graph) =
   (* [where_to_connect] defaults to the serving host's websocket. *)
   let dispatch = Rpc_effect.Rpc.dispatcher Protocol.get_markets graph in
   let result, set_result = Bonsai.state_opt graph in
-  let on_activate =
+  let fetch =
     let%map dispatch and set_result in
+    (* Drop back to the loading state first so a retry shows progress
+       rather than the stale error while the request is in flight. *)
+    let%bind.Effect () = set_result None in
     let%bind.Effect response = dispatch () in
     set_result (Some (Or_error.join response))
   in
-  Bonsai.Edge.lifecycle ~on_activate graph;
-  result
+  Bonsai.Edge.lifecycle ~on_activate:fetch graph;
+  result, fetch
 ;;

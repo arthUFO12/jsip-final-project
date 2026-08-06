@@ -37,6 +37,23 @@ module Volume : sig
 end
 
 module Market_card : sig
+  module Volume : sig
+    (** Client-safe mirror of {!Types.Volume.t}: js_of_ocaml ints are 32
+        bits, and a microcent {!Types.Price.t} overflows them past ~$21 —
+        so notional volumes cross the wire as float dollars, per the money
+        convention above. *)
+    type t =
+      | Contracts of int
+      | Notional_dollars of float
+    [@@deriving sexp_of, bin_io, compare, equal]
+
+    val of_domain : Types.Volume.t -> t
+
+    (** For volume ranking: contract counts and dollar notionals on one
+        (incomparable but orderable) axis, as {!Types.Volume.to_float}. *)
+    val to_float : t -> float
+  end
+
   (** What the market-browser page needs to render one market — a
       display-focused projection of {!Market_stub.t}. *)
   type t =
@@ -237,6 +254,21 @@ module Pair_card : sig
     ; status : Pair_status.t
     }
   [@@deriving sexp_of, bin_io]
+end
+
+module Pair_counts : sig
+  (** How much arbitrage the sweeps have surfaced so far: one count per
+      review status over the whole pair store. The review page's
+      "found so far" line, above the per-tab listing {!get_pairs}
+      returns. *)
+  type t =
+    { proposed : int
+    ; approved : int
+    ; rejected : int
+    }
+  [@@deriving sexp_of, bin_io]
+
+  val total : t -> int
 end
 
 module Sweep_request : sig
@@ -545,8 +577,13 @@ val get_markets : (unit, Market_card.t list Or_error.t) Rpc.Rpc.t
     price history. *)
 val get_market_detail : (Slug.t, Market_detail.t Or_error.t) Rpc.Rpc.t
 
-(** The pairs currently in the given status, in review-listing order. *)
+(** The pairs currently in the given status, in review-listing order —
+    most-likely-first, text-match score descending. *)
 val get_pairs : (Pair_status.t, Pair_card.t list Or_error.t) Rpc.Rpc.t
+
+(** Counts of every pair the sweeps have filed so far, by current status —
+    the review page's headline number. *)
+val get_pair_counts : (unit, Pair_counts.t Or_error.t) Rpc.Rpc.t
 
 (** Move one listed pair to a new status; returns it as decided. *)
 val decide_pair : (Decide_request.t, Pair_card.t Or_error.t) Rpc.Rpc.t

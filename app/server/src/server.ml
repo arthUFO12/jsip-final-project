@@ -205,6 +205,8 @@ let implementations =
           Sim_runner.run request)
       ; Rpc.Rpc.implement Protocol.get_pairs (fun () status ->
           Arb_runner.list_pairs status)
+      ; Rpc.Rpc.implement Protocol.get_pair_counts (fun () () ->
+          Arb_runner.pair_counts ())
       ; Rpc.Rpc.implement Protocol.decide_pair (fun () request ->
           Arb_runner.decide request)
       ; Rpc.Rpc.implement Protocol.llm_review_pairs (fun () request ->

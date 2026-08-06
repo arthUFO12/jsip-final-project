@@ -28,6 +28,26 @@ module Volume = struct
 end
 
 module Market_card = struct
+  module Volume = struct
+    (* [Types.Volume.t] carries a microcent [Price.t], which overflows the
+       browser's 32-bit ints past ~$21 — so notionals cross the wire as
+       float dollars, per the money convention in the mli header. *)
+    type t =
+      | Contracts of int
+      | Notional_dollars of float
+    [@@deriving sexp_of, bin_io, compare, equal]
+
+    let of_domain : Types.Volume.t -> t = function
+      | Contracts size -> Contracts (Size.to_int size)
+      | Notional price -> Notional_dollars (Price.to_dollar_float price)
+    ;;
+
+    let to_float = function
+      | Contracts count -> Float.of_int count
+      | Notional_dollars dollars -> dollars
+    ;;
+  end
+
   type t =
     { slug : Slug.t
     ; title : string
@@ -185,6 +205,19 @@ module Pair_card = struct
     ; status : Pair_status.t
     }
   [@@deriving sexp_of, bin_io]
+end
+
+module Pair_counts = struct
+  type t =
+    { proposed : int
+    ; approved : int
+    ; rejected : int
+    }
+  [@@deriving sexp_of, bin_io]
+
+  let total { proposed; approved; rejected } =
+    proposed + approved + rejected
+  ;;
 end
 
 module Sweep_request = struct
@@ -426,6 +459,15 @@ let get_pairs =
     ~version:0
     ~bin_query:[%bin_type_class: Pair_status.t]
     ~bin_response:[%bin_type_class: Pair_card.t list Or_error.t]
+    ~include_in_error_count:Or_error
+;;
+
+let get_pair_counts =
+  Rpc.Rpc.create
+    ~name:"get-pair-counts"
+    ~version:0
+    ~bin_query:[%bin_type_class: unit]
+    ~bin_response:[%bin_type_class: Pair_counts.t Or_error.t]
     ~include_in_error_count:Or_error
 ;;
 

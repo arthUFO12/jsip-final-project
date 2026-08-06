@@ -57,6 +57,14 @@ let list_pairs status =
   List.map listed ~f:card_of_listed
 ;;
 
+let pair_counts () =
+  let open Deferred.Or_error.Let_syntax in
+  let%map { Review.Summary.proposed; approved; rejected } =
+    Review.summary ()
+  in
+  { Protocol.Pair_counts.proposed; approved; rejected }
+;;
+
 let decide ({ tab; index; new_status } : Protocol.Decide_request.t) =
   let open Deferred.Or_error.Let_syntax in
   let%map decided =
