@@ -97,8 +97,8 @@ let markets_page_view markets ~on_select ~refetch =
       [ Vdom.Node.text "loading markets..." ]
   | Some (Error error) -> error_banner ~retry:refetch error
   | Some (Ok cards) ->
-    (* Markets are fetched once per app load, so give the user a way to
-       pick up newly listed markets without reloading the whole page. *)
+    (* Markets are fetched once per app load, so give the user a way to pick
+       up newly listed markets without reloading the whole page. *)
     Vdom.Node.div
       [ markets_view cards ~on_select
       ; Vdom.Node.div
@@ -146,11 +146,7 @@ let market_detail_modal
         match List.last prices with
         | None -> []
         | Some (_, price) ->
-          [ stat_tile
-              ~label:"current price"
-              ~value:(money price)
-              ()
-          ]
+          [ stat_tile ~label:"current price" ~value:(money price) () ]
       in
       let volume_24h_tile =
         match List.last trailing_volumes with
@@ -272,8 +268,8 @@ let fetch_markets (local_ graph) =
   let result, set_result = Bonsai.state_opt graph in
   let fetch =
     let%map dispatch and set_result in
-    (* Drop back to the loading state first so a retry shows progress
-       rather than the stale error while the request is in flight. *)
+    (* Drop back to the loading state first so a retry shows progress rather
+       than the stale error while the request is in flight. *)
     let%bind.Effect () = set_result None in
     let%bind.Effect response = dispatch () in
     set_result (Some (Or_error.join response))

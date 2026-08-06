@@ -72,22 +72,30 @@ let fetch_one_ticker_series
       in
       slice start []
     in
-    let%bind.Deferred.Or_error bodies =
+    let%bind.Deferred.Or_error window_points =
       Deferred.Or_error.List.map
         windows
         ~how:`Sequential
         ~f:(fun (start, finish) ->
-          Fetch_time_series.fetch_polymarket_data
-            market_stub
-            ~start
-            ~finish
-            ~interval)
+          let%bind.Deferred.Or_error body =
+            Fetch_time_series.fetch_polymarket_data
+              market_stub
+              ~start
+              ~finish
+              ~interval
+          in
+          (* prices-history appends the market's latest trade to every
+             response, even when [finish] is long past — unclipped, each
+             stitched window would end with a point at "now" and the series
+             would zigzag backward in time. *)
+          Deferred.Or_error.return
+            (List.filter
+               (Time_series_parser.parse_polymarket_time_series body)
+               ~f:(fun (point : Time_series.Point.t) ->
+                 Time_ns.( >= ) point.time start
+                 && Time_ns.( <= ) point.time finish)))
     in
-    let points =
-      List.concat_map
-        bodies
-        ~f:Time_series_parser.parse_polymarket_time_series
-    in
+    let points = List.concat window_points in
     (* A point on a window boundary can come back in both neighbors. *)
     Deferred.Or_error.return
       (List.remove_consecutive_duplicates

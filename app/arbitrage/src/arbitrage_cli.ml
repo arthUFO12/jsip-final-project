@@ -134,8 +134,8 @@ let review_command =
            rejected;
          let%bind listed = Review.list_by_status status in
          printf
-           !"%d %{sexp: Pair_proposal.Status.t} pair(s), most likely \
-             first — highest match score at the top:\n"
+           !"%d %{sexp: Pair_proposal.Status.t} pair(s), most likely first \
+             — highest match score at the top:\n"
            (List.length listed)
            status;
          List.iter listed ~f:(fun entry ->

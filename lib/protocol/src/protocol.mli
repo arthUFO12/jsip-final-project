@@ -18,29 +18,11 @@ open Types
 (** [Time_ns.t] as wire seconds. *)
 val epoch_seconds : Time_ns.t -> float
 
-module Volume : sig
-  (** Traded volume, mirrored from {!Types.Volume} as a wire type: that
-      type's [Notional] payload is microcents in a 63-bit int, which
-      overflows js_of_ocaml's 32-bit client ints — so dollars ride the wire
-      as floats. The constructor still records the venue's unit (Kalshi
-      counts contracts, Polymarket reports USD notional). *)
-  type t =
-    | Contracts of int
-    | Notional_dollars of float
-  [@@deriving sexp_of, bin_io, compare, equal]
-
-  val of_venue_volume : Types.Volume.t -> t
-
-  (** The bare magnitude, for ranking markets by activity — only meaningful
-      as an ordering key, the units differ across constructors. *)
-  val to_float : t -> float
-end
-
 module Market_card : sig
   module Volume : sig
     (** Client-safe mirror of {!Types.Volume.t}: js_of_ocaml ints are 32
-        bits, and a microcent {!Types.Price.t} overflows them past ~$21 —
-        so notional volumes cross the wire as float dollars, per the money
+        bits, and a microcent {!Types.Price.t} overflows them past ~$21 — so
+        notional volumes cross the wire as float dollars, per the money
         convention above. *)
     type t =
       | Contracts of int
@@ -258,9 +240,8 @@ end
 
 module Pair_counts : sig
   (** How much arbitrage the sweeps have surfaced so far: one count per
-      review status over the whole pair store. The review page's
-      "found so far" line, above the per-tab listing {!get_pairs}
-      returns. *)
+      review status over the whole pair store. The review page's "found so
+      far" line, above the per-tab listing {!get_pairs} returns. *)
   type t =
     { proposed : int
     ; approved : int

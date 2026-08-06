@@ -409,9 +409,9 @@ let arb_review_panel ~tab ~pairs ~counts ~select_tab ~decide ~llm ~auto =
            pairs"
         | total ->
           [%string
-            "arbitrage found so far: %{total#Int} pair(s) — \
-             %{approved#Int} approved, %{proposed#Int} awaiting review, \
-             %{rejected#Int} rejected"]
+            "arbitrage found so far: %{total#Int} pair(s) — %{approved#Int} \
+             approved, %{proposed#Int} awaiting review, %{rejected#Int} \
+             rejected"]
       in
       Vdom.Node.p ~attrs:[ cls "arb-panel-hint" ] [ Vdom.Node.text line ]
   in

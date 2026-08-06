@@ -68,9 +68,7 @@ module Summary = struct
     }
   [@@deriving sexp_of]
 
-  let total { proposed; approved; rejected } =
-    proposed + approved + rejected
-  ;;
+  let total { proposed; approved; rejected } = proposed + approved + rejected
 end
 
 let summary () =

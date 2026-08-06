@@ -9,7 +9,8 @@ let card ?volume ~category ~slug () : Protocol.Market_card.t =
   { slug = Slug.of_string slug
   ; title = String.capitalize slug
   ; category
-  ; volume = Option.map volume ~f:(fun n -> Protocol.Volume.Contracts n)
+  ; volume =
+      Option.map volume ~f:(fun n -> Protocol.Market_card.Volume.Contracts n)
   ; has_price_history = true
   }
 ;;
@@ -21,7 +22,8 @@ let show groups =
         let volume =
           match card.volume with
           | None -> "-"
-          | Some volume -> Float.to_string (Protocol.Volume.to_float volume)
+          | Some volume ->
+            Float.to_string (Protocol.Market_card.Volume.to_float volume)
         in
         [%string "%{card.slug#Slug}(%{volume})"])
       |> String.concat ~sep:" "

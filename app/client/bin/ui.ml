@@ -87,9 +87,9 @@ let stat_tile ?value_class ~label ~value () =
     ]
 ;;
 
-(* Dollar amounts everywhere in the UI: thousands grouped, two decimals,
-   and the sign ahead of the currency symbol ([money (-3.5)] is "-$3.50",
-   not "$-3.50"). *)
+(* Dollar amounts everywhere in the UI: thousands grouped, two decimals, and
+   the sign ahead of the currency symbol ([money (-3.5)] is "-$3.50", not
+   "$-3.50"). *)
 let money value =
   let sign = match Float.(value < 0.) with true -> "-" | false -> "" in
   let magnitude =

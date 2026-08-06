@@ -54,12 +54,11 @@ let app (local_ graph) =
       (Bonsai.return (fun page ->
          set_document_title [%string "Arbiter — %{Page.name page}"]))
     graph;
-  (* Only the active page's computation is alive: [match%sub] deactivates
-     the other branches (their models are retained, so wizard state
-     survives page flips) and [Bonsai.delay] defers even building a page's
-     graph until its first visit. Re-entering a page re-fires its
-     [on_activate] refresh — matching the arb page's own
-     refresh-on-section-entry behavior. *)
+  (* Only the active page's computation is alive: [match%sub] deactivates the
+     other branches (their models are retained, so wizard state survives page
+     flips) and [Bonsai.delay] defers even building a page's graph until its
+     first visit. Re-entering a page re-fires its [on_activate] refresh —
+     matching the arb page's own refresh-on-section-entry behavior. *)
   let body =
     match%sub page with
     | Markets ->
