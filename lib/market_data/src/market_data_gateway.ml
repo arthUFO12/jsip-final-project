@@ -54,15 +54,46 @@ let fetch_one_ticker_series
     Deferred.Or_error.return
       (Time_series_parser.parse_kalshi_time_series response_body)
   | Polymarket ->
-    let%bind.Deferred.Or_error response_body =
-      Fetch_time_series.fetch_polymarket_data
-        market_stub
-        ~start
-        ~finish
-        ~interval
+    (* prices-history caps each request at
+       [Fetch_time_series.max_polymarket_window], but serves windows that
+       wide arbitrarily far back — so a longer range is stitched from
+       consecutive windows, oldest first. *)
+    let windows =
+      let rec slice cursor windows =
+        let window_finish =
+          Time_ns.min
+            finish
+            (Time_ns.add cursor Fetch_time_series.max_polymarket_window)
+        in
+        let windows = (cursor, window_finish) :: windows in
+        match Time_ns.( >= ) window_finish finish with
+        | true -> List.rev windows
+        | false -> slice window_finish windows
+      in
+      slice start []
     in
+    let%bind.Deferred.Or_error bodies =
+      Deferred.Or_error.List.map
+        windows
+        ~how:`Sequential
+        ~f:(fun (start, finish) ->
+          Fetch_time_series.fetch_polymarket_data
+            market_stub
+            ~start
+            ~finish
+            ~interval)
+    in
+    let points =
+      List.concat_map
+        bodies
+        ~f:Time_series_parser.parse_polymarket_time_series
+    in
+    (* A point on a window boundary can come back in both neighbors. *)
     Deferred.Or_error.return
-      (Time_series_parser.parse_polymarket_time_series response_body)
+      (List.remove_consecutive_duplicates
+         points
+         ~equal:(fun (a : Time_series.Point.t) b ->
+           Time_ns.equal a.time b.time))
 ;;
 
 let fetch_one_ticker_history

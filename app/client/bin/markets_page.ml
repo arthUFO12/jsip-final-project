@@ -18,10 +18,11 @@ let volume_string (card : Card.t) =
   match card.volume with
   | None -> "volume unreported"
   | Some (Contracts contracts) ->
-    let count = Int.to_string_hum ~delimiter:',' (Size.to_int contracts) in
+    let count = Int.to_string_hum ~delimiter:',' contracts in
     [%string "%{count} contracts"]
-  | Some (Notional dollars) ->
-    [%string "%{Price.to_string_dollar dollars} traded"]
+  | Some (Notional_dollars dollars) ->
+    let dollars = Float.to_string_hum ~decimals:2 ~delimiter:',' dollars in
+    [%string "$%{dollars} traded"]
 ;;
 
 let card_view ~on_select (card : Card.t) =

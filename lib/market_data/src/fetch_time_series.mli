@@ -30,8 +30,14 @@ val fetch_kalshi_data
   -> interval:Time_series.Interval.t
   -> string Deferred.Or_error.t
 
+(** The widest [start..finish] span /prices-history accepts per request (at
+    any fidelity); it serves windows this wide arbitrarily far back, so
+    callers stitch longer ranges from consecutive windows. *)
+val max_polymarket_window : Time_ns.Span.t
+
 (** Fetch yes-price history for a Polymarket market from clob
-    /prices-history. Raises if the stub lacks [clob_token_id]. *)
+    /prices-history, one request — [finish - start] must be at most
+    {!max_polymarket_window}. Raises if the stub lacks [clob_token_id]. *)
 val fetch_polymarket_data
   :  Market_stub.t
   -> start:Time_ns.t

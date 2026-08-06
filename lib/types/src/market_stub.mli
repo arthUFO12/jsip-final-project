@@ -15,4 +15,9 @@ type t =
   }
 [@@deriving sexp]
 
+(** The venue can serve this market's price history: Kalshi candlesticks need
+    [series_ticker], Polymarket's prices-history needs [clob_token_id].
+    Polymarket serves prices only — no per-candle volume. *)
+val can_fetch_history : t -> bool
+
 val to_string : t -> string

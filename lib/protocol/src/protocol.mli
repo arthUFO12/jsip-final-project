@@ -18,6 +18,24 @@ open Types
 (** [Time_ns.t] as wire seconds. *)
 val epoch_seconds : Time_ns.t -> float
 
+module Volume : sig
+  (** Traded volume, mirrored from {!Types.Volume} as a wire type: that
+      type's [Notional] payload is microcents in a 63-bit int, which
+      overflows js_of_ocaml's 32-bit client ints — so dollars ride the wire
+      as floats. The constructor still records the venue's unit (Kalshi
+      counts contracts, Polymarket reports USD notional). *)
+  type t =
+    | Contracts of int
+    | Notional_dollars of float
+  [@@deriving sexp_of, bin_io, compare, equal]
+
+  val of_venue_volume : Types.Volume.t -> t
+
+  (** The bare magnitude, for ranking markets by activity — only meaningful
+      as an ordering key, the units differ across constructors. *)
+  val to_float : t -> float
+end
+
 module Market_card : sig
   (** What the market-browser page needs to render one market — a
       display-focused projection of {!Market_stub.t}. *)
@@ -27,8 +45,10 @@ module Market_card : sig
     ; category : Category.t
     ; volume : Volume.t option
     ; has_price_history : bool
-    (** Only markets with price history can be backtested — the bot builder's
-        search offers just these. *)
+    (** The venue can serve this market's price history
+        ({!Market_stub.can_fetch_history}), so it can be charted in the
+        detail popup and backtested. Polymarket history carries no per-candle
+        volume, so its popup shows no volume chart. *)
     }
   [@@deriving sexp_of, bin_io, compare, equal]
 
