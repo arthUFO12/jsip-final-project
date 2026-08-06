@@ -24,6 +24,9 @@ val fetch_l1_market_data
     many markets can skip the bad ones. *)
 val fetch_book : Market_stub.t -> Binary_book.t Deferred.Or_error.t
 
+(** One market's price history over [start..finish]. Polymarket's endpoint
+    caps each request at 15 days, so longer ranges are fetched as consecutive
+    windows and stitched into one series. *)
 val fetch_one_ticker_series
   :  Market_stub.t
   -> start:Time_ns.t

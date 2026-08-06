@@ -131,7 +131,8 @@ let validate
 ;;
 
 (* The seed is the market universe: a slug the client sends must resolve
-   there, and only stubs with a series ticker can serve price history. *)
+   there, and only stubs whose venue can serve price history are simulatable
+   ({!Market_stub.can_fetch_history}). *)
 let resolve_stubs slugs =
   Deferred.Or_error.List.map slugs ~how:`Sequential ~f:(fun slug ->
     match%bind.Deferred.Or_error
@@ -141,12 +142,12 @@ let resolve_stubs slugs =
       Deferred.return
         (Or_error.error_s [%message "unknown market" (slug : Slug.t)])
     | Some stub ->
-      (match stub.series_ticker with
-       | None ->
+      (match Market_stub.can_fetch_history stub with
+       | false ->
          Deferred.return
            (Or_error.error_s
               [%message "market cannot serve price history" (slug : Slug.t)])
-       | Some (_ : Slug.t) -> Deferred.Or_error.return stub))
+       | true -> Deferred.Or_error.return stub))
 ;;
 
 let fill_of_response (response : Action_response.t) : Protocol.Fill.t =

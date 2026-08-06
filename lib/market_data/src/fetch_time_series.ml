@@ -106,6 +106,12 @@ let fetch_live_kalshi_data
   request_helper url
 ;;
 
+(* prices-history rejects windows wider than this ("'startTs' and 'endTs'
+   interval is too long", at any fidelity), but serves windows this wide
+   arbitrarily far back — callers stitch longer ranges from consecutive
+   windows. *)
+let max_polymarket_window = Time_ns.Span.of_day 15.
+
 let fetch_polymarket_data
   (market_stub : Market_stub.t)
   ~(start : Time_ns.t)

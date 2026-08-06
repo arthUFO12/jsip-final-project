@@ -15,6 +15,12 @@ type t =
   }
 [@@deriving sexp]
 
+let can_fetch_history t =
+  match (t.venue : Venue.t) with
+  | Kalshi -> Option.is_some t.series_ticker
+  | Polymarket -> Option.is_some t.clob_token_id
+;;
+
 let to_string t =
   [%string
     "venue: %{t.venue#Venue}, market_id: %{t.market_id#Market_id}, slug: \

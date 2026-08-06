@@ -5,7 +5,7 @@ open Types
 let volume_key (card : Protocol.Market_card.t) =
   match card.volume with
   | None -> Float.neg_infinity
-  | Some volume -> Protocol.Market_card.Volume.to_float volume
+  | Some volume -> Protocol.Volume.to_float volume
 ;;
 
 let descending_volume left right =

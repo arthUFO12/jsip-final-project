@@ -6,6 +6,27 @@ let epoch_seconds time =
   Time_ns.to_span_since_epoch time |> Time_ns.Span.to_sec
 ;;
 
+(* Mirrors {!Types.Volume} as a wire type: its [Notional] payload is a
+   [Price.t] — microcents in a 63-bit int — which overflows js_of_ocaml's
+   32-bit ints for any notional over ~$21. Money rides the wire as float
+   dollars, per this library's conventions. *)
+module Volume = struct
+  type t =
+    | Contracts of int
+    | Notional_dollars of float
+  [@@deriving sexp_of, bin_io, compare, equal]
+
+  let of_venue_volume : Types.Volume.t -> t = function
+    | Contracts size -> Contracts (Size.to_int size)
+    | Notional price -> Notional_dollars (Price.to_dollar_float price)
+  ;;
+
+  let to_float = function
+    | Contracts count -> Float.of_int count
+    | Notional_dollars dollars -> dollars
+  ;;
+end
+
 module Market_card = struct
   module Volume = struct
     (* [Types.Volume.t] carries a microcent [Price.t], which overflows the
@@ -40,8 +61,8 @@ module Market_card = struct
     { slug = stub.slug
     ; title = stub.title
     ; category = stub.category
-    ; volume = Option.map stub.volume ~f:Volume.of_domain
-    ; has_price_history = Option.is_some stub.series_ticker
+    ; volume = Option.map stub.volume ~f:Volume.of_venue_volume
+    ; has_price_history = Market_stub.can_fetch_history stub
     }
   ;;
 end
@@ -417,7 +438,7 @@ end
 let get_markets =
   Rpc.Rpc.create
     ~name:"get-markets"
-    ~version:0
+    ~version:1
     ~bin_query:[%bin_type_class: unit]
     ~bin_response:[%bin_type_class: Market_card.t list Or_error.t]
     ~include_in_error_count:Or_error

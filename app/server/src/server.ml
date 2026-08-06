@@ -162,12 +162,14 @@ let get_market_detail slug : Protocol.Market_detail.t Deferred.Or_error.t =
       Deferred.return
         (Or_error.error_s [%message "unknown market" (slug : Slug.t)])
     | Some stub ->
-      (match stub.series_ticker with
-       | None ->
+      (* The gateway would raise on a missing venue key rather than return an
+         error. *)
+      (match Market_stub.can_fetch_history stub with
+       | false ->
          Deferred.return
            (Or_error.error_s
               [%message "market cannot serve price history" (slug : Slug.t)])
-       | Some (_ : Slug.t) -> return stub)
+       | true -> return stub)
   in
   let now = Time_ns.now () in
   let%bind prices, volumes =
